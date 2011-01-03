@@ -44,7 +44,7 @@ class Reactor(object):
     A reactor is an object that manages network channels and maintains
     consistent network activity on those channels' sockets.
     """
-    #: Socket events - these correspond roughly to epoll() states.
+    #: Socket events - these correspond to epoll() states.
     NONE = 0x00
     READ = 0x01
     WRITE = 0x04
@@ -69,7 +69,6 @@ class Reactor(object):
             self._poll = _Select()
         
         self._channels = {}
-        self._events = {}
     
     ##### Channel Methods ###################################################
     
@@ -100,7 +99,6 @@ class Reactor(object):
             channel - A channel object.
         """
         self._channels.pop(channel.fileno, None)
-        self._events.pop(channel.fileno, None)
         
         try:
             self._poll.remove(channel.fileno)
@@ -125,9 +123,7 @@ class Reactor(object):
             else:
                 raise
         
-        self._events.update(events)
-        
-        for fileno, events in self._events.items():
+        for fileno, events in events.items():
             try:
                 self._channels[fileno]._handle_events(events)
             except (IOError, OSError), err:
@@ -155,7 +151,6 @@ class _EPoll(object):
         Initialises the _EPoll object.
         """
         self._epoll = select.epoll()
-        self._events = {}
     
     def add(self, fileno, events):
         """
@@ -166,7 +161,6 @@ class _EPoll(object):
             events - The events the socket is listening for.
         """
         self._epoll.register(fileno, events)
-        self._events[fileno] = events
     
     def modify(self, fileno, events):
         """
@@ -176,10 +170,6 @@ class _EPoll(object):
             fileno - The socket's file number.
             events - The events the socket is listening for.
         """
-        if events == self._events[fileno]:
-            # Save a tiny amount of time.
-            return
-        
         self._epoll.modify(fileno, events)
     
     def remove(self, fileno):
@@ -190,7 +180,6 @@ class _EPoll(object):
             fileno - The socket's file number.
         """
         self._epoll.unregister(fileno)
-        self._events.pop(fileno, None)
     
     def poll(self, timeout):
         """
@@ -225,7 +214,6 @@ class _KQueue(object):
         Initialises the _KQueue object.
         """
         self._kqueue = select.kqueue()
-        self._events = {}
     
     def add(self, fileno, events):
         """
@@ -236,7 +224,6 @@ class _KQueue(object):
             events - The events the socket is listening for.
         """
         self._control(fileno, events, select.KQ_EV_ADD)
-        self._events[fileno] = events
     
     def modify(self, fileno, events):
         """
@@ -256,7 +243,6 @@ class _KQueue(object):
         Parameters:
             fileno - The socket's file number.
         """
-        events = self._events.pop(fileno)
         self._control(fileno, events, select.KQ_EV_DELETE)
     
     def poll(self, timeout):
