@@ -53,8 +53,7 @@ class Scheduler(object):
         """
         Update all callbacks, deferreds and cycles on the scheduler.
         """
-        callbacks = self._callbacks[:]
-        for callback in callbacks:
+        for callback in self._callbacks[:]:
             if callback in self._callbacks:
                 self._callbacks.remove(callback)
                 callback.run()
