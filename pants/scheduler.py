@@ -120,11 +120,11 @@ class Scheduler(object):
         Parameters:
             obj - The callback, deferred or cycle to remove.
         """
-        if isinstance(obj, Callback):
-            self._callbacks.remove(obj)
-        else:
+        if isinstance(obj, Deferred):
             while obj in self._deferreds:
                 self._deferreds.remove(obj)
+        else:
+            self._callbacks.remove(obj)
 
 
 ###############################################################################
