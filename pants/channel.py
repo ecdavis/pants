@@ -353,7 +353,7 @@ class Channel(object):
         
         if not data:
             # A closed connection is signalled by a read condition
-            # and having recv() return 0.
+            # and having recv() return an empty string.
             self.close_immediately()
             return ''
         else:
