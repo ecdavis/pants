@@ -479,6 +479,8 @@ class Channel(object):
             
             self._safely_call(self._handle_connect_event())
         
+        self._safely_call(self.handle_write)
+        
         while self._write_buffer:
             # Empty as much of the write buffer as possible.
             sent = self.socket_send(self._write_buffer)
@@ -486,9 +488,6 @@ class Channel(object):
             if sent == 0:
                 break
             self._write_buffer = self._write_buffer[sent:]
-        
-        if not self._write_buffer:
-            self._safely_call(self.handle_write)
     
     def _safely_call(self, callable, *args, **kwargs):
         try:
