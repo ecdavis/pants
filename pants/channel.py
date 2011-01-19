@@ -243,7 +243,7 @@ class Channel(object):
             elif err[0] in (0, errno.EISCONN):
                 # 0: No error.
                 # EISCONN: Transport endpoint is already connected.
-                self._safely_call(self.handle_connect)
+                self._handle_connect_event()
             else:
                 raise
     
@@ -369,6 +369,8 @@ class Channel(object):
         if events & self.reactor.READ:
             if self.listening:
                 self._handle_accept_event()
+            elif not self.connected:
+                self._handle_connect_event()
             else:
                 self._handle_read_event()
             if not self.active():
@@ -407,12 +409,11 @@ class Channel(object):
             
             self._safely_call(self.handle_accept, sock, addr)
     
+    def _handle_connect_event(self):
+        self.connected = True
+        self._safely_call(self.handle_connect)
+    
     def _handle_read_event(self):
-        if not self.connected:
-            # Connected to remote host.
-            self.connected = True
-            self._safely_call(self.handle_connect)
-        
         # Receive incoming data.
         while True:
             data = self.socket_recv()
@@ -476,7 +477,7 @@ class Channel(object):
                 
                 raise socket.error(e, errstr)
             
-            self._safely_call(self.handle_connect)
+            self._safely_call(self._handle_connect_event())
         
         while self._write_buffer:
             # Empty as much of the write buffer as possible.
