@@ -364,7 +364,6 @@ class Channel(object):
     def _handle_events(self, events):
         if not self.active():
             log.warning("Received events for closed channel %d." % self.fileno)
-            return
         
         # Handle events.
         if events & self.reactor.READ:
