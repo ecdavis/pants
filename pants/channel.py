@@ -425,7 +425,7 @@ class Channel(object):
         while self._read_buffer:
             delimiter = self._read_delimiter
             
-            if not delimiter:
+            if delimiter is None:
                 data = self._read_buffer
                 self._read_buffer = ""
                 self._safely_call(self.handle_read, data)
@@ -437,7 +437,7 @@ class Channel(object):
                 data = self._read_buffer[:delimiter]
                 self._read_buffer = self._read_buffer[delimiter:]
                 # TODO Reset delimiter here?
-                self._safely_call(self._handle_read, data)
+                self._safely_call(self.handle_read, data)
                 
             elif isinstance(delimiter, basestring):
                 mark = self._read_buffer.find(delimiter)
