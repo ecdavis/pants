@@ -26,7 +26,6 @@ from pants.engine import engine
 from pants.network import Client, Connection, Server
 from pants.publisher import publisher
 from pants.reactor import reactor
-from pants.scheduler import scheduler
 
 
 ###############################################################################
@@ -37,7 +36,7 @@ __all__ = [
     "engine", # Core
     "Client", "Connection", "reactor", "Server", # Networking
     "event", "publish", # Publisher
-    "callback", "cycle", "defer", # Scheduler
+    "callback", "cycle", "defer", # Scheduling
     ]
 
 
@@ -51,14 +50,14 @@ event = publisher.event
 #: Alias for pants.publisher.publisher.publish
 publish = publisher.publish
 
-#: Alias for pants.scheduler.scheduler.callback
-callback = scheduler.callback
+#: Alias for pants.engine.engine.callback
+callback = engine.callback
 
-#: Alias for pant.scheduler.scheduler.defer
-defer = scheduler.defer
+#: Alias for pant.engine.engine.defer
+defer = engine.defer
 
-#: Alias for pants.scheduler.scheduler.cycle
-cycle = scheduler.cycle
+#: Alias for pants.engine.engine.cycle
+cycle = engine.cycle
 
 
 ###############################################################################
