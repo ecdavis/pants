@@ -32,6 +32,9 @@ from pants.reactor import reactor
 # Exports
 ###############################################################################
 
+__author__ = "Christopher Davis"
+__version__ = "0.9.2"
+
 __all__ = [
     "engine", # Core
     "Client", "Connection", "reactor", "Server", # Networking
