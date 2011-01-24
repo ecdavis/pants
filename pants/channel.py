@@ -231,6 +231,7 @@ class Channel(object):
         
         try:
             self.socket.connect((host, port))
+            self.events |= self.reactor.WRITE
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -458,16 +459,15 @@ class Channel(object):
     
     def _handle_write_event(self):
         if self.listening:
-            # This should never be allowed to happen.
             log.warning("Received write event for listening channel %d." % self.fileno)
             return
         
         if not self.connected:
-            # As above, this should never be allowed to happen.
-            log.warning("Received write event for closed channel %d." % self.fileno)
-            
+            # socket.connect() has completed, returning either 0 or an errno.
             err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-            if err != 0:
+            if err == 0:
+                self._safely_call(self._handle_connect_event())
+            else:
                 errstr = "Unknown error %" % e
                 try:
                     errstr = os.strerror(e)
@@ -477,7 +477,11 @@ class Channel(object):
                 
                 raise socket.error(e, errstr)
             
-            self._safely_call(self._handle_connect_event())
+            # Write events are raised on clients when they initially
+            # connect. In these circumstances, we may not need to write
+            # any data.
+            if not self.writable():
+                return
         
         self._safely_call(self.handle_write)
         
