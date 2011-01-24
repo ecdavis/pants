@@ -37,8 +37,8 @@ __version__ = "0.9.2"
 
 __all__ = [
     "engine", # Core
-    "Client", "Connection", "reactor", "Server", # Networking
-    "event", "publish", # Publisher
+    "Client", "Connection", "Server", # Networking
+    "event", "publish", "subscribe", "unsubscribe", # Publisher
     "callback", "cycle", "defer", # Scheduling
     ]
 
@@ -52,6 +52,12 @@ event = publisher.event
 
 #: Alias for pants.publisher.publisher.publish
 publish = publisher.publish
+
+#: Alias for pants.publisher.publisher.subscribe
+subscribe = publisher.subscribe
+
+#: Alias for pants.publisher.publisher.unsubscribe
+unsubscribe = publisher.unsubscribe
 
 #: Alias for pants.engine.engine.callback
 callback = engine.callback
