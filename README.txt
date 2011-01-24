@@ -16,4 +16,4 @@ To install:
 
 Alternatively, using setuptools:
 
-    easy_install pants
+    easy_install -U pants
