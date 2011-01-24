@@ -48,9 +48,9 @@ class Publisher(object):
         Parameters:
             event - The event identifier, typically a string.
         """
-        def decorator(func):
-            self.subscribe(event, func)
-            return func
+        def decorator(handler):
+            self.subscribe(event, handler)
+            return handler
         
         return decorator
     
@@ -66,27 +66,27 @@ class Publisher(object):
         if not event in self._events:
             return
         
-        for func in self._events[event]:
+        for handler in self._events[event]:
             try:
-                func(*args, **kwargs)
+                handler(*args, **kwargs)
             except Exception:
                 log.exception("Exception raised while executing event.")
     
-    def subscribe(self, event, func):
+    def subscribe(self, event, handler):
         """
         Subscribe a callable to an event.
         
         Parameters:
             event - The event identifier, typically a string.
-            func - A callable that will be executed whenever the event
-                is published.
+            handler - A callable that will be executed whenever the
+                event is published.
         """
         if not event in self._events:
             self._events[event] = []
         
-        self._events[event].append(func)
+        self._events[event].append(handler)
     
-    def unsubscribe(self, event=None, func=None):
+    def unsubscribe(self, event=None, handler=None):
         """
         Unsubscribe a callable from an event.
         
@@ -102,14 +102,14 @@ class Publisher(object):
         
         Parameters:
             event - The event identifier, typically a string.
-            func - A callable subscribed to some number of events.
+            handler - A callable subscribed to some number of events.
         """
         if event is None:
             self._events = {}
-        elif func is None:
+        elif handler is None:
             self._events[event] = []
         else:
-            self._events[event].remove(func)
+            self._events[event].remove(handler)
 
 
 ###############################################################################
