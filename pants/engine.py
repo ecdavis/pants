@@ -102,17 +102,19 @@ class Engine(object):
                 reactor.poll(poll_timeout)
                 publisher.publish("pants.engine.poll")
                 
-        except (KeyboardInterrupt, SystemExit):
+        except KeyboardInterrupt:
             pass
+        except SystemExit:
+            raise
         except Exception:
             log.exception("Uncaught exception in main loop.")
-        
-        # Graceful shutdown.
-        log.info("Stopping engine.")
-        publisher.publish("pants.engine.stop")
-        
-        log.info("Shutting down.")
-        self._shutdown = False # If we decide to start up again.
+        finally:       
+            # Graceful shutdown.
+            log.info("Stopping engine.")
+            publisher.publish("pants.engine.stop")
+            
+            log.info("Shutting down.")
+            self._shutdown = False # If we decide to start up again.
     
     def stop(self):
         """
