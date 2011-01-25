@@ -25,7 +25,7 @@ import select
 
 from pants.shared import log
 
-#: Detect which system calls are available.
+# Detect which system calls are available.
 _use_epoll, _use_kqueue = False, False
 if hasattr(select, "epoll"):
     _use_epoll = True
@@ -39,12 +39,10 @@ elif hasattr(select, "kqueue"):
 
 class Reactor(object):
     """
-    The reactor class.
-    
-    A reactor is an object that manages network channels and maintains
-    consistent network activity on those channels' sockets.
+    An object that manages network channels and maintains consistent
+    network activity on those channels' sockets.
     """
-    #: Socket events - these correspond to epoll() states.
+    # Socket events - these correspond to epoll() states.
     NONE = 0x00
     READ = 0x01
     WRITE = 0x04
@@ -54,10 +52,9 @@ class Reactor(object):
         """
         Initialises the reactor.
         
-        Parameters:
-            poll - The polling object to be used by the reactor. This
-                defaults to _EPoll on Linux 2.6+, _KQueue on BSD and
-                _Select on all other operating systems.
+        :param poll: The polling object to be used by the reactor. This
+            defaults to epoll on Linux 2.6+, kqueue on BSD and select on
+            all other operating systems.
         """
         if poll:
             self._poll = poll
@@ -76,27 +73,27 @@ class Reactor(object):
         """
         Adds a channel to the reactor.
         
-        Parameters:
-            channel - A channel object.
+        :param channel: The channel to add.
+        :type channel: :class:`pants.channel.Channel`
         """
         self._channels[channel.fileno] = channel
-        self._poll.add(channel.fileno, channel.events)
+        self._poll.add(channel.fileno, channel._events)
     
     def modify_channel(self, channel):
         """
         Modifies a channel's state.
         
-        Parameters:
-            channel - A channel object.
+        :param channel: The channel to mofify.
+        :type channel: :class:`pants.channel.Channel`
         """
-        self._poll.modify(channel.fileno, channel.events)
+        self._poll.modify(channel.fileno, channel._events)
     
     def remove_channel(self, channel):
         """
         Removes a channel from the reactor.
         
-        Parameters:
-            channel - A channel object.
+        :param channel: The channel to remove.
+        :type channel: :class:`pants.channel.Channel`
         """
         self._channels.pop(channel.fileno, None)
         
@@ -113,6 +110,10 @@ class Reactor(object):
         
         Identifies active sockets, then reads from, writes to and raises
         exceptions on those sockets.
+        
+        :param timeout: The timeout to be passed to the polling object.
+            Defaults to 0.02.
+        :type timeout: float
         """
         try:
             events = self._poll.poll(timeout)
@@ -145,48 +146,22 @@ class Reactor(object):
 class _EPoll(object):
     """
     An epoll()-based polling object.
+    
+    epoll() can only be used on Linux 2.6+
     """
     def __init__(self):
-        """
-        Initialises the _EPoll object.
-        """
         self._epoll = select.epoll()
     
     def add(self, fileno, events):
-        """
-        Adds a socket to the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         self._epoll.register(fileno, events)
     
     def modify(self, fileno, events):
-        """
-        Modifies a registered socket's state.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         self._epoll.modify(fileno, events)
     
     def remove(self, fileno):
-        """
-        Removes a socket from the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-        """
         self._epoll.unregister(fileno)
     
     def poll(self, timeout):
-        """
-        Uses the epoll() system call to identify active sockets.
-        
-        epoll() can only be used on Linux 2.6+
-        """
         epoll_events = self._epoll.poll(timeout)
         events = {}
         
@@ -208,49 +183,23 @@ class _EPoll(object):
 class _KQueue(object):
     """
     A kqueue()-based polling object.
+    
+    kqueue() can only be used on BSD.
     """
     def __init__(self):
-        """
-        Initialises the _KQueue object.
-        """
         self._kqueue = select.kqueue()
     
     def add(self, fileno, events):
-        """
-        Adds a socket to the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         self._control(fileno, events, select.KQ_EV_ADD)
     
     def modify(self, fileno, events):
-        """
-        Modifies a registered socket's state.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         self.remove(fileno)
         self.add(fileno, events)
     
     def remove(self, fileno):
-        """
-        Removes a socket from the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-        """
         self._control(fileno, events, select.KQ_EV_DELETE)
     
     def poll(self, timeout):
-        """
-        Uses the kqueue() system call to identify active sockets.
-        
-        kqueue() can only be used on BSD
-        """
         kqueue_events = self._kqueue.control(None, 1024, timeout)
         events = {}
         
@@ -290,23 +239,16 @@ class _KQueue(object):
 class _Select(object):
     """
     A select()-based polling object.
+    
+    select()'s performance is relatively poor. On Windows, it is limited
+    to 512 file descriptors.
     """
     def __init__(self):
-        """
-        Initialises the _Select object.
-        """
         self._r = set()
         self._w = set()
         self._e = set()
     
     def add(self, fileno, events):
-        """
-        Adds a socket to the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         if events & Reactor.READ:
             self._r.add(fileno)
         if events & Reactor.WRITE:
@@ -315,34 +257,15 @@ class _Select(object):
             self._e.add(fileno)
     
     def modify(self, fileno, events):
-        """
-        Modifies a registered socket's state.
-        
-        Parameters:
-            fileno - The socket's file number.
-            events - The events the socket is listening for.
-        """
         self.remove(fileno)
         self.add(fileno, events)
     
     def remove(self, fileno):
-        """
-        Removes a socket from the polling object.
-        
-        Parameters:
-            fileno - The socket's file number.
-        """
         self._r.discard(fileno)
         self._w.discard(fileno)
         self._e.discard(fileno)
     
     def poll(self, timeout):
-        """
-        Uses the select() system call to identify active sockets.
-        
-        select()'s performance is relatively poor. On Windows, it is
-        limited to 512 file descriptors.
-        """
         r, w, e, = select.select(self._r, self._w, self._e, timeout)
         
         events = {}

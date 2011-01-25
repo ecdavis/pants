@@ -48,54 +48,66 @@ class Channel(object):
         """
         Initialises the channel object.
         
-        Parameters:
-            socket - A pre-existing socket that this channel should
-                wrap. Optional.
+        :param socket: A pre-existing socket that this channel should
+            wrap. Optional.
+        :type socket: :class:`socket.socket`
+        :param parent: The reactor that this channel should be attached
+            to. Optional.
+        :type parent: :class:`pants.reactor.Reactor`
         """
         # Socket
-        self.socket = socket or self.socket_create()
-        self.socket.setblocking(False)
-        self.fileno = self.socket.fileno()
+        self._socket = socket or self._socket_create()
+        self._socket.setblocking(False)
+        #: The file descriptor of this channel's raw socket.
+        self.fileno = self._socket.fileno()
         
-        # State
-        self.connected = False
-        self.listening = False
-        self.closing = False
+        # Internal state
+        self._connected = False
+        self._listening = False
+        self._closing = False
         
         # Reactor
-        self.reactor = parent or reactor
+        self._reactor = parent or reactor
         
         # I/O
+        #: The channel's read delimiter - may be a string, a positive
+        #: integer or None.
+        self.read_delimiter = None
         self._read_amount = 4096
-        self._read_delimiter = None # str, int or None
         self._read_buffer = ""
         self._write_buffer = ""
         
         # Initialisation
-        self.events = self.reactor.ERROR
+        self._events = self._reactor.ERROR
         if self.readable():
-            self.events |= self.reactor.READ
+            self._events |= self._reactor.READ
         if self.writable():
-            self.events |= self.reactor.WRITE
-        self.reactor.add_channel(self)
+            self._events |= self._reactor.WRITE
+        self._reactor.add_channel(self)
     
     ##### General Methods ###################################################
     
     def active(self):
         """
-        Returns True if the channel is currently active.
+        Check if the channel is currently active.
+        
+        :returns: bool
         """
-        return self.socket and (self.connected or self.listening)
+        return self._socket and (self._connected or self._listening)
     
     def readable(self):
         """
-        Returns True if the channel is currently readable.
+        Check if the channel is currently readable.
+        
+        :returns: bool
         """
         return True
     
     def writable(self):
         """
-        Returns True if the channel is currently readable.
+        Check if the channel is currently writable.
+        
+        :returns: bool
         """
         return len(self._write_buffer) > 0
     
@@ -103,25 +115,28 @@ class Channel(object):
         """
         Connects to the given host and port.
         
-        Parameters:
-            host - A string hostname to connect to.
-            port - An integer port to connect to the host on.
+        :param host: The hostname to connect to.
+        :type host: str
+        :param port: The port on which to connect.
+        :type port: int
         """
-        self.socket_connect(host, port)
+        self._socket_connect(host, port)
     
     def listen(self, port=8080, host='', backlog=1024):
         """
         Begins listening on the given host and port.
         
-        Parameters:
-            port - An integer port to listen on. Defaults to 8080.
-            host - A string hostname to listen on. Defaults to ''.
-            backlog - The number of new connections kept in the backlog.
-                Defaults to 1024. 5 is the upper limit on Windows.
+        :param port: The port on which to listen. Defaults to 8080.
+        :type port: int
+        :param host: The hostname to listen on. Defaults to ''.
+        :type host: str
+        :param backlog: The maximum number of queued connections.
+            Defaults to 1024.
+        :type backlog: int
         """
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket_bind(host, port)
-        self.socket_listen(backlog)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._socket_bind(host, port)
+        self._socket_listen(backlog)
     
     def close(self):
         """
@@ -134,7 +149,7 @@ class Channel(object):
             return
         
         if self.writable():
-            self.closing = True
+            self._closing = True
         else:
             self.close_immediately()
     
@@ -147,37 +162,49 @@ class Channel(object):
         if not self.active():
             return
         
-        self.reactor.remove_channel(self)
-        self.socket_close()
+        self._reactor.remove_channel(self)
+        self._socket_close()
         self._safely_call(self.handle_close)
     
     ##### I/O Methods #########################################################
+    
+    def send(self, data):
+        """
+        A wrapper for :func:`pants.channel.Channel.write` that can be
+        safely overridden.
+        
+        :param data: The data to be sent.
+        :type data: str
+        """
+        self.write(data)
     
     def write(self, data):
         """
         Writes data to the socket.
         
-        Parameters:
-            data - A string containing the data to be sent to the
-                socket.
+        :param data: The data to be sent.
+        :type data: str
         """
         if not self.active():
             raise IOError("Attempted to write to closed channel %d." % self.fileno)
-        if self.closing:
+        if self._closing:
             log.warning("Attempted to write to closing channel %d." % self.fileno)
             return
         
         self._write_buffer += data
         
-        if not self.events & self.reactor.WRITE:
-            self.events |= self.reactor.WRITE
-            self.reactor.modify_channel(self)
+        if not self._events & self._reactor.WRITE:
+            self._events |= self._reactor.WRITE
+            self._reactor.modify_channel(self)
     
     ##### Public Event Handlers ###############################################
     
     def handle_read(self, data):
         """
         Placeholder. Called when the channel is ready to receive data.
+        
+        :param data: The chunk of received data.
+        :type data: str
         """
         pass
     
@@ -191,6 +218,12 @@ class Channel(object):
         """
         Placeholder. Called when a new connection has been made to the
         channel.
+        
+        :param sock: The newly-connected raw socket.
+        :type sock: :class:`socket.socket`
+        :param addr: The address bound to the socket on the other end of the
+            connection.
+        :type addr: tuple
         """
         pass
     
@@ -209,29 +242,28 @@ class Channel(object):
     
     ##### Socket Method Wrappers ##############################################
     
-    def socket_create(self, family=socket.AF_INET, type=socket.SOCK_STREAM):
+    def _socket_create(self, family=socket.AF_INET, type=socket.SOCK_STREAM):
         """
-        Creates a new socket with the given family and type.
-        
-        Parameters:
-            family - The socket family. Defaults to AF_INET.
-            type - The socket type. Defaults to SOCK_STREAM.
+        :param family: The address family. Defaults to socket.AF_INET.
+        :type family: int
+        :param type: The socket type. Defaults to socket.SOCK_STREAM.
+        :type type: int
+        :returns: A new socket object.
         """
         return socket.socket(family, type)
     
-    def socket_connect(self, host, port):
+    def _socket_connect(self, host, port):
         """
-        Connects the socket to the given host and port.
-        
-        Parameters:
-            host - A string hostname to connect to.
-            port - An integer port to connect to the host on.
+        :param host: The hostname to connect to.
+        :type host: str
+        :param port: The port on which to connect.
+        :type port: int
         """
-        self.connected = False
+        self._connected = False
         
         try:
-            self.socket.connect((host, port))
-            self.events |= self.reactor.WRITE
+            self._socket.connect((host, port))
+            self._events |= self._reactor.WRITE
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -248,38 +280,35 @@ class Channel(object):
             else:
                 raise
     
-    def socket_listen(self, backlog=5):
+    def _socket_listen(self, backlog=5):
         """
-        Starts the socket listening, if it has been bound.
+        :param backlog: The maximum number of queued connections.
+        :type backlog: int
         """
-        self.listening = True
+        self._listening = True
         
         if os.name == "nt" and backlog > 5:
             backlog = 5
         
-        return self.socket.listen(backlog)
+        self._socket.listen(backlog)
     
-    def socket_bind(self, host, port):
+    def _socket_bind(self, host, port):
         """
-        Binds the socket to the given host and port.
-        
-        Parameters:
-            host - A string hostname to bind to.
-            port - An integer port to bind on.
+        :param host: The hostname to bind to.
+        :type host: str
+        :param port: The port on which to bind.
+        :type port: int
         """
-        return self.socket.bind((host, port))
+        self._socket.bind((host, port))
     
-    def socket_close(self):
-        """
-        Closes the socket's connection.
-        """
-        self.connected = False
-        self.listening = False
+    def _socket_close(self):
+        self._connected = False
+        self._listening = False
         
         try:
-            self.socket.close()
+            self._socket.close()
         except AttributeError:
-            # self.socket is None - closed already.
+            # self._socket is None - closed already.
             return
         except socket.error, err:
             if err[0] in (errno.EBADF, errno.ENOTCONN):
@@ -289,14 +318,15 @@ class Channel(object):
             else:
                 raise
         finally:
-            self.socket = None
+            self._socket = None
     
-    def socket_accept(self):
+    def _socket_accept(self):
         """
-        Accepts a new connection to the socket.
+        :returns: A 2-tuple ``(sock, addr)``. ``sock`` is ``None`` if an
+            exception was raised.
         """
         try:
-            return self.socket.accept()
+            return self._socket.accept()
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -305,15 +335,14 @@ class Channel(object):
             else:
                 raise
     
-    def socket_send(self, data):
+    def _socket_send(self, data):
         """
-        Sends raw data to the socket.
-        
-        Parameters:
-            data - A string containing the data to be sent.
+        :param data: The data to send.
+        :type data: str
+        :returns: The number of bytes sent.
         """
         try:
-            return self.socket.send(data)
+            return self._socket.send(data)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -330,12 +359,12 @@ class Channel(object):
             else:
                 raise
     
-    def socket_recv(self):
+    def _socket_recv(self):
         """
-        Reads raw data from the socket.
+        :returns: The data received.
         """
         try:
-            data = self.socket.recv(self._read_amount)
+            data = self._socket.recv(self._read_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -363,47 +392,54 @@ class Channel(object):
     ##### Internal Event Handlers #############################################
     
     def _handle_events(self, events):
-        if not self.active():
+        """
+        :param events: Events raised on the channel.
+        :type events: int
+        """
+        if self._socket is None:
             log.warning("Received events for closed channel %d." % self.fileno)
+            return
+        elif not self.active():
+            log.debug("Received events for closed channel %d." % self.fileno)
         
         # Handle events.
-        if events & self.reactor.READ:
-            if self.listening:
+        if events & self._reactor.READ:
+            if self._listening:
                 self._handle_accept_event()
-            elif not self.connected:
+            elif not self._connected:
                 self._handle_connect_event()
             else:
                 self._handle_read_event()
             if not self.active():
                 return
         
-        if events & self.reactor.WRITE:
+        if events & self._reactor.WRITE:
             self._handle_write_event()
             if not self.active():
                 return
         
-        if events & self.reactor.ERROR:
+        if events & self._reactor.ERROR:
             self.close_immediately()
             return
         
         # Update events.
-        events = self.reactor.ERROR
+        events = self._reactor.ERROR
         if self.readable():
-            events |= self.reactor.READ
+            events |= self._reactor.READ
         if self.writable():
-            events |= self.reactor.WRITE
-        elif self.closing:
+            events |= self._reactor.WRITE
+        elif self._closing:
             # Done writing? Close.
             self.close_immediately()
             return
         
-        if events != self.events:
-            self.events = events
-            self.reactor.modify_channel(self)
+        if events != self._events:
+            self._events = events
+            self._reactor.modify_channel(self)
     
     def _handle_accept_event(self):
         while True:
-            sock, addr = self.socket_accept()
+            sock, addr = self._socket_accept()
             
             if sock is None:
                 return
@@ -411,20 +447,20 @@ class Channel(object):
             self._safely_call(self.handle_accept, sock, addr)
     
     def _handle_connect_event(self):
-        self.connected = True
+        self._connected = True
         self._safely_call(self.handle_connect)
     
     def _handle_read_event(self):
         # Receive incoming data.
         while True:
-            data = self.socket_recv()
+            data = self._socket_recv()
             if not data:
                 break
             self._read_buffer += data
         
         # Handle incoming data.
         while self._read_buffer:
-            delimiter = self._read_delimiter
+            delimiter = self.read_delimiter
             
             if delimiter is None:
                 data = self._read_buffer
@@ -451,20 +487,20 @@ class Channel(object):
                 self._safely_call(self.handle_read, data)
             
             else:
-                log.warning("Invalid _read_delimiter on channel %d." % self.fileno)
+                log.warning("Invalid read_delimiter on channel %d." % self.fileno)
                 break
             
             if not self.active():
                 break
     
     def _handle_write_event(self):
-        if self.listening:
+        if self._listening:
             log.warning("Received write event for listening channel %d." % self.fileno)
             return
         
-        if not self.connected:
+        if not self._connected:
             # socket.connect() has completed, returning either 0 or an errno.
-            err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+            err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
             if err == 0:
                 self._safely_call(self._handle_connect_event())
             else:
@@ -487,7 +523,7 @@ class Channel(object):
         
         while self._write_buffer:
             # Empty as much of the write buffer as possible.
-            sent = self.socket_send(self._write_buffer)
+            sent = self._socket_send(self._write_buffer)
             
             if sent == 0:
                 break

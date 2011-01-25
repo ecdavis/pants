@@ -29,24 +29,20 @@ from pants.shared import log
 
 class Publisher(object):
     """
-    A class that implements the publish/subscribe event pattern.
+    A simple implementation of the publish/subscribe event pattern.
     
     This class may be directly instantiated to create a standalone
     publisher object, or it may be inherited by another class to provide
     pub/sub capabilities to instances of that class.
     """
     def __init__(self):
-        """
-        Initialises the publisher object.
-        """
         self._events = {}
     
     def event(self, event):
         """
         Decorator. Subscribe a function to an event.
         
-        Parameters:
-            event - The event identifier, typically a string.
+        :param event: The event identifier.
         """
         def decorator(handler):
             self.subscribe(event, handler)
@@ -58,10 +54,9 @@ class Publisher(object):
         """
         Publish an event.
         
-        Parameters:
-            event - The event identifier, typically a string.
-            *args - Positional arguments to be passed to subscribers.
-            **kwargs - Keyword arguments to be passed to subscribers.
+        :param event: The event identifier.
+        :param *args: Positional arguments to be passed to subscribers.
+        :param **kwargs: Keyword arguments to be passed to subscribers.
         """
         if not event in self._events:
             return
@@ -74,12 +69,11 @@ class Publisher(object):
     
     def subscribe(self, event, handler):
         """
-        Subscribe a callable to an event.
+        Subscribe a handler to an event.
         
-        Parameters:
-            event - The event identifier, typically a string.
-            handler - A callable that will be executed whenever the
-                event is published.
+        :param event: The event identifier.
+        :param handler: A callable that will be executed when the event is
+            published.
         """
         if not event in self._events:
             self._events[event] = []
@@ -88,21 +82,16 @@ class Publisher(object):
     
     def unsubscribe(self, event=None, handler=None):
         """
-        Unsubscribe a callable from an event.
+        Unsubscribe a handler from an event.
         
-        An event and a callable can be passed to this method. If no
-        event is passed, all callables will be unsubscribed from all
-        events. If an event is passed without a callable, all callables
-        will be unsubscribed from that event. If both an event and a
-        callable are passed then the callable will be unsubscribed from
-        the event.
+        Both of this method's arguments are optional. If no handler is
+        passed, all handlers will be unsubscribed from the given event.
+        If no event is passed, the given handler will be unsubscribed
+        from all events. If neither an event nor a handler is passed,
+        all handlers will be unsubscribed from all events.
         
-        Note that if a callable is passed without an event, all
-        callables will be unsubscribed from all events.
-        
-        Parameters:
-            event - The event identifier, typically a string.
-            handler - A callable subscribed to some number of events.
+        :param event: The event identifier.
+        :param handler: A callable subscribed to some number of events.
         """
         if event is None:
             self._events = {}
@@ -116,5 +105,4 @@ class Publisher(object):
 # Initialisation
 ###############################################################################
 
-#: The global publisher object.
 publisher = Publisher()

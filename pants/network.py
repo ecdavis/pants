@@ -32,32 +32,20 @@ from pants.shared import log
 
 class Client(Channel):
     """
-    A very basic implementation of a client.
+    A basic implementation of a client.
     """
-    
     def __init__(self, host, port):
         """
         Initialises the client and connects to the remote host.
         
-        Parameters:
-            host - A string hostname to connect to.
-            port - An integer port to connect to the host on.
+        :param host: The hostname to connect to.
+        :type host: str
+        :param port: The port to connect to the host on.
+        :type port: int
         """
         Channel.__init__(self)
         
         self.connect(host, port)
-    
-    ##### Interface Methods ###################################################
-    
-    def send(self, data):
-        """
-        Sends data to the socket.
-        
-        Parameters:
-            data - A string containing the data to be sent to the
-                socket.
-        """
-        self.write(data)
 
 
 ###############################################################################
@@ -69,22 +57,19 @@ class Connection(Channel):
     A basic implementation of a connection to a server.
     """
     def __init__(self, server, socket):
+        """
+        Initialises the connection.
+        
+        :param server: The server to which this channel is connected.
+        :type server: :class:`pants.network.Server`
+        :param socket: The raw socket which this channel wraps.
+        :type socket: :class:`socket.socket`
+        """
         Channel.__init__(self, socket)
         
+        #: The server to which this channel is connected.
         self.server = server
-        self.connected = True
-    
-    ##### Interface Methods ###################################################
-    
-    def send(self, data):
-        """
-        Sends data to the socket.
-        
-        Parameters:
-            data - A string containing the data to be sent to the
-                socket.
-        """
-        self.write(data)
+        self._connected = True
 
 
 ###############################################################################
@@ -94,31 +79,35 @@ class Connection(Channel):
 class Server(Channel):
     """
     A basic implementation of a server.
-    
-    Most protocol implementation will be done using Connection
-    subclasses - you should subclass Server and define the
-    ConnectionClass class attribute on said subclass so that the correct
-    Connection subclass can be instantiated when new sockets connect.
     """
+    #: The class to use to wrap newly connected sockets.
     ConnectionClass = Connection
     
     def __init__(self, ConnectionClass=None):
         """
         Initialises the server.
+        
+        :param ConnectionClass: The class to use to wrap newly connected
+            sockets. Optional.
+        :type ConnectionClass: :class:`pants.network.Connection`
         """
-        Channel.__init__(self, socket=None)
+        Channel.__init__(self)
         
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
         
+        #: A dictionary mapping file descriptors to instances of
+        #: :class:`pants.channel.Channel`.
         self.channels = weakref.WeakValueDictionary()
     
     ##### General Methods #####################################################
     
     def writable(self):
         """
-        Returns False - servers are never writable.
+        Servers are never writable.
+        
+        :returns: False
         """
         return False
     
@@ -126,10 +115,16 @@ class Server(Channel):
     
     def handle_accept(self, sock, addr):
         """
-        Accepts new connections to the server.
+        Called when a new connection has been made to the channel.
         
         Creates a new instance of the server's ConnectionClass and adds
         it to the server.
+        
+        :param sock: The newly-connected raw socket.
+        :type sock: :class:`socket.socket`
+        :param addr: The address bound to the socket on the other end of the
+            connection.
+        :type addr: tuple
         """
         connection = self.ConnectionClass(self, sock)
         self.channels[connection.fileno] = connection

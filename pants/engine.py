@@ -43,9 +43,10 @@ class Engine(object):
     should be running at any given time.
     """
     def __init__(self):
-        self.shutdown = False
-        self.poll_timeout = 0.02 # Timeout passed to reactor.
+        #: Timeout passed to :func:`pants.reactor.Reactor.poll``
+        self.poll_timeout = 0.02
         
+        self._shutdown = False
         self._callbacks = []
         self._deferreds = []
     
@@ -62,9 +63,13 @@ class Engine(object):
         This method blocks until the engine is stopped. It should be
         called after your asynchronous application has been fully
         initialised and is ready to start.
+        
+        :param poll_timeout: The timeout to pass to
+            :func:`pants.reactor.Reactor.poll``
+        :type poll_timeout: float
         """
-        if self.shutdown:
-            self.shutdown = False
+        if self._shutdown:
+            self._shutdown = False
             return
         
         self.poll_timeout = poll_timeout
@@ -77,11 +82,11 @@ class Engine(object):
         try:
             log.info("Entering main loop.")
             
-            while not self.shutdown:
+            while not self._shutdown:
                 pants.shared.time = time.time()
                 self.scheduler_update()
                 
-                if self.shutdown:
+                if self._shutdown:
                     break
                 
                 poll_timeout = self.poll_timeout
@@ -91,7 +96,7 @@ class Engine(object):
                 
                 self.poll()
                 
-                if self.shutdown:
+                if self._shutdown:
                     break
                 
                 reactor.poll(poll_timeout)
@@ -107,13 +112,13 @@ class Engine(object):
         publisher.publish("pants.engine.stop")
         
         log.info("Shutting down.")
-        self.shutdown = False # If we decide to start up again.
+        self._shutdown = False # If we decide to start up again.
     
     def stop(self):
         """
         Shut down the engine after the current main loop iteration.
         """
-        self.shutdown = True
+        self._shutdown = True
     
     ##### Scheduler Methods ###################################################
     
@@ -136,10 +141,9 @@ class Engine(object):
         """
         Remove a callback, deferred or cycle from the scheduler.
         
-        Parameters:
-            obj - The callback, deferred or cycle to remove.
+        :param obj: The callback, deferred or cycle to remove.
         """
-        if isinstance(obj, Deferred):
+        if isinstance(obj, _Deferred):
             while obj in self._deferreds:
                 self._deferreds.remove(obj)
         else:
@@ -149,13 +153,11 @@ class Engine(object):
         """
         Schedule a callback.
         
-        Parameters:
-            func - A callable that will be executed when the callback is
-                run.
-            *args - Positional arguments to be passed to the callback.
-            **kwargs - Keyword arguments to be passed to the callback.
+        :param func: A callable to be executed when the callback is run.
+        :param *args: Positional arguments to be passed to the callback.
+        :param **kwargs: Keyword arguments to be passed to the callback.
         """
-        callback = Callback(self, func, *args, **kwargs)
+        callback = _Callback(self, func, *args, **kwargs)
         self._callbacks.append(callback)
         
         return callback
@@ -164,44 +166,40 @@ class Engine(object):
         """
         Schedule a deferred.
         
-        Parameters:
-            func - A callable that will be executed when the deferred is
-                run.
-            delay - The delay, in seconds, before the deferred is run.
-            *args - Positional arguments to be passed to the deferred.
-            **kwargs - Keyword arguments to be passed to the deferred.
+        :param func: A callable to be executed when the deferred is run.
+        :param delay: The delay, in seconds, before the deferred is run.
+        :type delay: float
+        :param *args: Positional arguments to be passed to the deferred.
+        :param **kwargs: Keyword arguments to be passed to the deferred.
         """
-        deferred = Deferred(self, func, delay, *args, **kwargs)
+        deferred = _Deferred(self, func, delay, *args, **kwargs)
         bisect.insort(self._deferreds, deferred)
         
         return deferred
     
-    def cycle(self, func, delay, *args, **kwargs):
+    def cycle(self, func, interval, *args, **kwargs):
         """
         Schedule a cycle.
         
-        Parameters:
-            func - A callable that will be executed when the cycle is
-                run.
-            interval - The interval, in seconds, at which the cycle is
-                run.
-            *args - Positional arguments to be passed to the cycle.
-            **kwargs - Keyword arguments to be passed to the cycle.
+        :param func: A callable to be executed when the cycle is run.
+        :param interval: The interval, in seconds, at which the cycle is
+            run.
+        :type interval: float
+        :param *args: Positional arguments to be passed to the cycle.
+        :param **kwargs: Keyword arguments to be passed to the cycle
         """
-        cycle = Cycle(self, func, delay, *args, **kwargs)
+        cycle = _Cycle(self, func, interval, *args, **kwargs)
         bisect.insort(self._deferreds, cycle)
         
         return cycle
 
 
 ###############################################################################
-# Callback Class
+# _Callback Class
 ###############################################################################
 
-class Callback(object):
+class _Callback(object):
     """
-    The callback class.
-    
     A callback is a function (or other callable) that is not executed
     immediately but rather at the beginning of the next iteration of the
     main engine loop.
@@ -214,9 +212,6 @@ class Callback(object):
         self.kwargs = kwargs
     
     def run(self):
-        """
-        Execute the callback.
-        """
         try:
             self.func(*self.args, **self.kwargs)
         except Exception:
@@ -230,18 +225,16 @@ class Callback(object):
 
 
 ###############################################################################
-# Deferred Class
+# _Deferred Class
 ###############################################################################
 
-class Deferred(Callback):
+class _Deferred(_Callback):
     """
-    The deferred class.
-    
     A deferred is a function (or other callable) that is not executed
     immediately but rather after a certain amount of time.
     """
     def __init__(self, scheduler, func, delay, *args, **kwargs):
-        Callback.__init__(self, scheduler, func, *args, **kwargs)
+        _Callback.__init__(self, scheduler, func, *args, **kwargs)
         
         self.delay = delay
         self.end = pants.shared.time + delay
@@ -251,22 +244,17 @@ class Deferred(Callback):
 
 
 ###############################################################################
-# Cycle Class
+# _Cycle Class
 ###############################################################################
 
-class Cycle(Deferred):
+class _Cycle(_Deferred):
     """
-    The cycle class.
-    
     A cycle is a deferred that is executed after a certain amount of
     time and then rescheduled, effectively being run at regular
     intervals.
     """
     def run(self):
-        """
-        Execute and reschedule the cycle.
-        """
-        Deferred.run(self)
+        _Deferred.run(self)
         
         self._scheduler.cycle(self.func, self.delay, *self.args, **self.kwargs)
 
@@ -275,5 +263,5 @@ class Cycle(Deferred):
 # Initialisation
 ###############################################################################
 
-#: The global engine object.
+#: The fantastical Pants engine.
 engine = Engine()

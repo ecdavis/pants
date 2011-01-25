@@ -28,8 +28,7 @@ import time as pytime
 # Shared Variables
 ###############################################################################
 
-#: Global log object.
 log = logging.getLogger("pants")
 
-#: Updated by the engine.
+#: The current time - updated automatically by :class:`pants.engine.Engine`.
 time = pytime.time()
