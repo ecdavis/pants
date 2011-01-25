@@ -76,9 +76,9 @@ class Publisher(object):
             published.
         """
         if not event in self._events:
-            self._events[event] = []
+            self._events[event] = set()
         
-        self._events[event].append(handler)
+        self._events[event].add(handler)
     
     def unsubscribe(self, event=None, handler=None):
         """
@@ -96,9 +96,9 @@ class Publisher(object):
         if event is None:
             self._events = {}
         elif handler is None:
-            self._events[event] = []
+            self._events[event] = set()
         else:
-            self._events[event].remove(handler)
+            self._events[event].discard(handler)
 
 
 ###############################################################################
