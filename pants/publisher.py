@@ -63,7 +63,7 @@ class Publisher(object):
         if not event in self._events:
             return
         
-        for handler in self._events[event]:
+        for handler in self._events[event][:]:
             try:
                 handler(*args, **kwargs)
             except Exception:
@@ -79,9 +79,9 @@ class Publisher(object):
                 published.
         """
         if not event in self._events:
-            self._events[event] = set()
+            self._events[event] = []
         
-        self._events[event].add(handler)
+        self._events[event].append(handler)
     
     def unsubscribe(self, event=None, handler=None):
         """
@@ -100,9 +100,9 @@ class Publisher(object):
         if event is None:
             self._events = {}
         elif handler is None:
-            self._events[event] = set()
+            self._events[event] = []
         else:
-            self._events[event].discard(handler)
+            self._events[event].remove(handler)
 
 
 ###############################################################################
