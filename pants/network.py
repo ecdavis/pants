@@ -109,7 +109,7 @@ class Server(Channel):
     
     ##### Public Event Handlers ###############################################
     
-    def handle_accept(self, sock, addr):
+    def handle_accept(self, socket, addr):
         """
         Called when a new connection has been made to the channel.
         
@@ -117,10 +117,10 @@ class Server(Channel):
         it to the server.
         
         Args:
-            sock: The newly-connected socket object.
+            socket: The newly-connected socket object.
             addr: The socket's address.
         """
-        connection = self.ConnectionClass(self, sock)
+        connection = self.ConnectionClass(self, socket)
         self.channels[connection.fileno] = connection
         connection._safely_call(connection.handle_connect)
     
