@@ -42,7 +42,8 @@ class Publisher(object):
         """
         Decorator. Subscribe a function to an event.
         
-        :param event: The event identifier.
+        Args:
+            event: The event identifier.
         """
         def decorator(handler):
             self.subscribe(event, handler)
@@ -54,9 +55,10 @@ class Publisher(object):
         """
         Publish an event.
         
-        :param event: The event identifier.
-        :param *args: Positional arguments to be passed to subscribers.
-        :param **kwargs: Keyword arguments to be passed to subscribers.
+        Args:
+            event: The event identifier.
+            *args: Positional arguments to be passed to subscribers.
+            **kwargs: Keyword arguments to be passed to subscribers.
         """
         if not event in self._events:
             return
@@ -71,9 +73,10 @@ class Publisher(object):
         """
         Subscribe a handler to an event.
         
-        :param event: The event identifier.
-        :param handler: A callable that will be executed when the event is
-            published.
+        Args:
+            event: The event identifier.
+            handler: A callable that will be executed when the event is
+                published.
         """
         if not event in self._events:
             self._events[event] = set()
@@ -90,8 +93,9 @@ class Publisher(object):
         from all events. If neither an event nor a handler is passed,
         all handlers will be unsubscribed from all events.
         
-        :param event: The event identifier.
-        :param handler: A callable subscribed to some number of events.
+        Args:
+            event: The event identifier.
+            handler: A callable subscribed to some number of events.
         """
         if event is None:
             self._events = {}

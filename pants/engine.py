@@ -64,9 +64,11 @@ class Engine(object):
         called after your asynchronous application has been fully
         initialised and is ready to start.
         
-        :param poll_timeout: The timeout to pass to
-            :func:`pants.reactor.Reactor.poll``
-        :type poll_timeout: float
+        Args:
+            poll_timeout: The timeout to pass to reactor.poll().
+        
+        Raises:
+            SystemExit
         """
         if self._shutdown:
             self._shutdown = False
@@ -143,7 +145,8 @@ class Engine(object):
         """
         Remove a callback, deferred or cycle from the scheduler.
         
-        :param obj: The callback, deferred or cycle to remove.
+        Args:
+            obj: The callback, deferred or cycle to remove.
         """
         if isinstance(obj, _Deferred):
             while obj in self._deferreds:
@@ -155,9 +158,13 @@ class Engine(object):
         """
         Schedule a callback.
         
-        :param func: A callable to be executed when the callback is run.
-        :param *args: Positional arguments to be passed to the callback.
-        :param **kwargs: Keyword arguments to be passed to the callback.
+        Args:
+            func: A callable to be executed when the callback is run.
+            *args: Positional arguments to be passed to the callback.
+            **kwargs: Keyword arguments to be passed to the callback.
+        
+        Returns:
+            An object which can be used to cancel the callback.
         """
         callback = _Callback(self, func, *args, **kwargs)
         self._callbacks.append(callback)
@@ -168,11 +175,14 @@ class Engine(object):
         """
         Schedule a deferred.
         
-        :param func: A callable to be executed when the deferred is run.
-        :param delay: The delay, in seconds, before the deferred is run.
-        :type delay: float
-        :param *args: Positional arguments to be passed to the deferred.
-        :param **kwargs: Keyword arguments to be passed to the deferred.
+        Args:
+            func: A callable to be executed when the deferred is run.
+            delay: The delay, in seconds, before the deferred is run.
+            *args: Positional arguments to be passed to the deferred.
+            **kwargs: Keyword arguments to be passed to the deferred.
+        
+        Returns:
+            An object which can be used to cancel the deferred.
         """
         deferred = _Deferred(self, func, delay, *args, **kwargs)
         bisect.insort(self._deferreds, deferred)
@@ -183,12 +193,15 @@ class Engine(object):
         """
         Schedule a cycle.
         
-        :param func: A callable to be executed when the cycle is run.
-        :param interval: The interval, in seconds, at which the cycle is
-            run.
-        :type interval: float
-        :param *args: Positional arguments to be passed to the cycle.
-        :param **kwargs: Keyword arguments to be passed to the cycle
+        Args:
+            func: A callable to be executed when the cycle is run.
+            interval: The interval, in seconds, at which the cycle is
+                run.
+            *args: Positional arguments to be passed to the cycle.
+            **kwargs: Keyword arguments to be passed to the cycle.
+        
+        Returns:
+            An object which can be used to cancel the cycle.
         """
         cycle = _Cycle(self, func, interval, *args, **kwargs)
         bisect.insort(self._deferreds, cycle)
@@ -265,5 +278,5 @@ class _Cycle(_Deferred):
 # Initialisation
 ###############################################################################
 
-#: The fantastical Pants engine.
+# The fantastical Pants engine.
 engine = Engine()

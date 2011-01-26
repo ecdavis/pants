@@ -23,7 +23,6 @@
 import weakref
 
 from pants.channel import Channel
-from pants.shared import log
 
 
 ###############################################################################
@@ -38,10 +37,9 @@ class Client(Channel):
         """
         Initialises the client and connects to the remote host.
         
-        :param host: The hostname to connect to.
-        :type host: str
-        :param port: The port to connect to the host on.
-        :type port: int
+        Args:
+            host: The hostname to connect to.
+            port: The port to connect to.
         """
         Channel.__init__(self)
         
@@ -60,14 +58,12 @@ class Connection(Channel):
         """
         Initialises the connection.
         
-        :param server: The server to which this channel is connected.
-        :type server: :class:`pants.network.Server`
-        :param socket: The raw socket which this channel wraps.
-        :type socket: :class:`socket.socket`
+        Args:
+            server: The server to which this channel is connected.
+            sock: The raw socket which this channel wraps.
         """
         Channel.__init__(self, socket)
         
-        #: The server to which this channel is connected.
         self.server = server
         self._connected = True
 
@@ -80,16 +76,16 @@ class Server(Channel):
     """
     A basic implementation of a server.
     """
-    #: The class to use to wrap newly connected sockets.
+    # The class to use to wrap newly connected sockets.
     ConnectionClass = Connection
     
     def __init__(self, ConnectionClass=None):
         """
         Initialises the server.
         
-        :param ConnectionClass: The class to use to wrap newly connected
+        Args:
+            ConnectionClass: The class to use to wrap newly connected
             sockets. Optional.
-        :type ConnectionClass: :class:`pants.network.Connection`
         """
         Channel.__init__(self)
         
@@ -97,8 +93,7 @@ class Server(Channel):
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
         
-        #: A dictionary mapping file descriptors to instances of
-        #: :class:`pants.channel.Channel`.
+        # A dictionary mapping file descriptors to channels.
         self.channels = weakref.WeakValueDictionary()
     
     ##### General Methods #####################################################
@@ -107,7 +102,8 @@ class Server(Channel):
         """
         Servers are never writable.
         
-        :returns: False
+        Returns:
+            False.
         """
         return False
     
@@ -120,11 +116,9 @@ class Server(Channel):
         Creates a new instance of the server's ConnectionClass and adds
         it to the server.
         
-        :param sock: The newly-connected raw socket.
-        :type sock: :class:`socket.socket`
-        :param addr: The address bound to the socket on the other end of the
-            connection.
-        :type addr: tuple
+        Args:
+            sock: The newly-connected socket object.
+            addr: The socket's address.
         """
         connection = self.ConnectionClass(self, sock)
         self.channels[connection.fileno] = connection

@@ -44,21 +44,19 @@ class Channel(object):
     Server, Connection and Client classes be used to develop networking
     code as they provide slightly less generic APIs.
     """
-    def __init__(self, socket=None, parent=None):
+    def __init__(self, sock=None, parent=None):
         """
         Initialises the channel object.
         
-        :param socket: A pre-existing socket that this channel should
-            wrap. Optional.
-        :type socket: :class:`socket.socket`
-        :param parent: The reactor that this channel should be attached
-            to. Optional.
-        :type parent: :class:`pants.reactor.Reactor`
+        Args:
+            sock: A pre-existing socket that this channel should wrap.
+                Optional.
+            parent: The reactor that this channel should be attached to.
+                Optional.
         """
         # Socket
-        self._socket = socket or self._socket_create()
+        self._socket = sock or self._socket_create()
         self._socket.setblocking(False)
-        #: The file descriptor of this channel's raw socket.
         self.fileno = self._socket.fileno()
         
         # Internal state
@@ -70,9 +68,7 @@ class Channel(object):
         self._reactor = parent or reactor
         
         # I/O
-        #: The channel's read delimiter - may be a string, a positive
-        #: integer or None.
-        self.read_delimiter = None
+        self.read_delimiter = None # String, integer or None.
         self._read_amount = 4096
         self._read_buffer = ""
         self._write_buffer = ""
@@ -91,7 +87,8 @@ class Channel(object):
         """
         Check if the channel is currently active.
         
-        :returns: bool
+        Returns:
+            True or False
         """
         return self._socket and (self._connected or self._listening)
     
@@ -99,7 +96,8 @@ class Channel(object):
         """
         Check if the channel is currently readable.
         
-        :returns: bool
+        Returns:
+            True or False
         """
         return True
     
@@ -107,7 +105,8 @@ class Channel(object):
         """
         Check if the channel is currently writable.
         
-        :returns: bool
+        Returns:
+            True or False
         """
         return len(self._write_buffer) > 0
     
@@ -115,10 +114,9 @@ class Channel(object):
         """
         Connects to the given host and port.
         
-        :param host: The hostname to connect to.
-        :type host: str
-        :param port: The port on which to connect.
-        :type port: int
+        Args:
+            host: The hostname to connect to.
+            port: The port to connect to.
         """
         self._socket_connect(host, port)
     
@@ -126,13 +124,11 @@ class Channel(object):
         """
         Begins listening on the given host and port.
         
-        :param port: The port on which to listen. Defaults to 8080.
-        :type port: int
-        :param host: The hostname to listen on. Defaults to ''.
-        :type host: str
-        :param backlog: The maximum number of queued connections.
-            Defaults to 1024.
-        :type backlog: int
+        Args:
+            port: The port to listen on. Defaults to 8080.
+            host: The hostname to listen on. Defaults to ''.
+            backlog: The maximum number of queued connections. Defaults
+                to 1024.
         """
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket_bind(host, port)
@@ -170,11 +166,10 @@ class Channel(object):
     
     def send(self, data):
         """
-        A wrapper for :func:`pants.channel.Channel.write` that can be
-        safely overridden.
+        A wrapper for Channel.write() that can be safely overridden.
         
-        :param data: The data to be sent.
-        :type data: str
+        Args:
+            data: The data to be sent.
         """
         self.write(data)
     
@@ -182,8 +177,8 @@ class Channel(object):
         """
         Writes data to the socket.
         
-        :param data: The data to be sent.
-        :type data: str
+        Args:
+            data: The data to be sent.
         """
         if not self.active():
             raise IOError("Attempted to write to closed channel %d." % self.fileno)
@@ -203,8 +198,8 @@ class Channel(object):
         """
         Placeholder. Called when the channel is ready to receive data.
         
-        :param data: The chunk of received data.
-        :type data: str
+        Args:
+            data: The chunk of received data.
         """
         pass
     
@@ -219,11 +214,9 @@ class Channel(object):
         Placeholder. Called when a new connection has been made to the
         channel.
         
-        :param sock: The newly-connected raw socket.
-        :type sock: :class:`socket.socket`
-        :param addr: The address bound to the socket on the other end of the
-            connection.
-        :type addr: tuple
+        Args:
+            sock: The newly-connected socket object.
+            addr: The socket's address.
         """
         pass
     
@@ -244,20 +237,24 @@ class Channel(object):
     
     def _socket_create(self, family=socket.AF_INET, type=socket.SOCK_STREAM):
         """
-        :param family: The address family. Defaults to socket.AF_INET.
-        :type family: int
-        :param type: The socket type. Defaults to socket.SOCK_STREAM.
-        :type type: int
-        :returns: A new socket object.
+        Wrapper for socket.socket().
+        
+        Args:
+            family: The address family. Defaults to AF_INET.
+            type: The socket type. Defaults to SOCK_STREAM.
+        
+        Returns:
+            A new socket object.
         """
         return socket.socket(family, type)
     
     def _socket_connect(self, host, port):
         """
-        :param host: The hostname to connect to.
-        :type host: str
-        :param port: The port on which to connect.
-        :type port: int
+        Wrapper for self._socket.connect().
+        
+        Args:
+            host: The hostname to connect to.
+            port: The port to connect to.
         """
         self._connected = False
         
@@ -282,8 +279,11 @@ class Channel(object):
     
     def _socket_listen(self, backlog=5):
         """
-        :param backlog: The maximum number of queued connections.
-        :type backlog: int
+        Wrapper for self._socket.listen().
+        
+        Args:
+            backlog: The maximum number of queued connections. Defaults
+                to 5.
         """
         self._listening = True
         
@@ -294,14 +294,18 @@ class Channel(object):
     
     def _socket_bind(self, host, port):
         """
-        :param host: The hostname to bind to.
-        :type host: str
-        :param port: The port on which to bind.
-        :type port: int
+        Wrapper for self._socket.bind().
+        
+        Args:
+            host: The hostname to bind to.
+            port: The port to bind to.
         """
         self._socket.bind((host, port))
     
     def _socket_close(self):
+        """
+        Wrapper for self._socket.close().
+        """
         self._connected = False
         self._listening = False
         
@@ -322,8 +326,11 @@ class Channel(object):
     
     def _socket_accept(self):
         """
-        :returns: A 2-tuple ``(sock, addr)``. ``sock`` is ``None`` if an
-            exception was raised.
+        Wrapper for self._socket.accept().
+        
+        Returns:
+            A 2-tuple (sock, addr). sock is None if an exception was
+            raised by self._socket.accept().
         """
         try:
             return self._socket.accept()
@@ -337,9 +344,13 @@ class Channel(object):
     
     def _socket_send(self, data):
         """
-        :param data: The data to send.
-        :type data: str
-        :returns: The number of bytes sent.
+        Wrapper for self._socket.send().
+        
+        Args:
+            data: The data to be sent.
+        
+        Returns:
+            The number of bytes sent.
         """
         try:
             return self._socket.send(data)
@@ -361,7 +372,10 @@ class Channel(object):
     
     def _socket_recv(self):
         """
-        :returns: The data received.
+        Wrapper for self._socket.recv().
+        
+        Returns:
+            The data received.
         """
         try:
             data = self._socket.recv(self._read_amount)
@@ -393,8 +407,8 @@ class Channel(object):
     
     def _handle_events(self, events):
         """
-        :param events: Events raised on the channel.
-        :type events: int
+        Args:
+            events: The events raised on the channel.
         """
         if self._socket is None:
             log.warning("Received events for closed channel %d." % self.fileno)
@@ -530,6 +544,12 @@ class Channel(object):
         self._safely_call(self.handle_write)
     
     def _safely_call(self, callable, *args, **kwargs):
+        """
+        Args:
+            callable: The callable to execute.
+            *args: Positional arguments to pass to the callable.
+            **kwargs: Keyword arguments to pass to the callable.
+        """
         try:
             callable(*args, **kwargs)
         except Exception, e:

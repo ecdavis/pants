@@ -30,5 +30,5 @@ import time as pytime
 
 log = logging.getLogger("pants")
 
-#: The current time - updated automatically by :class:`pants.engine.Engine`.
+# Updated automatically by pants.engine.engine.
 time = pytime.time()

@@ -52,9 +52,9 @@ class Reactor(object):
         """
         Initialises the reactor.
         
-        :param poll: The polling object to be used by the reactor. This
-            defaults to epoll on Linux 2.6+, kqueue on BSD and select on
-            all other operating systems.
+        Args:
+            poll: The polling object to be used by the reactor.
+                Optional.
         """
         if poll:
             self._poll = poll
@@ -73,8 +73,8 @@ class Reactor(object):
         """
         Adds a channel to the reactor.
         
-        :param channel: The channel to add.
-        :type channel: :class:`pants.channel.Channel`
+        Args:
+            channel: The channel to add.
         """
         self._channels[channel.fileno] = channel
         self._poll.add(channel.fileno, channel._events)
@@ -83,8 +83,8 @@ class Reactor(object):
         """
         Modifies a channel's state.
         
-        :param channel: The channel to mofify.
-        :type channel: :class:`pants.channel.Channel`
+        Args:
+            channel: The channel to modify.
         """
         self._poll.modify(channel.fileno, channel._events)
     
@@ -92,8 +92,8 @@ class Reactor(object):
         """
         Removes a channel from the reactor.
         
-        :param channel: The channel to remove.
-        :type channel: :class:`pants.channel.Channel`
+        Args:
+            channel: The channel to remove.
         """
         self._channels.pop(channel.fileno, None)
         
@@ -111,9 +111,9 @@ class Reactor(object):
         Identifies active sockets, then reads from, writes to and raises
         exceptions on those sockets.
         
-        :param timeout: The timeout to be passed to the polling object.
-            Defaults to 0.02.
-        :type timeout: float
+        Args:
+            timeout: The timeout to be passed to the polling object.
+                Defaults to 0.02.
         """
         try:
             events = self._poll.poll(timeout)
