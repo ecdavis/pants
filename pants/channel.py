@@ -84,11 +84,18 @@ class Channel(object):
     ##### Properties ##########################################################
     
     @property
-    def addr(self):
+    def remote_addr(self):
         """
-        The remote address to which the socket is connected.
+        The remote address to which the channel is connected.
         """
         return self._socket.getpeername()
+    
+    @property
+    def local_addr(self):
+        """
+        The channel’s own address."
+        """
+        return self._socket.getsockname()
     
     ##### General Methods #####################################################
     
