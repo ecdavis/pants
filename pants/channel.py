@@ -538,14 +538,14 @@ class Channel(object):
             if err == 0:
                 self._safely_call(self._handle_connect_event())
             else:
-                errstr = "Unknown error %" % e
+                errstr = "Unknown error %d" % err
                 try:
-                    errstr = os.strerror(e)
+                    errstr = os.strerror(err)
                 except (NameError, OverflowError, ValueError):
-                    if e in errno.errorcode:
-                        errstr = errno.errorcode[e]
+                    if err in errno.errorcode:
+                        errstr = errno.errorcode[err]
                 
-                raise socket.error(e, errstr)
+                raise socket.error(err, errstr)
             
             # Write events are raised on clients when they initially
             # connect. In these circumstances, we may not need to write
@@ -571,6 +571,6 @@ class Channel(object):
         """
         try:
             callable(*args, **kwargs)
-        except Exception, e:
+        except Exception:
             log.exception("Exception raised on channel %d." % self.fileno)
             self.close_immediately()
