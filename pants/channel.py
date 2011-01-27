@@ -93,7 +93,7 @@ class Channel(object):
     @property
     def local_addr(self):
         """
-        The channel’s own address."
+        The channel's own address.
         """
         return self._socket.getsockname()
     
