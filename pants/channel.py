@@ -119,6 +119,9 @@ class Channel(object):
         Args:
             host: The hostname to connect to.
             port: The port to connect to.
+        
+        Returns:
+            The Channel object.
         """
         if self.active():
             log.warning("Channel.connect() called on active channel %d." % self.fileno)
@@ -126,6 +129,8 @@ class Channel(object):
         
         self._socket_connect(host, port)
         self._update_addr()
+        
+        return self
     
     def listen(self, port=8080, host='', backlog=1024):
         """
@@ -136,6 +141,9 @@ class Channel(object):
             host: The hostname to listen on. Defaults to ''.
             backlog: The maximum number of queued connections. Defaults
                 to 1024.
+        
+        Returns:
+            The Channel object.
         """
         if self.active():
             log.warning("Channel.listen() called on active channel %d." % self.fileno)
@@ -145,6 +153,8 @@ class Channel(object):
         self._socket_bind(host, port)
         self._socket_listen(backlog)
         self._update_addr()
+        
+        return self
     
     def close(self):
         """
