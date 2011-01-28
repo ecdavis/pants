@@ -197,7 +197,7 @@ class _KQueue(object):
         self.add(fileno, events)
     
     def remove(self, fileno):
-        self._control(fileno, events, select.KQ_EV_DELETE)
+        self._control(fileno, Reactor.NONE, select.KQ_EV_DELETE)
     
     def poll(self, timeout):
         kqueue_events = self._kqueue.control(None, 1024, timeout)
