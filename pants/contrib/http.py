@@ -276,7 +276,7 @@ class HTTPConnection(Connection):
         
         except Exception:
             log.exception('Error handling HTTP request.')
-            self.write('HTTP/1.1 500 Internal Server Error%s' % CRLF)
+            self.write('HTTP/1.1 500 Internal Server Error%s%s' % CRLF)
             self.close()
 
 ###############################################################################
