@@ -430,7 +430,7 @@ class Channel(object):
                 # ENOTCONN: Transport endpoint is not connected.
                 # ESHUTDOWN: Cannot send after transport endpoint shutdown.
                 self.close_immediately()
-                return ''Perhap
+                return ''
             else:
                 raise
         
