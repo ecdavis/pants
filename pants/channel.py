@@ -58,6 +58,8 @@ class Channel(object):
         self._socket = socket or self._socket_create()
         self._socket.setblocking(False)
         self.fileno = self._socket.fileno()
+        self.remote_addr = None
+        self.local_addr = None
         
         # Internal state
         self._connected = False
@@ -80,22 +82,6 @@ class Channel(object):
         if self.writable():
             self._events |= self._reactor.WRITE
         self._reactor.add_channel(self)
-    
-    ##### Properties ##########################################################
-    
-    @property
-    def remote_addr(self):
-        """
-        The remote address to which the channel is connected.
-        """
-        return self._socket.getpeername()
-    
-    @property
-    def local_addr(self):
-        """
-        The channel's own address.
-        """
-        return self._socket.getsockname()
     
     ##### General Methods #####################################################
     
@@ -139,6 +125,7 @@ class Channel(object):
             return
         
         self._socket_connect(host, port)
+        self._update_addr()
     
     def listen(self, port=8080, host='', backlog=1024):
         """
@@ -157,6 +144,7 @@ class Channel(object):
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket_bind(host, port)
         self._socket_listen(backlog)
+        self._update_addr()
     
     def close(self):
         """
@@ -184,6 +172,7 @@ class Channel(object):
         
         self._reactor.remove_channel(self)
         self._socket_close()
+        self._update_addr()
         self._safely_call(self.handle_close)
     
     ##### I/O Methods #########################################################
@@ -256,6 +245,21 @@ class Channel(object):
         Placeholder. Called when the channel is about to close.
         """
         pass
+    
+    ##### Private Methods #####################################################
+    
+    def _update_addr(self):
+        try:
+            self.remote_addr = self._socket.getpeername()
+            self.local_addr = self._socket.getsockname()
+        except Exception, err:
+            if err[0] in (errno.EBADF, errno.ENOTCONN):
+                # EBADF: Bad file number.
+                # ENOTCONN: Transport endpoint is not connected.
+                self.remote_addr = None
+                self.local_addr = None
+            else:
+                raise
     
     ##### Socket Method Wrappers ##############################################
     
@@ -416,7 +420,7 @@ class Channel(object):
                 # ENOTCONN: Transport endpoint is not connected.
                 # ESHUTDOWN: Cannot send after transport endpoint shutdown.
                 self.close_immediately()
-                return ''
+                return ''Perhap
             else:
                 raise
         
