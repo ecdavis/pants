@@ -231,6 +231,27 @@ class Application(object):
         # External Stuff
         self.debug = debug
     
+    def run(self, port=80, host=''):
+        """
+        For testing, setup pants and go nuts. Example:
+            
+            from pants.contrib.web import *
+            app = Application()
+            
+            @app.route("/")
+            def hello():
+                return "Hello, world!"
+            
+            app.run()
+        
+        Args:
+            port: The port to listen on. Defaults to 80.
+            host: The host to listen on. Optional.
+        """
+        from pants import engine
+        HTTPServer(self).listen(port, host)
+        engine.start()
+    
     ##### Route Management Methods ############################################
     
     def basic_route(self, rule, methods=['GET','HEAD']):
