@@ -47,6 +47,7 @@ class Engine(object):
         self.poll_timeout = 0.02
         
         self._shutdown = False
+        self._running = False
         self._callbacks = []
         self._deferreds = []
     
@@ -73,6 +74,10 @@ class Engine(object):
         if self._shutdown:
             self._shutdown = False
             return
+        if self._running:
+            return
+        else:
+            self._running = True
         
         self.poll_timeout = poll_timeout
         
@@ -117,6 +122,7 @@ class Engine(object):
             
             log.info("Shutting down.")
             self._shutdown = False # If we decide to start up again.
+            self._running = False
     
     def stop(self):
         """
