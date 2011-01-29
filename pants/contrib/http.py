@@ -168,6 +168,7 @@ class HTTPConnection(Connection):
         self._finished = False
         
         if disconnect:
+            self.handle_read = None
             self.close()
         else:
             self._await_request()
@@ -322,18 +323,12 @@ class HTTPRequest(object):
         self._start     = time.time()
         self._finish    = None
         
-        # Split the URI into usable information.
-        scheme, loc, path, query, fragment = urlparse.urlsplit(uri)
-        self.path       = path
-        self.query      = query
-        
         # Request Variables
-        self.get        = {}
         self.post       = {}
         self.files      = {}
         
-        for key, values in urlparse.parse_qs(query, False).iteritems():
-            self.get[key] = values
+        # Split the URI into usable information.
+        self._parse_uri()
     
     ##### Properties ##########################################################
     
@@ -417,7 +412,22 @@ class HTTPRequest(object):
         self.connection.write('%s %s%s' % (self.version, code, CRLF))
     
     write = send
-
+    
+    ##### Internal Event Handlers #############################################
+    
+    def _parse_uri(self):
+        scheme, loc, path, query, fragment = urlparse.urlsplit(self.uri)
+        self.path       = path
+        self.query      = query
+        
+        self.get = {}
+        for key, values in urlparse.parse_qs(query, False).iteritems():
+            self.get[key] = values
+        
+        for key in self.get:
+            if len(self.get[key]) == 1:
+                self.get[key] = self.get[key][0]
+    
 ###############################################################################
 # HTTPServer Class
 ###############################################################################
