@@ -63,6 +63,7 @@ class Channel(object):
         
         # Internal state
         self._connected = False
+        self._connecting = False
         self._listening = False
         self._closing = False
         
@@ -299,6 +300,7 @@ class Channel(object):
             port: The port to connect to.
         """
         self._connected = False
+        self._connecting = True
         
         try:
             self._socket.connect((host, port))
@@ -453,13 +455,12 @@ class Channel(object):
         Args:
             events: The events raised on the channel.
         """
-        if self._socket is None:
+        if self._connecting:
+            # TODO Make _connecting part of active()?
+            pass
+        elif not self.active():
             log.warning("Received events for closed channel %d." % self.fileno)
             return
-        elif not self.active():
-            # TODO Fix this properly. How to handle events on newly
-            # connected channels?
-            log.debug("Received events for closed channel %d." % self.fileno)
         
         # Read event.
         if events & self._reactor.READ:
@@ -509,6 +510,7 @@ class Channel(object):
     
     def _handle_connect_event(self):
         self._connected = True
+        self._connecting = False
         self._safely_call(self.handle_connect)
     
     def _handle_read_event(self):
