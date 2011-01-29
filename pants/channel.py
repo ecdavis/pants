@@ -262,6 +262,10 @@ class Channel(object):
         try:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
+        except AttributeError:
+            # self._socket is NoneType.
+            self.remote_addr = None
+            self.local_addr = None
         except Exception, err:
             if err[0] in (errno.EBADF, errno.ENOTCONN):
                 # EBADF: Bad file number.
