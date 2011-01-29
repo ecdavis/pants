@@ -21,6 +21,7 @@
 ###############################################################################
 
 import logging
+import pprint
 import time
 import urlparse
 
@@ -329,6 +330,26 @@ class HTTPRequest(object):
         
         # Split the URI into usable information.
         self._parse_uri()
+    
+    def __repr__(self):
+        attr = ('version','method','protocol','host','uri','path','time')
+        attr = u', '.join(u'%s=%r' % (k,getattr(self,k)) for k in attr)
+        return u'%s(%s, headers=%r)' % (
+            self.__class__.__name__, attr, self.headers)
+    
+    def __html__(self):
+        attr = ('version','method','protocol','host','uri','path','time')
+        attr = u'\n    '.join(u'%-8s = %r' % (k,getattr(self,k)) for k in attr)
+        
+        out = u'<pre>%s(\n    %s\n\n' % (self.__class__.__name__, attr)
+        
+        for i in ('headers','get','post'):
+            out += u'    %-8s = {\n %s\n\n' % (
+                i, pprint.pformat(getattr(self, i), 8, 80)[1:])
+        
+        out += u'    files    = %s\n)</pre>' % \
+            pprint.pformat(self.files.keys(), 0, 80)
+        return out
     
     ##### Properties ##########################################################
     
