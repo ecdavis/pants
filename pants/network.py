@@ -46,15 +46,20 @@ class Connection(Channel):
     """
     A basic implementation of a connection to a server.
     """
-    def __init__(self, server, socket):
+    def __init__(self, socket, parent, server):
         """
         Initialises the connection.
         
         Args:
+            socket: A pre-existing socket that this channel should wrap.
+            parent: The reactor that this channel should be attached to.
             server: The server to which this channel is connected.
-            sock: The raw socket which this channel wraps.
+        
+        Note:
+            socket and parent arguments are non-optional because they
+            are determined by the server.
         """
-        Channel.__init__(self, socket)
+        Channel.__init__(self, socket, parent)
         
         self.server = server
 
@@ -111,7 +116,7 @@ class Server(Channel):
             socket: The newly-connected socket object.
             addr: The socket's address.
         """
-        connection = self.ConnectionClass(self, socket)
+        connection = self.ConnectionClass(self, socket, self._reactor)
         self.channels[connection.fileno] = connection
         connection._handle_connect_event()
     
