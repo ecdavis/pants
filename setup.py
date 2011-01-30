@@ -10,7 +10,7 @@ setup(
     author_email="chris@wtfrak.com",
     url="http://pants.wtfrak.com/",
     download_url="http://pants.wtfrak.com/release/pants-0.9.4.zip",
-    packages=["pants"],
+    packages=["pants", "pants.contrib"],
     classifiers=[
         "Programming Language :: Python :: 2.6",
         "License :: OSI Approved :: Apache Software License",
