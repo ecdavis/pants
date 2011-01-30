@@ -60,16 +60,7 @@ class Connection(Channel):
             are determined by the server.
         """
         Channel.__init__(self, socket, parent)
-        # TODO This is really hacky.
-        self._Connection_init(server)
-    
-    def _Connection_init(self, server): 
-        """
-        Separate connection initialisation method so that
-        Channel.__init__() does not get called twice by SSLConnection.
         
-        TODO This is really hacky.
-        """
         self.server = server
 
 
@@ -93,23 +84,13 @@ class Server(Channel):
             sockets. Optional.
         """
         Channel.__init__(self)
-        # TODO This is really hacky.
-        self._Server_init(ConnectionClass)
-    
-    def _Server_init(self, ConnectionClass):
-        """
-        Separate server initialisation method so that Channel.__init__()
-        does not get called twice by SSLServer.
         
-        TODO This is really hacky.
-        """
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
         
         # A dictionary mapping file descriptors to channels.
         self.channels = weakref.WeakValueDictionary()
-        
     
     ##### General Methods #####################################################
     

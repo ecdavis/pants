@@ -29,13 +29,14 @@ from pants.shared import log
 
 
 ###############################################################################
-# SSLChannel Class
+# _SSLChannel Class
 ###############################################################################
 
-class SSLChannel(Channel):
-    def __init__(self, socket=None, parent=None):
-        Channel.__init__(self, socket, parent)
-        
+class _SSLChannel(Channel):
+    def __init__(self):
+        # Craftiness happens here. This method must be called after
+        # Channel.__init__() has been called, but it cannot call
+        # Channel.__init__() itself/
         self._ssl_handshake_done = False
         if not isinstance(self._socket, ssl.SSLSocket):
             self._ssl_wrap(**ssl_kwargs)
@@ -89,24 +90,31 @@ class SSLChannel(Channel):
 
 
 ###############################################################################
+# SSLChannel Class
+###############################################################################
+
+class SSLChannel(_SSLChannel):
+    def __init__(self, socket=None, parent=None):
+        Channel.__init__(self, socket, parent)
+
+
+###############################################################################
 # SSLConnection Class
 ###############################################################################
 
-class SSLConnection(SSLChannel, Connection):
-    def __init__(self, socket, parent, server):
-        SSLChannel.__init__(self, socket, parent)
-        # TODO This is really hacky.
-        self._Connection_init(server)
+class SSLConnection(_SSLChannel, Connection):
+    def __init__(self, *args, **kwargs):
+        Connection.__init__(self, *args, **kwargs)
+        _SSLChannel.__init__()
 
 
 ###############################################################################
 # SSLServer Class
 ###############################################################################
 
-class SSLServer(SSLChannel, Server):
+class SSLServer(_SSLChannel, Server):
     ConnectionClass = SSLConnection
     
     def __init__(self, *args, **kwargs):
-        SSLChannel.__init__(self)
-        # TODO This is really hacky.
-        self._Server_init(*args, **kwargs)
+        Server.__init__(self, *args, **kwargs)
+        _SSLChannel.__init__(self)
