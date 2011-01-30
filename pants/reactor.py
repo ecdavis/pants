@@ -22,6 +22,7 @@
 
 import errno
 import select
+import time
 
 from pants.shared import log
 
@@ -115,6 +116,10 @@ class Reactor(object):
             timeout: The timeout to be passed to the polling object.
                 Defaults to 0.02.
         """
+        if not self._channels:
+            time.sleep(timeout) # Don't burn CPU.
+            return
+        
         try:
             events = self._poll.poll(timeout)
         except Exception, err: # TODO Is it Exception or select.error?
@@ -197,7 +202,7 @@ class _KQueue(object):
         self.add(fileno, events)
     
     def remove(self, fileno):
-        self._control(fileno, events, select.KQ_EV_DELETE)
+        self._control(fileno, Reactor.NONE, select.KQ_EV_DELETE)
     
     def poll(self, timeout):
         kqueue_events = self._kqueue.control(None, 1024, timeout)

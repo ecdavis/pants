@@ -33,17 +33,9 @@ class Client(Channel):
     """
     A basic implementation of a client.
     """
-    def __init__(self, host, port):
-        """
-        Initialises the client and connects to the remote host.
-        
-        Args:
-            host: The hostname to connect to.
-            port: The port to connect to.
-        """
-        Channel.__init__(self)
-        
-        self.connect(host, port)
+    # NOTE This class exists because I may, in the future, implement
+    # some sort of client-specific functionality. Maybe.
+    pass
 
 
 ###############################################################################

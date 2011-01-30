@@ -58,9 +58,12 @@ class Channel(object):
         self._socket = socket or self._socket_create()
         self._socket.setblocking(False)
         self.fileno = self._socket.fileno()
+        self.remote_addr = None
+        self.local_addr = None
         
         # Internal state
         self._connected = False
+        self._connecting = False
         self._listening = False
         self._closing = False
         
@@ -80,22 +83,6 @@ class Channel(object):
         if self.writable():
             self._events |= self._reactor.WRITE
         self._reactor.add_channel(self)
-    
-    ##### Properties ##########################################################
-    
-    @property
-    def remote_addr(self):
-        """
-        The remote address to which the channel is connected.
-        """
-        return self._socket.getpeername()
-    
-    @property
-    def local_addr(self):
-        """
-        The channel's own address.
-        """
-        return self._socket.getsockname()
     
     ##### General Methods #####################################################
     
@@ -133,12 +120,18 @@ class Channel(object):
         Args:
             host: The hostname to connect to.
             port: The port to connect to.
+        
+        Returns:
+            The Channel object.
         """
         if self.active():
             log.warning("Channel.connect() called on active channel %d." % self.fileno)
             return
         
         self._socket_connect(host, port)
+        self._update_addr()
+        
+        return self
     
     def listen(self, port=8080, host='', backlog=1024):
         """
@@ -149,6 +142,9 @@ class Channel(object):
             host: The hostname to listen on. Defaults to ''.
             backlog: The maximum number of queued connections. Defaults
                 to 1024.
+        
+        Returns:
+            The Channel object.
         """
         if self.active():
             log.warning("Channel.listen() called on active channel %d." % self.fileno)
@@ -157,6 +153,9 @@ class Channel(object):
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket_bind(host, port)
         self._socket_listen(backlog)
+        self._update_addr()
+        
+        return self
     
     def close(self):
         """
@@ -184,6 +183,7 @@ class Channel(object):
         
         self._reactor.remove_channel(self)
         self._socket_close()
+        self._update_addr()
         self._safely_call(self.handle_close)
     
     ##### I/O Methods #########################################################
@@ -257,6 +257,25 @@ class Channel(object):
         """
         pass
     
+    ##### Private Methods #####################################################
+    
+    def _update_addr(self):
+        try:
+            self.remote_addr = self._socket.getpeername()
+            self.local_addr = self._socket.getsockname()
+        except AttributeError:
+            # self._socket is NoneType.
+            self.remote_addr = None
+            self.local_addr = None
+        except Exception, err:
+            if err[0] in (errno.EBADF, errno.ENOTCONN):
+                # EBADF: Bad file number.
+                # ENOTCONN: Transport endpoint is not connected.
+                self.remote_addr = None
+                self.local_addr = None
+            else:
+                raise
+    
     ##### Socket Method Wrappers ##############################################
     
     def _socket_create(self, family=socket.AF_INET, type=socket.SOCK_STREAM):
@@ -281,6 +300,7 @@ class Channel(object):
             port: The port to connect to.
         """
         self._connected = False
+        self._connecting = True
         
         try:
             self._socket.connect((host, port))
@@ -435,13 +455,12 @@ class Channel(object):
         Args:
             events: The events raised on the channel.
         """
-        if self._socket is None:
+        if self._connecting:
+            # TODO Make _connecting part of active()?
+            pass
+        elif not self.active():
             log.warning("Received events for closed channel %d." % self.fileno)
             return
-        elif not self.active():
-            # TODO Fix this properly. How to handle events on newly
-            # connected channels?
-            log.debug("Received events for closed channel %d." % self.fileno)
         
         # Read event.
         if events & self._reactor.READ:
@@ -491,6 +510,7 @@ class Channel(object):
     
     def _handle_connect_event(self):
         self._connected = True
+        self._connecting = False
         self._safely_call(self.handle_connect)
     
     def _handle_read_event(self):
