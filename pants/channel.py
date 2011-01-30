@@ -129,7 +129,6 @@ class Channel(object):
             return
         
         self._socket_connect(host, port)
-        self._update_addr()
         
         return self
     
@@ -503,6 +502,7 @@ class Channel(object):
             self._safely_call(self.handle_accept, sock, addr)
     
     def _handle_connect_event(self):
+        self._update_addr()
         self._connected = True
         self._connecting = False
         self._safely_call(self.handle_connect)

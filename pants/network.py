@@ -57,7 +57,6 @@ class Connection(Channel):
         Channel.__init__(self, socket)
         
         self.server = server
-        self._connected = True
 
 
 ###############################################################################
@@ -114,7 +113,7 @@ class Server(Channel):
         """
         connection = self.ConnectionClass(self, socket)
         self.channels[connection.fileno] = connection
-        connection._safely_call(connection.handle_connect)
+        connection._handle_connect_event()
     
     def handle_close(self):
         """
