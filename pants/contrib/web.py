@@ -26,18 +26,28 @@ import re
 import traceback
 import urllib
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pants import __version__ as pants_version
-from http import HTTP, HTTPServer
+from http import HTTP, HTTPServer, HTTPRequest
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
+try:
+    import magic
+    m = magic.Magic(mime=True)
+    def guess_type(filename):
+        return m.from_file(filename)
+except ImportError:
+    import mimetypes
+    def guess_type(filename):
+        return mimetypes.guess_type(filename)[0]
+
 __all__ = ('Application','HTTPException','HTTPTransparentRedirect','abort',
     'all_or_404','error','json_response','jsonify','redirect','url_for',
-    'HTTPServer')
+    'HTTPServer','FileServer')
 
 ###############################################################################
 # Logging
@@ -48,8 +58,8 @@ log = logging.getLogger('web')
 # Constants
 ###############################################################################
 
-SERVER = 'HTTPants (pants/%s)' % pants_version
-SERVER_URL = 'http://www.pantsweb.org/'
+SERVER      = 'HTTPants (pants/%s)' % pants_version
+SERVER_URL  = 'http://www.pantsweb.org/'
 
 HAIKUS = {
     400: u'Something you entered<br>'
@@ -98,12 +108,13 @@ HTTP_MESSAGES = {
          u'this page.'
 }
 
-ERROR_CSS = """html, body {
+PAGE_CSS = u"""html, body {
     margin: 0; padding: 0;
     min-height: 100%%;
 }
 
 body {
+    font-family: Calibri,"Trebuchet MS",sans-serif;
     background: #EEE;
     background-image: -webkit-gradient(
         linear, left bottom, left top,
@@ -115,7 +126,7 @@ body {
 a { color: #666; text-decoration: none; }
 a:hover { color: #444; text-decoration: underline; }
 
-h1 { margin: 0; }
+h1 { margin: 0; color: #444; }
 p { margin-bottom: 0; }
 pre {
     display: block;
@@ -126,9 +137,26 @@ pre {
     /*overflow-x: scroll;*/
 }
 
+table { width: 100%%; border-spacing: 0; }
+td,th { margin: 0; padding: 2px 5px; text-align: right; }
+tr td {
+    color: #666;
+    border-top: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+}
+tr:first-child td { border-top: none; }
+tr:hover td { border-color: #ccc; }
+th { border-bottom: 1px solid #ccc; }
+th:first-child,td:first-child { text-align: left; }
+
+.faint { color: #aaa; }
+
 .haiku { margin-top: 20px; }
 .haiku + p { color: #777; }
 
+.left { text-align: left; }
+.right { text-align: right; }
+.center { text-align: center; }
 .spacer { padding-top: 50px; }
 .column { max-width: 1000px; min-width: 600px; margin: 0px auto; }
 .footer {
@@ -151,6 +179,29 @@ pre {
     margin: 0 50px;
     text-align: center;
 }"""
+
+DIRECTORY_PAGE = u"""<!DOCTYPE html>
+<html><head><title>Index of %%s</title><style>%s</style></head><body>
+<div class="column"><div class="spacer"></div><div class="thingy">
+<h1>Index of %%s</h1>
+%%s
+<table><thead>
+<tr><th style="width:50%%%%">Name</th>
+<th>Size</th><th class="center" colspan="2">Last Modified</th></tr></thead>
+%%s
+</table>
+</div><div class="footer"><i><a href="%s">%s</a><br>%%s</i></div>
+<div class="spacer"></div>
+</div></body></html>""" % (PAGE_CSS, SERVER_URL, SERVER)
+
+ERROR_PAGE = u"""<!DOCTYPE html>
+<html><head><title>%%d %%s</title><style>%s</style></head><body>
+<div class="column"><div class="spacer"></div><div class="thingy">
+<h1>%%d<br>%%s</h1>
+%%s%%s
+</div><div class="footer"><i><a href="%s">%s</a><br>%%s</i></div>
+<div class="spacer"></div>
+</div></body></html>""" % (PAGE_CSS, SERVER_URL, SERVER)
 
 # Regular expressions used for various types.
 REGEXES = {
@@ -334,6 +385,10 @@ class Application(object):
                 for truthiness, and if any fail, a 404 page will be displayed
                 rather than your view function.
         """
+        if callable(name):
+            self._add_route(rule, name, None, methods, auto404)
+            return
+        
         def decorator(func):
             self._add_route(rule, func, name, methods, auto404)
             return func
@@ -463,7 +518,7 @@ class Application(object):
             if isinstance(body, unicode):
                 encoding = headers['Content-Type']
                 if encoding.find('charset=') != -1:
-                    before, enc = encoding.split('charset=1')
+                    before, enc = encoding.split('charset=',1)
                 else:
                     before = encoding.strip()
                     if before.endswith(';'):
@@ -521,7 +576,12 @@ class Application(object):
         if name is None:
             if view is None:
                 raise Exception('No name or view specified!')
-            name = view.__name__
+            if hasattr(view, '__name__'):
+                name = view.__name__
+            elif hasattr(view, '__class__'):
+                name = view.__class__.__name__
+            else:
+                raise NameError("Cannot find name for this route.")
         
         if not callable(view):
             raise Exception('View must be callable.')
@@ -537,7 +597,10 @@ class Application(object):
             request.__viewmodule__ = view.__module__
             match = request.match
             try:
-                view.func_globals['request'] = request
+                try:
+                    view.func_globals['request'] = request
+                except AttributeError:
+                    view.__call__.func_globals['request'] = request
                 if arguments is False:
                     return view()
                 
@@ -555,12 +618,156 @@ class Application(object):
                 
                 return view(*out)
             finally:
-                view.func_globals['request'] = None
+                try:
+                    view.func_globals['request'] = None
+                except AttributeError:
+                    view.__call__.func_globals['request'] = None
         
         view_runner.__name__ = name
         self._insert_route(_regex, view_runner, "%s.%s" %(view.__module__,name),
             methods, names, namegen)
+
+###############################################################################
+# FileServer Class
+###############################################################################
+
+class FileServer(object):
+    """
+    The FileServer is a request handling class that, as it sounds, serves files
+    to the client. It also supports the Content-Range header, HEAD requests,
+    ETags, and last modified dates.
     
+    It attempts to serve the files as efficiently as possible.
+    
+    Using it is simple. It only requires a single argument: the path to serve
+    files from. You can also supply a list of default files to check to serve
+    rather than a file listing.
+    
+    When used with an Application, the FileServer is not created in the usual
+    way with the route decorator, but rather with a method of the FileServer
+    itself. Example:
+        
+        FileServer("/tmp/path").attach(app)
+    
+    If you wish to listen on a path other than /static/, you can also use that
+    when attaching:
+        
+        FileServer("/tmp/path").attach(app, "/files/")
+    """
+    def __init__(self, path, defaults=['index.html','index.html']):
+        """
+        Initialize the FileServer.
+        
+        Args:
+            path: The path to serve.
+            defaults: A list of default files, such as index.html.
+        """
+        self.path = os.path.normpath(os.path.realpath(path))
+        self.defaults = defaults
+    
+    def attach(self, app, route='/static/'):
+        """
+        Attach this fileserver to an application, bypassing the usual route
+        decorator to ensure things are done right.
+        
+        Args:
+            app: The application to attach to.
+            route: The path to listen on. Defaults to '/static/'.
+        """
+        route = re.compile("^%s(.*)$" % re.escape(route))
+        app._insert_route(route, self, "FileServer", ['HEAD','GET'], None, None)
+    
+    def __call__(self, request):
+        """
+        Serve a request.
+        """
+        
+        # Get the proper path.
+        try:
+            path = request.match.group(1)
+        except (AttributeError,IndexError):
+            path = request.path
+        
+        # Update the path.
+        path = urllib.unquote(path)
+        path = os.path.normpath(os.path.join(self.path, path))
+        
+        # Make sure we can access it.
+        if not path.startswith(self.path):
+            abort(403)
+        if not os.path.exists(path):
+            abort(404)
+        
+        # Is there a default?
+        for f in self.defaults:
+            full = os.path.join(path, f)
+            if os.path.exists(full):
+                request.path = full
+                if hasattr(request, 'match'):
+                    del request.match
+                return self.__call__(request)
+        
+        # Is this a directory?
+        if os.path.isdir(path):
+            return self.list_directory(request, path)
+        
+        with open(path,'rb') as f:
+            content = f.read()
+        
+        # Guess the Content-Type
+        if path.endswith('.css'):
+            type = 'text/css'
+        elif path.endswith('.js'):
+            type = 'application/javascript'
+        else:
+            type = guess_type(path)
+        
+        return content, 200, {'Content-Type':type}
+    
+    def list_directory(self, request, path):
+        """
+        Generate a directory listing and return it.
+        """
+        uri = request.path
+        if not uri.startswith('/'):
+            uri = '/%s' % uri
+        if not uri.endswith('/'):
+            return redirect('%s/' % uri)
+        
+        go_up = u''
+        url = uri.strip('/')
+        if url:
+            url = url.rpartition('/')[0]
+            go_up = u'<p><a href="..">Up to Higher Directory</a></p>' #% url
+        
+        files = []
+        
+        for p in sorted(os.listdir(path), key=str.lower):
+            if p.startswith('.'):
+                continue
+            full = os.path.join(path, p)
+            stat = os.stat(full)
+            mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
+                '<td class="right">%Y-%m-%d</td><td class="left">%I:%M:%S %p</td>')
+            
+            if os.path.isdir(full):
+                files.append('<tr><td><a href="%s%s/">%s</a></td>' % (
+                    uri, p, p))
+                files.append('<td class="faint">Directory</td>')
+                files.append('%s</tr>' % mtime)
+            else:
+                size = _human_readable_size(stat.st_size)
+                files.append('<tr><td><a href="%s%s">%s</a></td>' % (
+                    uri, p, p))
+                files.append('<td>%s</td>' % size)
+                files.append('%s</tr>' % mtime)
+        
+        files = u''.join(files)
+        
+        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host), 200, {
+            'Content-Type':'text/html; charset=utf-8'
+        }
+        
 ###############################################################################
 # Private Helper Functions
 ###############################################################################
@@ -625,7 +832,29 @@ def _route_to_regex(route):
         regex += match.group(2)
     
     return regex, tuple(values), tuple(names), namegen[1:-1]
+
+_abbreviations = (
+    (1<<50L, ' PB'),
+    (1<<40L, ' TB'),
+    (1<<30L, ' GB'),
+    (1<<20L, ' MB'),
+    (1<<10L, ' KB'),
+    (1, ' B')
+)
+def _human_readable_size(size, precision=2):
+    """ Convert a size to a human readable filesize. """
+    if size == 0:
+        return '0 B'
     
+    for f,s in _abbreviations:
+        if size >= f:
+            break
+    
+    ip, dp = `size/float(f)`.split('.')
+    if int(dp[:precision]):
+        return  '%s.%s%s' % (ip,dp[:precision],s)
+    return '%s%s' % (ip,s)
+
 ###############################################################################
 # Public Helper Functions
 ###############################################################################
@@ -686,7 +915,7 @@ def error(message=None, status=None, headers=None):
     result = u"".join([
         u"<html><head>",
         u"<title>%d %s</title>" % (status, title),
-        u"<style>%s</style>" % ERROR_CSS,
+        u"<style>%s</style>" % PAGE_CSS,
         u"</head><body>",
         u'<div class="column">',
         u'<div class="spacer"></div><div class="thingy">',
