@@ -93,7 +93,7 @@ class Channel(object):
         Returns:
             True or False
         """
-        return self._socket and (self._connected or self._listening)
+        return self._socket and (self._connected or self._listening or self._connecting)
     
     def readable(self):
         """
@@ -450,10 +450,7 @@ class Channel(object):
         Args:
             events: The events raised on the channel.
         """
-        if self._connecting:
-            # TODO Make _connecting part of active()?
-            pass
-        elif not self.active():
+        if not self.active():
             log.warning("Received events for closed channel %d." % self.fileno)
             return
         
