@@ -58,8 +58,8 @@ class Channel(object):
         self._socket = socket or self._socket_create()
         self._socket.setblocking(False)
         self.fileno = self._socket.fileno()
-        self.remote_addr = None
-        self.local_addr = None
+        self.remote_addr = (None, None)
+        self.local_addr = (None, None)
         
         # Internal state
         self._connected = False
@@ -210,10 +210,7 @@ class Channel(object):
             return
         
         self._write_buffer += data
-        
-        if not self._events & self._reactor.WRITE:
-            self._events |= self._reactor.WRITE
-            self._reactor.modify_channel(self)
+        self._add_event(self._reactor.WRITE)
     
     ##### Public Event Handlers ###############################################
     
@@ -263,11 +260,16 @@ class Channel(object):
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
         elif self._listening:  
-            self.remote_addr = None
+            self.remote_addr = (None, None)
             self.local_addr = self._socket.getsockname()
         else:
-            self.remote_addr = None
-            self.local_addr = None
+            self.remote_addr = (None, None)
+            self.local_addr = (None, None)
+    
+    def _add_event(self, event):
+        if not self._events & event:
+            self._events |= event
+            self._reactor.modify_channel(self)
     
     ##### Socket Method Wrappers ##############################################
     
@@ -298,7 +300,7 @@ class Channel(object):
         try:
             self._socket.connect((host, port))
             # A write event is raised when the connection has completed.
-            self._events |= self._reactor.WRITE
+            self._add_event(self._reactor.WRITE)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
