@@ -260,21 +260,15 @@ class Channel(object):
     ##### Private Methods #####################################################
     
     def _update_addr(self):
-        try:
+        if self._connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
-        except AttributeError:
-            # self._socket is NoneType.
+        elif self._listening:  
+            self.remote_addr = None
+            self.local_addr = self._socket.getsockname()
+        else:
             self.remote_addr = None
             self.local_addr = None
-        except Exception, err:
-            if err[0] in (errno.EBADF, errno.ENOTCONN):
-                # EBADF: Bad file number.
-                # ENOTCONN: Transport endpoint is not connected.
-                self.remote_addr = None
-                self.local_addr = None
-            else:
-                raise
     
     ##### Socket Method Wrappers ##############################################
     
