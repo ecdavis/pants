@@ -116,7 +116,7 @@ class Server(Channel):
             socket: The newly-connected socket object.
             addr: The socket's address.
         """
-        connection = self.ConnectionClass(self, socket, self._reactor)
+        connection = self.ConnectionClass(socket, self._reactor, self)
         self.channels[connection.fileno] = connection
         connection._handle_connect_event()
     
