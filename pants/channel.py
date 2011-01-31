@@ -160,6 +160,15 @@ class Channel(object):
         
         return self
     
+    def send(self, data):
+        """
+        Overridable wrapper for Channel.write()
+        
+        Args:
+            data: The data to be sent.
+        """
+        self.write(data)
+    
     def write(self, data):
         """
         Writes data to the socket.
