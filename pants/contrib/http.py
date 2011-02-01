@@ -20,11 +20,12 @@
 # Imports
 ###############################################################################
 
+import Cookie
 import logging
 import pprint
-import time
 import urlparse
 
+from time import time
 from pants import Connection, Server
 
 ###############################################################################
@@ -127,7 +128,7 @@ class HTTPConnection(Connection):
     
     ##### Public Event Handlers ###############################################
     
-    def handle_write(self):
+    def handle_write(self, bytes_written=None):
         """
         If writing is finished, and the request is also finished, either closes
         the connection or, if keep-alive is supported, attempts to read another
@@ -321,7 +322,7 @@ class HTTPRequest(object):
         self.host       = self.headers.get('Host', '127.0.0.1')
         
         # Timing Information
-        self._start     = time.time()
+        self._start     = time()
         self._finish    = None
         
         # Request Variables
@@ -344,14 +345,44 @@ class HTTPRequest(object):
         out = u'<pre>%s(\n    %s\n\n' % (self.__class__.__name__, attr)
         
         for i in ('headers','get','post'):
-            out += u'    %-8s = {\n %s\n\n' % (
-                i, pprint.pformat(getattr(self, i), 8, 80)[1:])
+            if getattr(self,i):
+                out += u'    %-8s = {\n %s\n        }\n\n' % (
+                    i, pprint.pformat(getattr(self, i), 8, 80)[1:-1])
+            else:
+                out += u'    %-8s = {}\n\n' % i
+        
+        if hasattr(self, '_cookies') and self.cookies:
+            out += u'    cookies  = {\n'
+            keys = list(self.cookies.__iter__())
+            for k in self.cookies:
+                out += u'        %r: %r\n' % (k, self.cookies[k].value)
+            out += u'        }\n\n'
+        else:
+            out += u'    cookies  = {}\n\n'
         
         out += u'    files    = %s\n)</pre>' % \
             pprint.pformat(self.files.keys(), 0, 80)
         return out
     
     ##### Properties ##########################################################
+    
+    @property
+    def cookies(self):
+        """
+        The cookies provided to the request.
+        """
+        try:
+            return self._cookies
+        except AttributeError:
+            self._cookies = cookies = Cookie.SimpleCookie()
+            if 'Cookie' in self.headers:
+                raw = self.headers['Cookie']
+                if isinstance(raw, list):
+                    for i in raw:
+                        cookies.load(i)
+                else:
+                    cookies.load(raw)
+            return self._cookies
     
     @property
     def full_url(self):
@@ -367,7 +398,7 @@ class HTTPRequest(object):
         processing time if the request has been finished.
         """
         if self._finish is None:
-            return time.time() - self._start
+            return time() - self._start
         return self._finish - self._start
     
     ##### I/O Methods #########################################################
@@ -377,7 +408,7 @@ class HTTPRequest(object):
         Close the response, allowing the underlying connection to either close
         the socket or begin listening for a new request.
         """
-        self._finish = time.time()
+        self._finish = time()
         self.connection.finish()
     
     def send(self, data):
@@ -389,6 +420,34 @@ class HTTPRequest(object):
         """
         self.connection.write(data)
     
+    def send_cookies(self, keys=None, end_headers=False):
+        """
+        Write the request's cookies to the client. If keys is specified, then
+        only the listed cookies will be sent out. Otherwise, all cookies will
+        be written to the client.
+        
+        Args:
+            keys: The cookies to send.
+            end_headers: If True, a double CRLF will be written at the end of
+                the cookie headers to end them and tell the client to begin
+                reading the response. If False, only a single CRLF will be
+                used to end the headers.
+        """
+        if keys is None:
+            out = self.cookie.output()
+        else:
+            out = []
+            for k in keys:
+                if not k in self.cookie:
+                    continue
+                out.append(self.cookie[k].output())
+            out = CRLF.join(out)
+        
+        if end_headers:
+            self.connection.write('%s%s' % (out, CRLF))
+        else:
+            self.connection.write(out)
+    
     def send_headers(self, headers, end_headers=True):
         """
         Write a dict of HTTP headers to the client.
@@ -399,21 +458,22 @@ class HTTPRequest(object):
                 headers to end them and tell the client to expect a response.
                 If False, only the provided headers will be written.
         """
-        assert isinstance(headers, dict)
-        
-        for key, value in headers.iteritems():
-            if isinstance(value, list) or isinstance(value, tuple):
-                if key in COMMA_HEADERS:
-                    self.connection.write('%s: %s%s' % (key,
-                        ', '.join(str(v) for v in value), CRLF))
-                else:
-                    for val in value:
-                        self.connection.write('%s: %s%s' % (key, val, CRLF))
+        out = []
+        append = out.append
+        for key in headers:
+            val = headers[key]
+            if type(val) is list:
+                for v in val:
+                    append('%s: %s' % (key, v))
             else:
-                self.connection.write('%s: %s%s' % (key, value, CRLF))
+                append('%s: %s' % (key, val))
         
         if end_headers:
-            self.connection.write(CRLF)
+            append(CRLF)
+        else:
+            append('')
+        
+        self.connection.write(CRLF.join(out))
     
     def send_status(self, code=200):
         """
@@ -425,29 +485,28 @@ class HTTPRequest(object):
             code: The HTTP status code to write. Optional. Defaults to 200,
                 which is OK.
         """
-        if code in HTTP:
+        try:
             self.connection.write('%s %d %s%s' % (
                 self.version, code, HTTP[code], CRLF))
-            return
-        
-        self.connection.write('%s %s%s' % (self.version, code, CRLF))
+        except KeyError:
+            self.connection.write('%s %s%s' % (
+                self.version, code, CRLF))
     
     write = send
     
     ##### Internal Event Handlers #############################################
     
     def _parse_uri(self):
-        scheme, loc, path, query, fragment = urlparse.urlsplit(self.uri)
-        self.path       = path
-        self.query      = query
+        path, query = urlparse.urlsplit(self.uri)[2:4]
+        self.path   = path
+        self.query  = query
         
-        self.get = {}
-        for key, values in urlparse.parse_qs(query, False).iteritems():
-            self.get[key] = values
-        
-        for key in self.get:
-            if len(self.get[key]) == 1:
-                self.get[key] = self.get[key][0]
+        self.get = get = {}
+        if len(query) != 0:
+            for key, val in urlparse.parse_qs(query, False).iteritems():
+                if len(val) == 1:
+                    val = val[0]
+                get[key] = val
     
 ###############################################################################
 # HTTPServer Class
@@ -599,31 +658,31 @@ def read_headers(data, d=None):
     if d is None:
         d = {}
     
-    # Clear off the nonsense. One CRLF only.
-    data = data.rstrip(CRLF) + CRLF
-    
+    data = data.rstrip(CRLF)
     key = None
-    for line in data.splitlines(True):
-        if not line or not line.endswith(CRLF):
-            raise BadRequest('HTTP header lines must end in CRLF.')
-        
-        # Check for multi-line nonsense.
+    
+    for line in data.splitlines():
+        if not line:
+            raise BadRequest('Illegal header line: %r' % line)
         if line[0] in ' \t':
-            # Continuation
             val = line.strip()
         else:
             try:
-                key, val = line.split(':', 1)
+                key, sep, val = line.partition(':')
             except ValueError:
                 raise BadRequest('Illegal header line: %r' % line)
             
-            key = key.strip()
+            key = key.rstrip()
             val = val.strip()
         
-        if key in COMMA_HEADERS:
-            if key in d:
+        if key in d:
+            if key in COMMA_HEADERS:
                 d[key] = '%s, %s' % (d[key], val)
-                continue
+            elif isinstance(d[key], list):
+                d[key].append(val)
+            else:
+                d[key] = [d[key], val]
+            continue
         d[key] = val
     
     return d
