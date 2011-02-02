@@ -25,7 +25,6 @@ import logging
 from pants.engine import engine
 from pants.network import Client, Connection, Server
 from pants.publisher import publisher
-from pants.reactor import reactor
 
 
 ###############################################################################

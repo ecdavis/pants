@@ -21,12 +21,19 @@
 ###############################################################################
 
 import bisect
+import errno
+import select
 import time
 
 from pants.publisher import publisher
-from pants.reactor import reactor
-import pants.shared
-from pants.shared import log
+
+
+###############################################################################
+# Logging
+###############################################################################
+
+import logging
+log = logging.getLogger("pants")
 
 
 ###############################################################################
@@ -36,26 +43,33 @@ from pants.shared import log
 class Engine(object):
     """
     The singleton engine class.
-    
-    An instance of this class will initialise and continuously update
-    the various parts of the Pants framework. The global instance of
-    this class will suit almost all situations, and only one instance
-    should be running at any given time.
     """
-    def __init__(self):
-        #: Timeout passed to :func:`pants.reactor.Reactor.poll``
-        self.poll_timeout = 0.02
+    # Socket events - these correspond to epoll() states.
+    NONE = 0x00
+    READ = 0x01
+    WRITE = 0x04
+    ERROR = 0x08 | 0x10 | 0x2000
+    
+    def __init__(self, poller=None):
+        self.time = time.time()
         
         self._shutdown = False
         self._running = False
+        
+        if poller:
+            self._poller = poller
+        elif hasattr(select, "epoll"):
+            self._poller = _EPoll()
+        elif hasattr(select, "kqueue"):
+            self._poller = _KQueue()
+        else:
+            self._poller = _Select()
+        self._channels = {}
+        
         self._callbacks = []
         self._deferreds = []
     
-    def poll(self):
-        """
-        Placeholder. Called on each iteration of the main loop.
-        """
-        pass
+    ##### Engine Methods ######################################################
     
     def start(self, poll_timeout=0.02):
         """
@@ -66,7 +80,7 @@ class Engine(object):
         initialised and is ready to start.
         
         Args:
-            poll_timeout: The timeout to pass to reactor.poll().
+            poll_timeout: The timeout to pass to engine.poll().
         
         Raises:
             SystemExit
@@ -79,8 +93,6 @@ class Engine(object):
         else:
             self._running = True
         
-        self.poll_timeout = poll_timeout
-        
         # Initialise engine.
         log.info("Starting engine.")
         publisher.publish("pants.engine.start")
@@ -90,38 +102,23 @@ class Engine(object):
             log.info("Entering main loop.")
             
             while not self._shutdown:
-                pants.shared.time = time.time()
-                self.scheduler_update()
+                # TODO timers
                 
-                if self._shutdown:
-                    break
-                
-                poll_timeout = self.poll_timeout
-                if self._deferreds:
-                    timeout = self._deferreds[0].end - pants.shared.time
-                    poll_timeout = min(timeout, poll_timeout)
-                
-                self.poll()
-                
-                if self._shutdown:
-                    break
-                
-                reactor.poll(poll_timeout)
-                publisher.publish("pants.engine.poll")
-                
+                self.poll(poll_timeout)
+        
         except KeyboardInterrupt:
             pass
         except SystemExit:
             raise
         except Exception:
             log.exception("Uncaught exception in main loop.")
-        finally:       
+        finally:
             # Graceful shutdown.
             log.info("Stopping engine.")
             publisher.publish("pants.engine.stop")
             
             log.info("Shutting down.")
-            self._shutdown = False # If we decide to start up again.
+            self._shutdown = False
             self._running = False
     
     def stop(self):
@@ -130,35 +127,109 @@ class Engine(object):
         """
         self._shutdown = True
     
-    ##### Scheduler Methods ###################################################
-    
-    def scheduler_update(self):
+    def poll(self, poll_timeout):
         """
-        Update all callbacks, deferreds and cycles.
-        """
-        for callback in self._callbacks[:]:
-            # Callbacks can remove other callbacks.
-            if callback in self._callbacks:
-                self._callbacks.remove(callback)
-                callback.run()
+        Polls the engine.
         
-        # The deferred list is sorted by time.
-        while self._deferreds and self._deferreds[0].end <= pants.shared.time:
-            deferred = self._deferreds.pop(0)
-            deferred.run()
-    
-    def scheduler_remove(self, obj):
-        """
-        Remove a callback, deferred or cycle from the scheduler.
+        Updates all callbacks, deferreds and cycles. Identifies active
+        sockets, then reads from, writes to and raises exceptions on
+        those sockets.
         
         Args:
-            obj: The callback, deferred or cycle to remove.
+            timeout: The timeout to be passed to the polling object.
+                Defaults to 0.02.
         """
-        if isinstance(obj, _Deferred):
-            while obj in self._deferreds:
-                self._deferreds.remove(obj)
-        else:
-            self._callbacks.remove(obj)
+        # Update time.
+        self.time = time.time()
+        
+        # Update timers.
+        for callback in self._callbacks[:]:
+            # Callbacks can remove one another.
+            try:
+                self._callbacks.remove(callback)
+            except ValueError:
+                pass # Callback not present.
+            finally:
+                callback.run()
+        
+        while self._deferreds and self._deferreds[0].end <= self.time:
+            # The deferred list is sorted by time.
+            deferred = self._deferreds.pop(0)
+            deferred.run()
+        
+        if self._shutdown:
+            return
+        
+        if self._deferreds:
+            timeout = self._deferreds[0].end - self.time
+            timeout = min(timeout, poll_timeout)
+            if timeout < 0:
+                timeout = 0.0
+        
+        # Update channels.
+        if not self._channels:
+            time.sleep(poll_timeout) # Don't burn CPU.
+            return
+        
+        try:
+            events = self._poller.poll(poll_timeout)
+        except Exception, err:
+            if err[0] == errno.EINTR:
+                log.warning("Interrupted system call.", exc_info=True)
+                return
+            else:
+                raise
+        
+        for fileno, events in events.iteritems():
+            try:
+                self._channels[fileno]._handle_events(events)
+            except (IOError, OSError), err:
+                if err[0] == errno.EPIPE:
+                    # EPIPE: Broken pipe.
+                    self._channels[fileno].close_immediately()
+                else:
+                    log.exception("Error while handling I/O events on channel %d." % fileno)
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception:
+                log.exception("Error while handling I/O events on channel %d." % fileno)
+    
+    ##### Channel Methods #####################################################
+    
+    def add_channel(self, channel):
+        """
+        Adds a channel to the engine.
+        
+        Args:
+            channel: The channel to add.
+        """
+        self._channels[channel.fileno] = channel
+        self._poller.add(channel.fileno, channel._events)
+    
+    def modify_channel(self, channel):
+        """
+        Modifies a channel's state.
+        
+        Args:
+            channel: The channel to modify.
+        """
+        self._poller.modify(channel.fileno, channel._events)
+    
+    def remove_channel(self, channel):
+        """
+        Removes a channel from the engine.
+        
+        Args:
+            channel: The channel to remove.
+        """
+        self._channels.pop(channel.fileno, None)
+        
+        try:
+            self._poller.remove(channel.fileno)
+        except (IOError, OSError):
+            log.exception("Error while removing channel %d." % channel.fileno)
+    
+    ##### Timer Methods #######################################################
     
     def callback(self, func, *args, **kwargs):
         """
@@ -172,11 +243,11 @@ class Engine(object):
         Returns:
             An object which can be used to cancel the callback.
         """
-        callback = _Callback(self, func, *args, **kwargs)
+        callback = _Callback(func, *args, **kwargs)
         self._callbacks.append(callback)
         
         return callback
-
+    
     def defer(self, func, delay, *args, **kwargs):
         """
         Schedule a deferred.
@@ -190,7 +261,7 @@ class Engine(object):
         Returns:
             An object which can be used to cancel the deferred.
         """
-        deferred = _Deferred(self, func, delay, *args, **kwargs)
+        deferred = _Deferred(func, delay, *args, **kwargs)
         bisect.insort(self._deferreds, deferred)
         
         return deferred
@@ -209,10 +280,169 @@ class Engine(object):
         Returns:
             An object which can be used to cancel the cycle.
         """
-        cycle = _Cycle(self, func, interval, *args, **kwargs)
+        cycle = _Cycle(func, interval, *args, **kwargs)
         bisect.insort(self._deferreds, cycle)
         
         return cycle
+    
+    def remove_timer(self, timer):
+        """
+        Remove a callback, deferred or cycle from the engine.
+        
+        Args:
+            obj: The callback, deferred or cycle to remove.
+        """
+        if isinstance(timer, _Deferred):
+            try:
+                self._deferreds.remove(timer)
+            except ValueError:
+                pass # Callback not present.
+        else:
+            try:
+                self._callbacks.remove(timer)
+            except ValueError:
+                pass # Callback not present.
+
+
+###############################################################################
+# _EPoll Class
+###############################################################################
+
+class _EPoll(object):
+    """
+    An epoll()-based polling object.
+    
+    epoll() can only be used on Linux 2.6+
+    """
+    def __init__(self):
+        self._epoll = select.epoll()
+    
+    def add(self, fileno, events):
+        self._epoll.register(fileno, events)
+    
+    def modify(self, fileno, events):
+        self._epoll.modify(fileno, events)
+    
+    def remove(self, fileno):
+        self._epoll.unregister(fileno)
+    
+    def poll(self, timeout):
+        epoll_events = self._epoll.poll(timeout)
+        events = {}
+        
+        for fileno, event in epoll_events:
+            if event & select.EPOLLIN:
+                events[fileno] = events.get(fileno, 0) | Engine.READ
+            if event & select.EPOLLOUT:
+                events[fileno] = events.get(fileno, 0) | Engine.WRITE
+            if event & (select.EPOLLERR | select.EPOLLHUP | 0x2000):
+                events[fileno] = events.get(fileno, 0) | Engine.ERROR
+        
+        return events
+
+
+###############################################################################
+# _KQueue Class
+###############################################################################
+
+class _KQueue(object):
+    """
+    A kqueue()-based polling object.
+    
+    kqueue() can only be used on BSD.
+    """
+    def __init__(self):
+        self._kqueue = select.kqueue()
+    
+    def add(self, fileno, events):
+        self._control(fileno, events, select.KQ_EV_ADD)
+    
+    def modify(self, fileno, events):
+        self.remove(fileno)
+        self.add(fileno, events)
+    
+    def remove(self, fileno):
+        self._control(fileno, Engine.NONE, select.KQ_EV_DELETE)
+    
+    def poll(self, timeout):
+        kqueue_events = self._kqueue.control(None, 1024, timeout)
+        events = {}
+        
+        for event in kqueue_events:
+            fileno = event.ident
+            
+            if event.filter == select.KQ_FILTER_READ:
+                events[fileno] = events.get(fileno, 0) | Engine.READ
+            if event.filter == select.KQ_FILTER_WRITE:
+                events[fileno] = events.get(fileno, 0) | Engine.WRITE
+            if event.flags & select.KQ_EV_ERROR:
+                events[fileno] = events.get(fileno, 0) | Engine.ERROR
+        
+        return events
+    
+    def _control(self, fileno, events, flags):
+        kqueue_events = []
+        
+        if events & Engine.WRITE:
+            event = select.kevent(fileno, filter=select.KQ_FILTER_WRITE,
+                                  flags=flags)
+            kqueue_events.append(event)
+        
+        if events & Engine.READ or not kqueue_events:
+            event = select.kevent(fileno, filter=select.KQ_FILTER_READ,
+                                  flags=flags)
+            kqueue_events.append(event)
+        
+        for event in kqueue_events:
+            self._kqueue.control([event], 0)
+
+
+###############################################################################
+# _Select Class
+###############################################################################
+
+class _Select(object):
+    """
+    A select()-based polling object.
+    
+    select()'s performance is relatively poor. On Windows, it is limited
+    to 512 file descriptors.
+    """
+    def __init__(self):
+        self._r = set()
+        self._w = set()
+        self._e = set()
+    
+    def add(self, fileno, events):
+        if events & Engine.READ:
+            self._r.add(fileno)
+        if events & Engine.WRITE:
+            self._w.add(fileno)
+        if events & Engine.ERROR:
+            self._e.add(fileno)
+    
+    def modify(self, fileno, events):
+        self.remove(fileno)
+        self.add(fileno, events)
+    
+    def remove(self, fileno):
+        self._r.discard(fileno)
+        self._w.discard(fileno)
+        self._e.discard(fileno)
+    
+    def poll(self, timeout):
+        r, w, e, = select.select(self._r, self._w, self._e, timeout)
+        
+        events = {}
+        
+        for fileno in r:
+            events[fileno] = events.get(fileno, 0) | Engine.READ
+        for fileno in w:
+            events[fileno] = events.get(fileno, 0) | Engine.WRITE
+        for fileno in e:
+            events[fileno] = events.get(fileno, 0) | Engine.ERROR
+        
+        return events
 
 
 ###############################################################################
@@ -225,9 +455,7 @@ class _Callback(object):
     immediately but rather at the beginning of the next iteration of the
     main engine loop.
     """
-    def __init__(self, scheduler, func, *args, **kwargs):
-        self._scheduler = scheduler
-        
+    def __init__(self,func, *args, **kwargs):
         self.func = func
         self.args = args
         self.kwargs = kwargs
@@ -242,7 +470,7 @@ class _Callback(object):
         """
         Stop the callback from being executed.
         """
-        self._scheduler.remove(self)
+        engine.remove(self)
 
 
 ###############################################################################
@@ -254,11 +482,11 @@ class _Deferred(_Callback):
     A deferred is a function (or other callable) that is not executed
     immediately but rather after a certain amount of time.
     """
-    def __init__(self, scheduler, func, delay, *args, **kwargs):
-        _Callback.__init__(self, scheduler, func, *args, **kwargs)
+    def __init__(self,  func, delay, *args, **kwargs):
+        _Callback.__init__(self, func, *args, **kwargs)
         
         self.delay = delay
-        self.end = pants.shared.time + delay
+        self.end = engine.time + delay
     
     def __cmp__(self, to):
         return cmp(self.end, to.end)
@@ -277,7 +505,7 @@ class _Cycle(_Deferred):
     def run(self):
         _Deferred.run(self)
         
-        self._scheduler.cycle(self.func, self.delay, *self.args, **self.kwargs)
+        self.engine.cycle(self.func, self.delay, *self.args, **self.kwargs)
 
 
 ###############################################################################

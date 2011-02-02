@@ -24,8 +24,15 @@ import errno
 import os
 import socket
 
-from pants.reactor import reactor
-from pants.shared import log
+from pants.engine import engine
+
+
+###############################################################################
+# Logging
+###############################################################################
+
+import logging
+log = logging.getLogger("pants")
 
 
 ###############################################################################
@@ -44,14 +51,12 @@ class Channel(object):
     Server, Connection and Client classes be used to develop networking
     code as they provide slightly less generic APIs.
     """
-    def __init__(self, socket=None, parent=None):
+    def __init__(self, socket=None):
         """
         Initialises the channel object.
         
         Args:
             socket: A pre-existing socket that this channel should wrap.
-                Optional.
-            parent: The reactor that this channel should be attached to.
                 Optional.
         """
         # Socket
@@ -67,22 +72,25 @@ class Channel(object):
         self._listening = False
         self._closing = False
         
-        # Reactor
-        self._reactor = parent or reactor
-        
-        # I/O
+        # Input
         self.read_delimiter = None # String, integer or None.
         self._read_amount = 4096
         self._read_buffer = ""
+        
+        # Output
         self._write_buffer = ""
+        self._secondary_write_buffer = ""
+        self._write_file = None
+        self._write_file_left = None
+        self._write_file_chunk = 65536
         
         # Initialisation
-        self._events = self._reactor.ERROR
+        self._events = engine.ERROR
         if self.readable():
-            self._events |= self._reactor.READ
+            self._events |= engine.READ
         if self.writable():
-            self._events |= self._reactor.WRITE
-        self._reactor.add_channel(self)
+            self._events |= engine.WRITE
+        engine.add_channel(self)
     
     ##### General Methods #####################################################
     
@@ -102,7 +110,7 @@ class Channel(object):
         Returns:
             True or False
         """
-        return True
+        return not self._closing
     
     def writable(self):
         """
@@ -111,7 +119,7 @@ class Channel(object):
         Returns:
             True or False
         """
-        return len(self._write_buffer) > 0
+        return len(self._write_buffer) > 0 or self._write_file
     
     def connect(self, host, port):
         """
@@ -180,7 +188,12 @@ class Channel(object):
         if not self.active():
             return
         
-        self._reactor.remove_channel(self)
+        if self._write_file:
+            self._write_file.close()
+            self._write_file = None
+            self._write_file_left = None
+        
+        engine.remove_channel(self)
         self._socket_close()
         self._update_addr()
         self._safely_call(self.handle_close)
@@ -189,7 +202,7 @@ class Channel(object):
     
     def send(self, data):
         """
-        A wrapper for Channel.write() that can be safely overridden.
+        Overridable wrapper for Channel.write()
         
         Args:
             data: The data to be sent.
@@ -209,8 +222,27 @@ class Channel(object):
             log.warning("Attempted to write to closing channel %d." % self.fileno)
             return
         
-        self._write_buffer += data
-        self._add_event(self._reactor.WRITE)
+        if not self._write_file:
+            self._write_buffer += data
+        else:
+            self._secondary_write_buffer += data
+        self._add_event(engine.WRITE)
+    
+    def send_file(self, file, length=None):
+        self.write_file(file, length)
+    
+    def write_file(self, file, length=None):
+        if not self.active():
+            raise IOError("Attempted to write to closed channel %d." % self.fileno)
+        if self._closing:
+            log.warning("Attempted to write to closing channel %d." % self.fileno)
+            return
+        if self._write_file:
+            raise IOError("Channel %d is already writing a file." % self.fileno)
+        
+        self._write_file = file
+        self._write_file_left = length
+        self.add_event(engine.WRITE)
     
     ##### Public Event Handlers ###############################################
     
@@ -225,7 +257,13 @@ class Channel(object):
     
     def handle_write(self):
         """
-        Placeholder. Called when the channel is ready to write data.
+        Placeholder. Called after the channel has written data.
+        """
+        pass
+    
+    def handle_write_file(self):
+        """
+        Placeholder. Called after the channel has written a file.
         """
         pass
     
@@ -255,6 +293,24 @@ class Channel(object):
     
     ##### Private Methods #####################################################
     
+    def _add_event(self, event):
+        if not self._events & event:
+            self._events |= event
+            engine.modify_channel(self)
+    
+    def _safely_call(self, callable, *args, **kwargs):
+        """
+        Args:
+            callable: The callable to execute.
+            *args: Positional arguments to pass to the callable.
+            **kwargs: Keyword arguments to pass to the callable.
+        """
+        try:
+            callable(*args, **kwargs)
+        except Exception:
+            log.exception("Exception raised on channel %d." % self.fileno)
+            self.close_immediately()
+    
     def _update_addr(self):
         if self._connected:
             self.remote_addr = self._socket.getpeername()
@@ -265,11 +321,6 @@ class Channel(object):
         else:
             self.remote_addr = (None, None)
             self.local_addr = (None, None)
-    
-    def _add_event(self, event):
-        if not self._events & event:
-            self._events |= event
-            self._reactor.modify_channel(self)
     
     ##### Socket Method Wrappers ##############################################
     
@@ -300,7 +351,7 @@ class Channel(object):
         try:
             self._socket.connect((host, port))
             # A write event is raised when the connection has completed.
-            self._add_event(self._reactor.WRITE)
+            self._add_event(engine.WRITE)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -443,7 +494,7 @@ class Channel(object):
         else:
             return data
     
-    ##### Internal Event Handlers #############################################
+    ##### Private Event Handlers ##############################################
     
     def _handle_events(self, events):
         """
@@ -455,7 +506,7 @@ class Channel(object):
             return
         
         # Read event.
-        if events & self._reactor.READ:
+        if events & engine.READ:
             if self._listening:
                 self._handle_accept_event()
             elif not self._connected:
@@ -466,22 +517,22 @@ class Channel(object):
                 return
         
         # Write event.
-        if events & self._reactor.WRITE:
+        if events & engine.WRITE:
             self._handle_write_event()
             if not self.active():
                 return
         
         # Error event.
-        if events & self._reactor.ERROR:
+        if events & engine.ERROR:
             self.close_immediately()
             return
         
         # Update events.
-        events = self._reactor.ERROR
+        events = engine.ERROR
         if self.readable():
-            events |= self._reactor.READ
+            events |= engine.READ
         if self.writable():
-            events |= self._reactor.WRITE
+            events |= engine.WRITE
         elif self._closing:
             # Done writing, so close.
             self.close_immediately()
@@ -489,7 +540,7 @@ class Channel(object):
         
         if events != self._events:
             self._events = events
-            self._reactor.modify_channel(self)
+            engine.modify_channel(self)
     
     def _handle_accept_event(self):
         while True:
@@ -573,6 +624,17 @@ class Channel(object):
             if not self.writable():
                 return
         
+        if not self._write_buffer and self._write_file:
+            self._handle_write_file()
+        else:
+            self._handle_write_buffer()
+    
+    def _handle_write_buffer(self):
+        # We only get to this stage if there's no file to be written.
+        if self._secondary_write_buffer:
+            self._write_buffer += self._secondary_write_buffer
+            self._secondary_write_buffer = ""
+        
         # Empty as much of the write buffer as possible.
         while self._write_buffer:
             sent = self._socket_send(self._write_buffer)
@@ -582,15 +644,53 @@ class Channel(object):
         
         self._safely_call(self.handle_write)
     
-    def _safely_call(self, callable, *args, **kwargs):
-        """
-        Args:
-            callable: The callable to execute.
-            *args: Positional arguments to pass to the callable.
-            **kwargs: Keyword arguments to pass to the callable.
-        """
-        try:
-            callable(*args, **kwargs)
-        except Exception:
-            log.exception("Exception raised on channel %d." % self.fileno)
-            self.close_immediately()
+    def _handle_write_file(self):
+        # Find how much needs to be written.
+        if self._write_file_left:
+            to_write = min(self._write_file_left, self._write_file_chunk)
+            limited = True
+        else:
+            to_write = self._write_file_chunk
+            limited = False
+        
+        # Read in data from the file.
+        out = self._write_file.read(to_write)
+        if len(out) < to_write:
+            to_write = len(out)
+            limited = True
+        if to_write != 0:
+            done = False
+        else:
+            done = True
+        
+        # If there's data to be written, write it.
+        if not done:
+            written = 0
+            while out:
+                sent = self._socket_send(out)
+                if sent == 0:
+                    break
+                out = out[sent:]
+                written += sent
+            
+            # File doesn't exist any more? _socket_send closed the channel.
+            if not self._write_file:
+                return
+            
+            # Written all we need to? We're done.
+            if self._write_file_left:
+                self._write_file_left -= written
+                if self._write_file_left <= 0:
+                    done = True
+            
+            # Written less than we need to? Back up.
+            if written < to_write:
+                self._write_file.seek(written - to_write, 1)
+                if not limited:
+                    self._write_file_chunk = written
+        
+        # We're done. Close the file and call the callback.
+        if done:
+            self._write_file.close()
+            self._write_file = None
+            self._safely_call(self.handle_write_file)
