@@ -502,7 +502,7 @@ class HTTPRequest(object):
         self.query  = query
         
         self.get = get = {}
-        if len(query) != 0:
+        if query:
             for key, val in urlparse.parse_qs(query, False).iteritems():
                 if len(val) == 1:
                     val = val[0]
