@@ -20,13 +20,16 @@
 # Imports
 ###############################################################################
 
+import base64
 import logging
+import mimetypes
 import os
 import re
+import time
 import traceback
 import urllib
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pants import __version__ as pants_version
 from http import HTTP, HTTPServer, HTTPRequest
 
@@ -35,20 +38,31 @@ try:
 except ImportError:
     import json
 
-try:
-    import magic
-    m = magic.Magic(mime=True)
-    def guess_type(filename):
-        return m.from_file(filename)
-except ImportError:
-    import mimetypes
-    def guess_type(filename):
-        return mimetypes.guess_type(filename)[0]
-
 __all__ = ('Application','HTTPException','HTTPTransparentRedirect','abort',
     'all_or_404','error','json_response','jsonify','redirect','url_for',
     'HTTPServer','FileServer')
 
+###############################################################################
+# Cross Platform Hidden File Detection
+###############################################################################
+def _is_hidden(file, path):
+    return file.startswith(u'.')
+if os.name == 'nt':
+    try:
+        import win32api, win32con
+        def _is_hidden(file, path):
+            if file.startswith(u'.'):
+                return True
+            file = os.path.join(path, file)
+            try:
+                if win32api.GetFileAttributes(file) & win32con.FILE_ATTRIBUTE_HIDDEN:
+                    return True
+            except Exception:
+                return True
+            return False
+    except ImportError:
+        pass
+    
 ###############################################################################
 # Logging
 ###############################################################################
@@ -108,100 +122,117 @@ HTTP_MESSAGES = {
          u'this page.'
 }
 
-PAGE_CSS = u"""html, body {
-    margin: 0; padding: 0;
-    min-height: 100%%;
+IMAGES = {
+    'audio'     : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAZpJREFUeNqsU01Lw0AQbdI0aVIVUiSlWKiV/gARiveC2ptehf4Rz+JJ0aM38ebJgzfvvQiWUhooqAeLYCkRUYRa8tHEN7IpIRS3ogsvuzs782Yz81YIgiDxH0P6ha/QbrdLvu/XgC1cIFWpVLZhd7lEpmlmXdetImgTwRuYl2Muc8DbT0SpZrN5huD65DqCkBBFkTAE3pFgCWaNR5RB9joFS5L0Ksvyg6qq97qum0CPJTrHLPJqlKFPPp8/KRQKDSw/IvgEsqw2AY/oOxNILjE9sWCbwSOCINZuXtf6wDPg81oqcs69WUhmIfq7IGMlEFut1u54PN6HvYROXpMiphEJnU5n1bbtUziuwbER41VBcowzgzZY1yANZ9qvKSC5gOM6acTzvCppKDI00hLZQruiKDfR+oVEmWQyqYWOBOz7EZ14xWLxMJ1Od6FqV9O023K5fAD7aKJ8VovFwWCwY1nWnuM4K8h2l8vljgzDuMLZCyCTPoESsMCexSNgAU6USAXo7dCjnGcK7jEdjVhhZaZ4mQlzGJLQ+BJgAITfplvWq5n7AAAAAElFTkSuQmCC",
+    'document'  : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAS1JREFUeNpi/P//PwM1AAsan+306dPngYZr4dPEyMh4zdTU1BDI/IXLIF4g1mJiYgIpBgsguxjEhvK1oGrf4jKIE0QoKCjUi4iI3AaxX79+rfXw4cMaqEvAGGoYJz6vgZ1x//79RiCGuwpmCFp4MuIzCAykpaXLpaSkjkNdZAh00URSAxts65MnTzqBGEUcFG4kGQQLB2RvoVtElEEgoKKiUiEgIPAIpA/dnhcvXug/fvy4nCiDbt++3UFpggQDCQmJBllZ2X1A5j80KeZnz55ZP336tI0og4DObwBhil0kIyNTJikpeRLI/IsmxfTy5UvjR48e9RMV/cDA7AJiksIIPXH8Y2dnvwBKM/gwSA16+DGipQshINYAYilc3gaCP0D8DIhvAPE7mCBAgAEAx0h2pQytmCsAAAAASUVORK5CYII=",
+    'folder'    : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAKCAYAAAC5Sw6hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQ9JREFUeNqsUT2LwkAQvd3EaDDIESxiaQqLgCDk59z9Gu9XWN8/sUzE0i4iNloEES3EZJP1jWRExK/Chbezszvzdt6M0Fp/fWKZN349iqItbIMcwzD+wjAc4qheEUnakiRpxXH8n6ZpVwjRAM6PqPYHxn63IlkURR9Jv5ZljeiSicqy9FHh7kn+1nGcQRAES6pI+L6/llIeIKXJJPBJ2hl0vgXFAd+e51ExgrbSNM0MCbM8z+v3vmXySu7lDti4rkv901QRvRxBNFVKCQ58Z5rIWVWD0Dy1I/ozQbJiEvrxERnfQ8kSJr8ef4amjaG9A2QItK7lPFq2bcdMxFKIsAa0gV5lXzHtgTmwAA4nAQYAHA9ij4jhqJgAAAAASUVORK5CYII=",
+    'icon'      : u"iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQ5JREFUeNpiYWBg+M8wiAELiGhI9RuUjmuYvYmBiWGQA8YhEcVT995EETx96TrDgsIAhoT+DUQbBFJvnNEL5+uqK5OkF2SXqZ4mini2szrEgeiOQwaXb94ly+fE6kP2CMhudEeyYHMUqaFHKQDZBbMT3S1Y0yDMcaSE3tkZxShRTAqAhSLIkVjTILbQIjdqyU0OIEeiuwPkYJaBcBAxaRYWqoO+HByZDgRlGKoW1NR2GLm5maYOpKajhlQapEoI4qp3qVF0US2K0WsBalWVVI3i////M4LwaDk46sBRB446cNSBow4cdeCoA0cdOOrAUQeOOpDUThMpI6KU9vZIAVQdo4Z1mBgZGalmJkCAAQB+2V2B4VtJPwAAAABJRU5ErkJggg==",
+    'image'     : u"iVBORw0KGgoAAAANSUhEUgAAABUAAAATCAYAAAB/TkaLAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAphJREFUeNqsVE1rE1EU7UxmEjMl0QYxIU4SRi2KH9CkBhWKC3FbRfAH+AfcuBH/hZsiCC66U1y4URcKFnQjk5As1G6UhsQmJCkGZpIxyeRjPDe8J9OhaSL44DBvHu/dc9+55z7BcZyF/z0kQM7n80/H4/E9WhAEYd8GTor1r9lsdhVTe56gi8DdWCz2IJlM5jEfe/YItVrtYrVafVKv11Xs25kVVASCdDASiXzBdxeoeLAbj8eL+FqdTudCoVBI0/5ZmfpwRWcwGOyxICNvpqQCyWLb9rXhcPgol8tVRVF8ibU3mUzmg/d2kks7CnZQ1RxOlEqlPrZarQoyvtzr9dZAcB8ELQR/C5LnIHhHBNK8FaXbjEajdiKR2MIvaX+k3+8r0PtSu92+CpLXxWLxYTqdfiz9i1UoKJNIpqCBQEDRNI3q8BkBz/l8vmXMAyI/0Gw2M1MKIJRKpTNIVAFIuz5g0hHgJ1CyLMsEoRYOh3UqPs9UME1zU9f1zRnJeklJa7tcLl8hdVRVpaADiRl73+ZpDTDlJgG44o7f79clSTIoqDiPlkRCaDQaN9F9z6DfDebxBbhhCXa8HgwGP+H3N6/+SFGU991udx0Zid4s+ZBleRu2OUHtTICVKijMC+zXSO9oNEqu6E2SwMJRfKlqKlXU3W2wywpsEyU7IVDXMIx1FOQkEbsfIhB+g5VuMWcMKVML+A7UqLtcQRfR7xs4fOwgKdyBcXWdxRnyjqKJweAex7F5C6a+zfWbNmAlatXuX+JD3tOJLGjF0/DwKrx4HgRnUelTpD13BXT9hfZcw+8OfxYP6yi6zg/YZA+v1DYlRICmS3DBCpGguMuhUOgVu+Vgnkzdz6Of/MigACFGIrHOqrAkJuOPAAMATZ5MP7rfmUUAAAAASUVORK5CYII=",
+    'pants'     : u"iVBORw0KGgoAAAANSUhEUgAAAKAAAACgCAYAAACLz2ctAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAhxJREFUeNrs3U1OwkAYgGEHJyndsSKkm3I9E6/jNbgLN+gJum9Cp8q2CsbYH1qeZwmE6PBm5kuLMZxOp/cQwgtM7XA4pLjb7br9fp8sB1PLsixsLANzEiCziv0HjsejVWE0VVXZAXEEgwARIAIEASJAmN6364D96zRgB0SAIEDWPwMOfS+4P1Mu7V7z0n/+R/t93QvGEQwCRIAgQASIAGEWceg3fLbrZmvT/7zG/jztgDiCESA8xgz43+8Dmvmeaya0A+IIBgGyjhnQDMeYM77vA+IIBgEiQBAgAkSAIEAECAJEgCBABAgCRIAwimgJhuXvou2ACBAEiBlw/TNen5nPDogAQYCYAZfPTGcHRIAgQAQIAkSAIEAECAJEgCBAFsi94F/4vyl2QAQIjuDZbbfbEGMMVz893zRNulwuXUrJYglwhONiswllWX7ce835fH77itRiOYKH17Ztd+/568ZY17U1FeD0bpzKOIJFZwcEASJAECACBAEiQARoCRAgAgQBIkAQIAIEASJAECACBAEiQBAgAgQBIkAQIAIEASJAECACBAEiQBAgAgQBIkAQIAIEASJABAgCRIAgQAQIAkSAIEAECAJEgCBABAgCRIAgQAQIAkSAIEAECAJEgCBABAgCRIAgQAQIAkSAIEAEiABBgAgQBIgAQYAIEMYV+w9UVWVVBmQ97YAIEG4cwUVRpDzPXy3FMKzn33wKMACVd1AkmFTspgAAAABJRU5ErkJggg==",
+    'video'     : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAPCAYAAADphp8SAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAe9JREFUeNqsU0tLAlEUdmZ8Tki5qHxvtV3gLgmC6C+06me06CG5KFBo0b6lEEI7qWVB5CJCXKuLFsngeyEjk4yOY98d7pWrGW0aOJxz73z3O+d+51xhOp3a/uOzUy+Wy+VDj8dTHI/H27quPzKAIAiW5xO6XK59OMUwjK1EIvGA2GRE8mQyuYU/crvd66PRyOb3+48jkcg74WDJ6vV6st1uZ2RZ3kCyTeCusf8E0yyibrcbRGavpmkFlhUkb3BNmMGqj0ajRRDZ+v1+nrvVCiMSJElykp1QKJQ2TdPVbDbPKMknKZtVxE4SHG7gbLVa51g6mUYoRhCJBtBHB5FJ9TA4EhuNjSU4gRfbErXT6WTZulqt7sXj8Tu+okqlckAChmONmCMiHwTOiqJoNBqN1GAwyJVKpdxim8lhgoM3IEHqBxEpE+3UoJdO1sFgMA0tXhBOKETCwR1FUTIMx4/E3NV6vd4lJ+gzXIPvWiAQeAXRDPfr1cLh8AWyyejGCSVZ2rUF3NKrDWDCX11bwM2Ipj6fT4XIQ2S4YT9qtVoyFovd8xWhk7skYDjo1GKTb6fBCGNf8Hq9Hw6HYwgdrlRVzaNr+cWuISGZ+lM8ERnzZJ219KLlrZJGwdx0UtdoJUP+rcE8dAD7sC/yNGBt4r8FGADC3BrRMDVuEAAAAABJRU5ErkJggg==",
+    'zip'       : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAVdJREFUeNpi/P//PwM1AAsan+306dPngYZrIQtyc3Pr/fnzR+Lnz5+7QHxGRsZrpqamhkDmL1wG8QKxFlQxg5ycXMbfv3+/Pn369BJMDOoDLajat7gM4oRpAIHHjx/PANGysrKZQAMEnzx50gaTg6nFZRBcFUiDoqJi7u/fv/8ADZiO5iIUtdgMYkB20f379yeDaAUFhYR///6JPHr0qAfNMPwGgRSCNMjLyxcCDfj64MGDBaTGGgp4+PBhP4iWkZHJBFLgMMKllgmfQVJSUrUmJiZ2P378YAUGfBvQdQzkGrQPSD0ChtEekFeZmJjIMwgI3p06derSx48feQmFEU6DQN64c+eOvZmZmcHr169N8XmLYGC/e/duBtBFGDFKkkGwtISUkhnwZXB0r/1jZ2e/BNIMC1wYGxmD1IDUoliMZosQEGuAIgyPa/8A8TMgvgHyPUwQIMAA22WMeFl8he8AAAAASUVORK5CYII="
 }
 
+IMAGES['icon'] = base64.b64decode(IMAGES['icon'])
+
+PAGE_CSS = u"""html, body { margin: 0; padding: 0; min-height: 100%%; }
 body {
-    font-family: Calibri,"Trebuchet MS",sans-serif;
-    background: #EEE;
-    background-image: -webkit-gradient(
-        linear, left bottom, left top,
-        color-stop(0, rgb(204,204,204)),
-        color-stop(0.5, rgb(238,238,238))
-    );
+	font-family: Calibri,"Trebuchet MS",sans-serif;
+	background: #EEE;
+	background-image: -webkit-gradient( linear, left bottom, left top,
+		color-stop(0, #ccc), color-stop(0.5, #eee) );
+    background-image: -moz-linear-gradient( center bottom, #ccc 0%%, #eee 50%% );
 }
 
-a { color: #666; text-decoration: none; }
-a:hover { color: #444; text-decoration: underline; }
+table.dir td,a { color: #666; }
+h1, a:hover { color: #444; }
 
-h1 { margin: 0; color: #444; }
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+div.document,.left,pre,table.dir th:first-child,table.dir td:first-child {
+    text-align: left; }
+.thingy,.center,.footer { text-align: center; }
+table.dir td,table.dir th,.right { text-align: right; }
+
+table.dir td,table.dir th,.thingy > h1 { margin: 0; }
 p { margin-bottom: 0; }
+table.dir a,pre { display: block; }
 pre {
-    display: block;
-    text-align: left;
-    background: #ddd;
-    border-radius: 5px;
-    padding: 5px;
-    /*overflow-x: scroll;*/
+	background: #ddd;
+    background-color: rgba(199,199,199,0.5);
+	text-align: left;
+	border-radius: 5px;
+	-moz-border-radius: 5px;
+	padding: 5px;
 }
 
-table { width: 100%%; border-spacing: 0; }
-td,th { margin: 0; padding: 2px 5px; text-align: right; }
-tr td {
-    color: #666;
-    border-top: 1px solid transparent;
-    border-bottom: 1px solid transparent;
-}
-tr:first-child td { border-top: none; }
-tr:hover td { border-color: #ccc; }
-th { border-bottom: 1px solid #ccc; }
-th:first-child,td:first-child { text-align: left; }
+table.dir { width:100%%; border-spacing: 0; }
+table.dir td,table.dir th { padding: 2px 5px; }
+table.dir td { border-top: 1px solid transparent; border-bottom: 1px solid transparent; }
+table.dir tr:first-child td { border-top: none; }
+table.dir tr:hover td { border-color: #ccc; }
+table.dir td.noborder { border-color: transparent !important; }
+table.dir th { border-bottom: 1px solid #ccc; }
 
-.faint { color: #aaa; }
-
+.footer,.faint { color: #aaa; }
+.footer .debug { font-size: 11px; font-family: Consolas,monospace; }
 .haiku { margin-top: 20px; }
 .haiku + p { color: #777; }
-
-.left { text-align: left; }
-.right { text-align: right; }
-.center { text-align: center; }
 .spacer { padding-top: 50px; }
 .column { max-width: 1000px; min-width: 600px; margin: 0px auto; }
-.footer {
-    padding-top: 10px; color: #aaa;
-    text-align: center;
-}
-.thingy {
-    background: #FFF;
-    background-image: -webkit-gradient(
-        linear, left bottom, left top,
-        color-stop(0, rgb(239, 239, 239)),
-        color-stop(0.5, rgb(255,255,255))
-    );
+.footer { padding-top: 10px; }
+
+a.icon { padding-left: 23px; background-position: left; }
+a.icon,.thingy { background-repeat: no-repeat; }
+
+a.folder { background-image: url("data:image/png;base64,%s"); }
+a.document { background-image: url("data:image/png;base64,%s"); }
+a.image { background-image: url("data:image/png;base64,%s"); }
+a.zip { background-image: url("data:image/png;base64,%s"); }
+a.audio { background-image: url("data:image/png;base64,%s"); }
+a.video { background-image: url("data:image/png;base64,%s"); }
+
+.thingy { background-color: #FFF; background-position: center; color: #000;
+	background-image: url("data:image/png;base64,%s"),
+        -webkit-gradient(
+            linear, left bottom, left top,
+            color-stop(0, rgb(239, 239, 239)),
+            color-stop(0.5, rgb(255,255,255))
+        );
+    background-image: url("data:image/png;base64,%s"),
+        -moz-linear-gradient( center bottom, #efefef 0%%, #fff 50%%);
     
-    color: #000;
-    border: 5px #DDD solid;
-    -moz-border-radius: 25px;
-    border-radius: 25px;
-    padding: 50px;
-    margin: 0 50px;
-    text-align: center;
-}"""
+	border: 5px #ddd solid;
+	-moz-border-radius: 25px;
+	border-radius: 25px;
+	padding: 50px;
+	margin: 0 50px;
+}""" % (IMAGES['folder'], IMAGES['document'], IMAGES['image'], IMAGES['zip'],
+    IMAGES['audio'], IMAGES['video'], IMAGES['pants'], IMAGES['pants'])
+PAGE_CSS = PAGE_CSS.replace('%','%%%%')
 
-DIRECTORY_PAGE = u"""<!DOCTYPE html>
-<html><head><title>Index of %%s</title><style>%s</style></head><body>
+PAGE = u"""<!DOCTYPE html>
+<html><head><title>%%s</title><style>%s</style></head><body>
 <div class="column"><div class="spacer"></div><div class="thingy">
-<h1>Index of %%s</h1>
 %%s
-<table><thead>
-<tr><th style="width:50%%%%">Name</th>
-<th>Size</th><th class="center" colspan="2">Last Modified</th></tr></thead>
-%%s
-</table>
-</div><div class="footer"><i><a href="%s">%s</a><br>%%s</i></div>
-<div class="spacer"></div>
-</div></body></html>""" % (PAGE_CSS, SERVER_URL, SERVER)
+</div><div class="footer"><i><a href="%s">%s</a><br>%%%%s</i>
+<div class="debug">%%%%s</div></div>
+<div class="spacer"></div></div></body></html>""".replace('\n','') % (
+    PAGE_CSS, SERVER_URL, SERVER)
 
-ERROR_PAGE = u"""<!DOCTYPE html>
-<html><head><title>%%d %%s</title><style>%s</style></head><body>
-<div class="column"><div class="spacer"></div><div class="thingy">
-<h1>%%d<br>%%s</h1>
-%%s%%s
-</div><div class="footer"><i><a href="%s">%s</a><br>%%s</i></div>
-<div class="spacer"></div>
-</div></body></html>""" % (PAGE_CSS, SERVER_URL, SERVER)
+DIRECTORY_PAGE = PAGE % (
+    u'Index of %s',
+    u"""<h1>Index of %s</h1>%s<table class="dir"><thead><tr>
+<th style="width:50%%">Name</th><th>Size</th>
+<th class="center" colspan="2">Last Modified</th></tr></thead>%s
+</table>"""
+    )
+
+ERROR_PAGE = PAGE % (
+    u'%d %s',
+    u'<h1>%d<br>%s</h1>%s%s'
+    )
 
 # Regular expressions used for various types.
 REGEXES = {
@@ -402,21 +433,21 @@ class Application(object):
         return error(404)
     
     def handle_500(self, request, exception):
-        log.error('Error handling HTTP request: %s %s\r\n%s',
-            request.method, request.uri, traceback.format_exc())
+        log.exception('Error handling HTTP request: %s %%s' % request.method,
+            request.uri) #, traceback.format_exc())
         if not self.debug:
             return error(500)
         
-        resp = (
-            u"<h2>Traceback</h2>\n" +
-            u"<pre>%s</pre>\n" % traceback.format_exc() +
-            u"<h2>Route</h2>\n<pre>" +
-            u"route name   = %r\n" % self._routes[request.route][1] +
-            u"match groups = %r" % (request.match.groups(),) + 
-            u"</pre>\n" + 
-            u"<h2>HTTP Request</h2>\n" +
-            request.__html__()
-            )
+        resp = u''.join([
+            u"<h2>Traceback</h2>\n",
+            u"<pre>%s</pre>\n" % traceback.format_exc(),
+            u"<h2>Route</h2>\n<pre>",
+            u"route name   = %r\n" % self._routes[request.route][1],
+            u"match groups = %r" % (request.match.groups(),),
+            u"</pre>\n",
+            u"<h2>HTTP Request</h2>\n",
+            request.__html__(),
+            ])
         
         return error(resp, 500)
     
@@ -432,135 +463,127 @@ class Application(object):
         self.request = request
         
         try:
-            uri = request.uri
-            ind = uri.find('?')
-            if ind != -1:
-                uri = uri[:ind]
-            
-            result = None
-            for route in self._routes:
-                match = route.match(uri)
-                if match is None:
-                    continue
-                
-                request.route = route
-                request.match = match
-                
-                func, name, methods = self._routes[route][:3]
-                if request.method not in methods:
-                    result = error('The method %r is not allowed for %r.' % (
-                        request.method, uri), 405, {'Allow': ', '.join(methods)}
-                        )
-                else:
-                    try:
-                        result = func(request)
-                    except HTTPException, e:
-                        if hasattr(self, 'handle_%d' % e.status):
-                            result = getattr(self, 'handle_%d' % e.status)(
-                                request, e)
-                        else:
-                            result = error(e.message, e.status, e.headers)
-                    except HTTPTransparentRedirect, e:
-                        request.uri = e.uri
-                        request._parse_uri()
-                        
-                        del request.route
-                        del request.match
-                        
-                        return self.__call__(request)
-                    except Exception, e:
-                        result = self.handle_500(request, e)
-                break
-            
-            else:
-                # No route found.
-                if not uri.endswith('/'):
-                    u = uri + '/'
-                    for route in self._routes:
-                        if route.match(u):
-                            if ind != -1:
-                                u += request.uri[ind:]
-                            result = redirect(u)
-                            break
-                if result is None:
-                    result = self.handle_404(request, None)
-            
-            if result is None or request._finish is not None:
-                if request._finish is None:
-                    request.finish()
-                return
-            
-            # Parse the result.
-            status = 200
-            if isinstance(result, tuple):
-                if len(result) == 3:
-                    body, status, headers = result
-                else:
-                    body, status = result
-                    headers = {}
-            else:
-                body = result
-                headers = {}
-            
-            # Set a Content-Type header if there isn't one already.
-            if not 'Content-Type' in headers:
-                if (isinstance(body, basestring) and
-                        body[:5].lower() in ('<html','<!doc')) or \
-                        (hasattr(body, '__html__') and callable(body.__html__)):
-                    headers['Content-Type'] = 'text/html'
-                else:
-                    headers['Content-Type'] = 'text/plain'
-            
-            # Convert the body to something we can send.
-            if hasattr(body, '__html__'):
-                body = body.__html__()
-            
-            if isinstance(body, unicode):
-                encoding = headers['Content-Type']
-                if encoding.find('charset=') != -1:
-                    before, enc = encoding.split('charset=',1)
-                else:
-                    before = encoding.strip()
-                    if before.endswith(';'):
-                        before += ' '
-                    else:
-                        before += '; '
-                    enc = 'UTF-8'
-                
-                body = body.encode(enc)
-                headers['Content-Type'] = '%scharset=%s' % (before, enc)
-            
-            elif not isinstance(body, str):
-                body = str(body)
-            
-            # Set some additional headers.
-            headers['Content-Length'] = len(body)
-            if not 'Date' in headers:
-                headers['Date'] = datetime.utcnow().strftime(
-                    "%a, %d %b %Y %H:%M:%S GMT")
-            if not 'Server' in headers:
-                headers['Server'] = SERVER
-            
-            # Send the response.
-            request.send_status(status)
-            request.send_headers(headers, False)
-            
-            if hasattr(request, '_rcookies'):
-                request.send(request._rcookies.output())
-            
-            request.send('\r\n')
-            
-            if request.method != 'HEAD':
-                request.write(body)
-            
-            request.finish()
-        
+            request.auto_finish = True
+            self.handle_output(self.handle_request(request))
         finally:
             request.route = None
             request.match = None
             
-            self.request = None
             Application.current_app = None
+            self.request = None
+    
+    def handle_output(self, result):
+        """ Process the output of handle_request. """
+        request = self.request
+        
+        if not request.auto_finish or result is None or \
+                request._finish is not None:
+            if request.auto_finish and request._finish is None:
+                request.finish()
+            return
+        
+        status = 200
+        if type(result) is tuple:
+            if len(result) == 3:
+                body, status, headers = result
+            else:
+                body, status = result
+                headers = {}
+        else:
+            body = result
+            headers = {}
+        
+        # Set a Content-Type header if there isn't already one.
+        if not 'Content-Type' in headers:
+            if (isinstance(body, basestring) and 
+                    body[:5].lower() in ('<html','<!doc')) or \
+                    hasattr(body, '__html__'):
+                headers['Content-Type'] = 'text/html'
+            else:
+                headers['Content-Type'] = 'text/plain'
+        
+        # Convert the body to something sendable.
+        try:
+            body = body.__html__()
+        except AttributeError:
+            pass
+        
+        if isinstance(body, unicode):
+            encoding = headers['Content-Type']
+            if 'charset=' in encoding:
+                before, sep, enc = encoding.partition('charset=')
+            else:
+                before = encoding
+                sep = '; charset='
+                enc = 'UTF-8'
+            
+            body = body.encode(enc)
+            headers['Content-Type'] = '%s%s%s' % (before, sep, enc)
+        
+        elif not isinstance(body, str):
+            body = str(body)
+        
+        # More headers!
+        headers['Content-Length'] = len(body)
+        if not 'Date' in headers:
+            headers['Date'] = _date(datetime.utcnow())
+        if not 'Server' in headers:
+            headers['Server'] = SERVER
+        
+        # Send the response.
+        request.send_status(status)
+        request.send_headers(headers)
+        
+        if request.method != 'HEAD':
+            request.write(body)
+        request.finish()
+    
+    def handle_request(self, request):
+        path = request.path
+        
+        for route in self._routes:
+            match = route.match(path)
+            if match is None:
+                continue
+            
+            # Process this route.
+            request.route = route
+            request.match = match
+            
+            func, name, methods = self._routes[route][:3]
+            if request.method not in methods:
+                return error(
+                    'The method %s is not allowed for %r.' % (
+                        request.method, path), 405, {
+                            'Allow': ', '.join(methods)
+                        })
+            else:
+                try:
+                    return func(request)
+                except HTTPException, e:
+                    if hasattr(self, 'handle_%d' % e.status):
+                        return getattr(self, 'handle_%d' % e.status)(request, e)
+                    else:
+                        return error(e.message, e.status, e.headers)
+                except HTTPTransparentRedirect, e:
+                    request.uri = e.uri
+                    request._parse_uri()
+                    return self.handle_request(request)
+                except Exception, e:
+                    return self.handle_500(request, e)
+            break
+        else:
+            # No matching routes.
+            if not path.endswith('/'):
+                p = '%s/' % path
+                for route in self._routes:
+                    if route.match(p):
+                        if request.query:
+                            return redirect('%s?%s' % (p,request.query))
+                        else:
+                            return redirect(p)
+        
+        return self.handle_404(request, None)
     
     ##### Internal Methods and Event Handlers #################################
     
@@ -635,7 +658,7 @@ class FileServer(object):
     """
     The FileServer is a request handling class that, as it sounds, serves files
     to the client. It also supports the Content-Range header, HEAD requests,
-    ETags, and last modified dates.
+    and last modified dates.
     
     It attempts to serve the files as efficiently as possible.
     
@@ -654,16 +677,44 @@ class FileServer(object):
         
         FileServer("/tmp/path").attach(app, "/files/")
     """
-    def __init__(self, path, defaults=['index.html','index.html']):
+    def __init__(self, path, blacklist=[re.compile('.*\.pyc?$')],
+            defaults=['index.html','index.html'],
+            renderers=None):
         """
         Initialize the FileServer.
         
         Args:
             path: The path to serve.
-            defaults: A list of default files, such as index.html.
+            blacklist: A list of regular expressions to test filenames against.
+                If any match a given file, it will not be downloadable via
+                this class. Optional.
+                
+                Any blacklist items are expected to be either a regex pattern
+                object, a unicode string, or a regular string. In the event
+                of a regular string, it will be compiled into a regex pattern
+                object.
+                
+                By default, all .py and .pyc files are blacklisted.
+            defaults: A list of default files, such as index.html. Optional.
+            renderers: A dictionary of methods for rendering files into
+                suitable output, useful for processing CSS and JavaScript, or
+                converting structured text documents into HTML for display in
+                a browser. Optional.
         """
+        # Make sure our path is unicode.
+        if not isinstance(path, unicode):
+            path = _decode(path)
+        
         self.path = os.path.normpath(os.path.realpath(path))
         self.defaults = defaults
+        self.renderers = renderers or {}
+        
+        # Build the blacklist.
+        self.blacklist = []
+        for bl in blacklist:
+            if isinstance(bl, str):
+                bl = re.compile(bl)
+            self.blacklist.append(bl)
     
     def attach(self, app, route='/static/'):
         """
@@ -677,97 +728,284 @@ class FileServer(object):
         route = re.compile("^%s(.*)$" % re.escape(route))
         app._insert_route(route, self, "FileServer", ['HEAD','GET'], None, None)
     
+    def check_blacklist(self, path):
+        """
+        Check the given path to make sure it isn't blacklisted. If it is
+        blacklisted, then raise an HTTPException via abort.
+        
+        Args:
+            path: The path to check.
+        """
+        for bl in self.blacklist:
+            if isinstance(bl, unicode):
+                if bl in path:
+                    abort(403)
+            elif bl.match(path):
+                abort(403)
+    
     def __call__(self, request):
         """
         Serve a request.
         """
         
-        # Get the proper path.
         try:
             path = request.match.group(1)
-        except (AttributeError,IndexError):
+        except (AttributeError, IndexError):
             path = request.path
         
-        # Update the path.
-        path = urllib.unquote(path)
-        path = os.path.normpath(os.path.join(self.path, path))
+        # Conver the path to unicode.
+        path = _decode(urllib.unquote(path))
         
-        # Make sure we can access it.
-        if not path.startswith(self.path):
+        # Normalize the path.
+        full_path = os.path.normpath(os.path.join(self.path, path))
+        
+        # Validate the request.
+        if not full_path.startswith(self.path):
             abort(403)
-        if not os.path.exists(path):
+        if not os.path.exists(full_path):
             abort(404)
         
-        # Is there a default?
-        for f in self.defaults:
-            full = os.path.join(path, f)
-            if os.path.exists(full):
-                request.path = full
-                if hasattr(request, 'match'):
-                    del request.match
-                return self.__call__(request)
-        
         # Is this a directory?
-        if os.path.isdir(path):
+        if os.path.isdir(full_path):
+            # Check defaults.
+            for f in self.defaults:
+                full = os.path.join(full_path, f)
+                if os.path.exists(full):
+                    request.path = urllib.quote(full.encode('utf8'))
+                    if hasattr(request, 'match'):
+                        del request.match
+                    return self.__call__(request)
+            
+            # Guess not. List it.
             return self.list_directory(request, path)
         
-        with open(path,'rb') as f:
-            content = f.read()
+        # Blacklist Checking.
+        self.check_blacklist(full_path)
         
-        # Guess the Content-Type
-        if path.endswith('.css'):
-            type = 'text/css'
-        elif path.endswith('.js'):
-            type = 'application/javascript'
+        # Try rendering the content.
+        ext = os.path.basename(full_path).rpartition('.')[-1]
+        if ext in self.renderers:
+            f, mtime, size, type = self.renderers[ext](request, full_path)
         else:
-            type = guess_type(path)
+            # Get the information for the actual file.
+            f = None
+            stat = os.stat(full_path)
+            mtime = stat.st_mtime
+            size = stat.st_size
+            type = mimetypes.guess_type(full_path)[0]
         
-        return content, 200, {'Content-Type':type}
-    
+        # If we don't have a type, text/plain it.
+        if type is None:
+            type = 'text/plain'
+        
+        # Generate a bunch of data for headers.
+        modified = datetime.fromtimestamp(mtime)
+        expires = datetime.utcnow() + timedelta(days=7)
+        
+        etag = '"%x-%x"' % (size, int(mtime))
+        
+        headers = {
+            'Last-Modified' : _date(modified),
+            'Expires'       : _date(expires),
+            'Cache-Control' : 'max-age=604800',
+            'Content-Type'  : type,
+            'Date'          : _date(datetime.utcnow()),
+            'Server'        : SERVER,
+            'Accept-Ranges' : 'bytes',
+            'ETag'          : etag    
+        }
+        
+        """
+        Disabled till it decides to play nice.
+        
+        if 'If-Modified-Since' in request.headers:
+            try:
+                since = _parse_date(request.headers['If-Modified-Since'])
+            except ValueError:
+                since = None
+            if since and since >= modified:
+                if f:
+                    f.close()
+                abort(304, headers=headers)
+                return
+        
+        if 'If-None-Match' in request.headers:
+            if etag == request.headers['If-None-Match']:
+                if f:
+                    f.close()
+                abort(304, headers=headers)
+                return
+        
+        if 'If-Range' in request.headers:
+            if etag != request.headers['If-Range'] and \
+                    'Range' in request.headers:
+                del request.headers['Range']
+        """
+        
+        last = size - 1
+        range = 0, last
+        status = 200
+        
+        if 'Range' in request.headers:
+            if request.headers['Range'].startswith('bytes='):
+                try:
+                    val = request.headers['Range'][6:].split(',')[0]
+                    start, end = val.split('-')
+                except ValueError:
+                    if f:
+                        f.close()
+                    abort(416)
+                try:
+                    if end and not start:
+                        end = last
+                        start = last - int(end)
+                    else:
+                        start = int(start or 0)
+                        end = int(end or last)
+                    
+                    if start < 0 or start > end or end > last:
+                        if f:
+                            f.close()
+                        abort(416)
+                    range = start, end
+                except ValueError:
+                    pass
+                if range[0] != 0 or range[1] != last:
+                    status = 206
+                    headers['Content-Range'] = 'bytes %d-%d/%d' % (
+                        range[0], range[1], size)
+        
+        # Set the content length header.
+        if range[0] == range[1]:
+            headers['Content-Length'] = 0
+        else:
+            headers['Content-Length'] = 1 + (range[1] - range[0])
+        
+        # Send the headers and status line.
+        request.auto_finish = False
+        request.send_status(status)
+        request.send_headers(headers)
+        
+        # Don't send the body if this is head.
+        if request.method == 'HEAD':
+            if f:
+                f.close()
+            request.finish()
+            return
+        
+        # Open the file and send it.
+        if range[0] == range[1]:
+            if f:
+                f.close()
+            request.finish()
+            return
+        
+        if f is None:
+            f = open(full_path, 'rb')
+        
+        f.seek(range[0])
+        if range[1] != last:
+            length = 1 + (range[1] - range[0])
+        else:
+            length = None
+        
+        def on_write():
+            del request.connection.handle_write_file
+            request.finish()
+        
+        request.connection.handle_write_file = on_write
+        request.connection.write_file(f, length)
+        
     def list_directory(self, request, path):
         """
         Generate a directory listing and return it.
         """
-        uri = request.path
-        if not uri.startswith('/'):
-            uri = '/%s' % uri
-        if not uri.endswith('/'):
-            return redirect('%s/' % uri)
+        
+        # Normalize the path.
+        full_path = os.path.normpath(os.path.join(self.path, path))
+        
+        # Get the URI, which is just request.path decoded.
+        uri = _decode(urllib.unquote(request.path))
+        if not uri.startswith(u'/'):
+            uri = u'/%s' % uri
+        if not uri.endswith(u'/'):
+            return redirect(u'%s/' % uri)
         
         go_up = u''
-        url = uri.strip('/')
+        url = uri.strip(u'/')
         if url:
-            url = url.rpartition('/')[0]
-            go_up = u'<p><a href="..">Up to Higher Directory</a></p>' #% url
+            go_up = u'<p><a href="..">Up to Higher Directory</a></p>'
         
         files = []
+        dirs = []
         
-        for p in sorted(os.listdir(path), key=str.lower):
-            if p.startswith('.'):
+        for p in sorted(os.listdir(full_path), key=unicode.lower):
+            if _is_hidden(p, full_path):
                 continue
-            full = os.path.join(path, p)
+            
+            full = os.path.join(full_path, p)
+            try:
+                fp = full
+                if os.path.isdir(full):
+                    fp += '/'
+                self.check_blacklist(fp)
+            except HTTPException:
+                continue
+            
             stat = os.stat(full)
             mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
-                '<td class="right">%Y-%m-%d</td><td class="left">%I:%M:%S %p</td>')
+                u'<td class="right">%Y-%m-%d</td>'
+                u'<td class="left">%I:%M:%S %p</td>'
+                )
             
             if os.path.isdir(full):
-                files.append('<tr><td><a href="%s%s/">%s</a></td>' % (
-                    uri, p, p))
-                files.append('<td class="faint">Directory</td>')
-                files.append('%s</tr>' % mtime)
-            else:
+                cls = u'folder'
+                link = u'%s/' % p
+                size = u'<span class="faint">Directory</span>'
+                obj = dirs
+            
+            elif os.path.isfile(full):
+                cls = 'document'
+                ext = p[p.rfind('.')+1:]
+                if ext in ('jpg','jpeg','png','gif','bmp'):
+                    cls = 'image'
+                elif ext in ('zip','gz','tar','7z','tgz'):
+                    cls = 'zip'
+                elif ext in ('mp3','mpa','wma','wav','flac','mid','midi','raw',
+                        'mod','xm','aac','m4a','ogg','aiff','au','voc','m3u',
+                        'pls','asx'):
+                    cls = 'audio'
+                elif ext in ('mpg','mpeg','mkv','mp4','wmv','avi','mov'):
+                    cls = 'video'
+                link = p
                 size = _human_readable_size(stat.st_size)
-                files.append('<tr><td><a href="%s%s">%s</a></td>' % (
-                    uri, p, p))
-                files.append('<td>%s</td>' % size)
-                files.append('%s</tr>' % mtime)
+                obj = files
+            
+            else:
+                continue
+            
+            obj.append(
+                u'<tr><td><a class="icon %s" href="%s%s">%s</a></td><td>%s'
+                u'</td>%s</tr>' % (
+                    cls, uri, link, p, size, mtime))
         
-        files = u''.join(files)
+        if files or dirs:
+            files = u''.join(dirs) + u''.join(files)
+        else:
+            files = (u'<tr><td colspan="4" class="noborder">'
+                     u'<div class="footer center">'
+                     u'This directory is empty.</div></td></tr>')
         
-        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host), 200, {
-            'Content-Type':'text/html; charset=utf-8'
-        }
+        if Application.current_app and Application.current_app.debug:
+            rtime = u'%0.3f ms' % (1000 * request.time)
+        else:
+            rtime = u''
         
+        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host, rtime), \
+            200, {
+                'Content-Type':'text/html; charset=utf-8'
+            }
+    
 ###############################################################################
 # Private Helper Functions
 ###############################################################################
@@ -834,17 +1072,17 @@ def _route_to_regex(route):
     return regex, tuple(values), tuple(names), namegen[1:-1]
 
 _abbreviations = (
-    (1<<50L, ' PB'),
-    (1<<40L, ' TB'),
-    (1<<30L, ' GB'),
-    (1<<20L, ' MB'),
-    (1<<10L, ' KB'),
-    (1, ' B')
+    (1<<50L, u' PB'),
+    (1<<40L, u' TB'),
+    (1<<30L, u' GB'),
+    (1<<20L, u' MB'),
+    (1<<10L, u' KB'),
+    (1, u' B')
 )
 def _human_readable_size(size, precision=2):
     """ Convert a size to a human readable filesize. """
     if size == 0:
-        return '0 B'
+        return u'0 B'
     
     for f,s in _abbreviations:
         if size >= f:
@@ -852,8 +1090,24 @@ def _human_readable_size(size, precision=2):
     
     ip, dp = `size/float(f)`.split('.')
     if int(dp[:precision]):
-        return  '%s.%s%s' % (ip,dp[:precision],s)
-    return '%s%s' % (ip,s)
+        return  u'%s.%s%s' % (ip,dp[:precision],s)
+    return u'%s%s' % (ip,s)
+
+_encodings = ('utf-8','iso-8859-1','cp1252','latin1')
+def _decode(text):
+    for enc in _encodings:
+        try:
+            return text.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    else:
+        return text.decode('utf-8','ignore')
+
+def _date(dt):
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def _parse_date(text):
+    return datetime(*time.strptime(text, "%a, %d %b %Y %H:%M:%S GMT")[:6])
 
 ###############################################################################
 # Public Helper Functions
@@ -901,7 +1155,9 @@ def error(message=None, status=None, headers=None):
     
     if message is None:
         if status in HTTP_MESSAGES:
-            message = HTTP_MESSAGES[status] % request.__dict__
+            dict = request.__dict__.copy()
+            dict['uri'] = _decode(urllib.unquote(dict['uri']))
+            message = HTTP_MESSAGES[status] % dict
         else:
             message = u"An unspecified error has occured."
     
@@ -912,21 +1168,13 @@ def error(message=None, status=None, headers=None):
     if not message.startswith(u'<'):
         message = u'<p>%s</p>' % message
     
-    result = u"".join([
-        u"<html><head>",
-        u"<title>%d %s</title>" % (status, title),
-        u"<style>%s</style>" % PAGE_CSS,
-        u"</head><body>",
-        u'<div class="column">',
-        u'<div class="spacer"></div><div class="thingy">',
-        u"<h1>%d<br>%s</h1>" % (status, title.replace(' ','&nbsp;')),
-        haiku, message,
-        u"</div>",
-        u'<div class="footer"><i><a href="%s">%s</a><br>%s</i></div>' % (
-            SERVER_URL, SERVER, request.host),
-        u'<div class="spacer"></div>',
-        u'</div></body></html>'
-        ])
+    if Application.current_app.debug:
+        time = u'%0.3f ms' % (1000 * request.time)
+    else:
+        time = u''
+    
+    result = ERROR_PAGE % (status, title, status, title.replace(u' ',u'&nbsp;'),
+        haiku, message, request.host, time)
     
     return result, status, headers
 
@@ -971,9 +1219,13 @@ def redirect(uri, status=302):
     its request to a different URL. Other codes may be returned by specifying a
     status.
     """
+    url = uri
+    if isinstance(url, unicode):
+        url = uri.encode('utf-8')
+    
     return error(
         'The document you have requested is located at <a href="%s">%s</a>.' % (
-            uri, uri), status, {'Location':uri})
+            uri, uri), status, {'Location':url})
 
 def url_for(name, **values):
     """
