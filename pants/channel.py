@@ -242,7 +242,7 @@ class Channel(object):
         
         self._write_file = file
         self._write_file_left = length
-        self.add_event(engine.WRITE)
+        self._add_event(engine.WRITE)
     
     ##### Public Event Handlers ###############################################
     
