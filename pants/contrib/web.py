@@ -31,7 +31,7 @@ import urllib
 
 from datetime import datetime, timedelta
 from pants import __version__ as pants_version
-from http import HTTP, HTTPServer, HTTPRequest
+from http import CRLF, HTTP, HTTPServer, HTTPRequest
 
 try:
     import simplejson as json
@@ -236,8 +236,8 @@ ERROR_PAGE = PAGE % (
 
 # Regular expressions used for various types.
 REGEXES = {
-    int     : '(-?\d+)',
-    float   : '(-?\d+(?:\.\d+)?)',
+    int     : r'(-?\d+)',
+    float   : r'(-?\d+(?:\.\d+)?)',
 }
 
 ###############################################################################
@@ -336,18 +336,18 @@ class Application(object):
     
     ##### Route Management Methods ############################################
     
-    def basic_route(self, rule, methods=['GET','HEAD']):
+    def basic_route(self, rule, name=None, methods=['GET','HEAD']):
         """
         This method is a decorator that registers a route without holding your
         hand about it.
         
-        Using this decorator, rule must be a regular expression. And, when your
-        view is called, it receives a single argument: the HTTPRequest that
-        triggered the route.
+        It functions almost the same as the route decorator, but doesn't wrap
+        your function to handle arguments for it. Instead, you'll have to deal
+        with the request object and the regex match yourself.
         
         Example Usage:
             
-            @app.basic_route("^/char/([^/]+)/$")
+            @app.basic_route("/char/<char>/")
             def my_route(request):
                 char, = request.match.groups()
                 return 'The character is %s!' % char
@@ -358,13 +358,15 @@ class Application(object):
             def my_route(char):
                 return 'The character is %s!' % char
         
-        In addition, url_for doesn't really know how to deal with these basic
-        routes, so you should avoid using it with any basic routes that you
-        create.
         """
         def decorator(func):
-            self._insert_route(rule, func,
-                "%s.%s" % (func.__module__,func.__name__), methods, None, None)
+            regex, arguments, names, namegen = _route_to_regex(rule)
+            _regex = re.compile(regex)
+            
+            if name is None:
+                name = "%s.%s" % (func.__module__, func.__name__)
+            
+            self._insert_route(_regex, func, name, methods, names,namegen)
             return func
         return decorator
     
@@ -534,8 +536,11 @@ class Application(object):
         request.send_status(status)
         request.send_headers(headers)
         
-        if request.method != 'HEAD':
-            request.write(body)
+        if request.method == 'HEAD':
+            request.finish()
+            return
+        
+        request.write(body)
         request.finish()
     
     def handle_request(self, request):
@@ -815,8 +820,7 @@ class FileServer(object):
             'ETag'          : etag    
         }
         
-        """
-        Disabled till it decides to play nice.
+        do304 = False
         
         if 'If-Modified-Since' in request.headers:
             try:
@@ -824,23 +828,25 @@ class FileServer(object):
             except ValueError:
                 since = None
             if since and since >= modified:
-                if f:
-                    f.close()
-                abort(304, headers=headers)
-                return
+                do304 = True
         
         if 'If-None-Match' in request.headers:
             if etag == request.headers['If-None-Match']:
-                if f:
-                    f.close()
-                abort(304, headers=headers)
-                return
+                do304 = True
+        
+        if do304:
+            if f:
+                f.close()
+            request.auto_finish = False
+            request.send_status(304)
+            request.send_headers(headers)
+            request.finish()
+            return
         
         if 'If-Range' in request.headers:
             if etag != request.headers['If-Range'] and \
                     'Range' in request.headers:
                 del request.headers['Range']
-        """
         
         last = size - 1
         range = 0, last
@@ -1023,7 +1029,7 @@ def _get_thing(thing):
         return getattr(__builtins__, thing)
     return None
 
-_route_parser = re.compile("<([^>]+)>([^<]*)")
+_route_parser = re.compile(r"<([^>]+)>([^<]*)")
 def _route_to_regex(route):
     """ Parse a Flask-style route and return a regular expression, as well as
         a tuple of things for conversion. """
@@ -1127,7 +1133,7 @@ def all_or_404(*args):
     """
     all(args) or abort()
 
-def error(message=None, status=None, headers=None):
+def error(message=None, status=None, headers=None, request=None, debug=None):
     """
     Return a very simple error page, defaulting to a 404 Not Found error if
     no status code is supplied. Usually, you'll want to call abort() in your
@@ -1138,7 +1144,8 @@ def error(message=None, status=None, headers=None):
         return error("Some message.", 404)
         return error("Blah blah blah.", 403, {'Some-Header':'Fish'})
     """
-    request = Application.current_app.request
+    if request is None:
+        request = Application.current_app.request
     
     if status is None:
         if type(message) is int:
@@ -1168,7 +1175,10 @@ def error(message=None, status=None, headers=None):
     if not message.startswith(u'<'):
         message = u'<p>%s</p>' % message
     
-    if Application.current_app.debug:
+    if debug is None:
+        debug = Application.current_app and Application.current_app.debug
+    
+    if debug:
         time = u'%0.3f ms' % (1000 * request.time)
     else:
         time = u''
