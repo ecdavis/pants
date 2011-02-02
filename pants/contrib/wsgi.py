@@ -21,9 +21,12 @@
 ###############################################################################
 
 import cStringIO
+import re
 import sys
+import traceback
 
 from http import log
+from web import error
 
 ###############################################################################
 # WSGIConnector Class
@@ -38,20 +41,39 @@ class WSGIConnector(object):
     a response.
     """
     
-    def __init__(self, application):
+    def __init__(self, application, debug=False):
         """
         Initialize the WSGI connector.
         
         Args:
             application: The WSGI application that should be called to handle
                 incoming requests.
+            debug: If True, display tracebacks in 500 Internal Server Error
+                pages. Defaults to False.
         """
         self.app = application
+        self.debug = debug
+    
+    def attach(self, application, route):
+        """
+        Attach to a pants.contrib.web.Application instance at the given route.
+        
+        Args:
+            application: The Application to attach to.
+            route: The route for this application to be accessed.
+        """
+        route = re.compile("^%s(.*)$" % re.escape(route))
+        application._insert_route(
+            route, self, "WSGIConnector", ['HEAD','GET','POST','PUT'], None,
+            None)
     
     def __call__(self, request):
         """
         Handle the given request.
         """
+        # Make sure this plays nice with Web.
+        request.auto_finish = False
+        
         response = []
         status = '200 OK'
         headers = {}
@@ -94,15 +116,21 @@ class WSGIConnector(object):
             log.exception('Exception running WSGI application for: %s %s',
                 request.method, request.path)
             
+            if not self.debug:
+                body, status, headers = error(500, request=request, debug=False)
+            else:
+                resp = u''.join([
+                    u"<h2>Traceback</h2>\n",
+                    u"<pre>%s</pre>\n" % traceback.format_exc(),
+                    u"<h2>HTTP Request</h2>\n",
+                    request.__html__(),
+                    ])
+                body, status, headers = error(resp, 500, request=request,
+                    debug=True)
+            
             status = '500 Internal Server Error'
+            response = [body]
             result = []
-            response = [
-                '<!DOCTYPE html>',
-                '<title>%s</title>' % status,
-                '<h1>%s</h1>' % status,
-                '<p>Your request cannot be completed.</p>'
-                ]
-            headers = {'Content-Type':'text/html'}
         
         # Finish up anything in result.
         try:
