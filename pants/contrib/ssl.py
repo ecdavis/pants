@@ -94,8 +94,24 @@ class _SSLChannel(Channel):
 ###############################################################################
 
 class SSLChannel(_SSLChannel):
+    """
+    An SSL socket wrapper object.
+    """
     def __init__(self, socket=None, parent=None):
         Channel.__init__(self, socket, parent)
+
+
+###############################################################################
+# SSLClient Class
+###############################################################################
+
+class SSLClient(_SSLChannel, Client):
+    """
+    A basic implementation of an SSL client.
+    """
+    def __init__(self, *args, **kwargs):
+        Client.__init__(self, *args, **kwargs)
+        _SSLChannel.__init__(self, *args, **kwargs)
 
 
 ###############################################################################
@@ -103,6 +119,9 @@ class SSLChannel(_SSLChannel):
 ###############################################################################
 
 class SSLConnection(_SSLChannel, Connection):
+    """
+    A basic implementation of an SSL connection to a server.
+    """
     def __init__(self, *args, **kwargs):
         Connection.__init__(self, *args, **kwargs)
         _SSLChannel.__init__()
@@ -113,6 +132,9 @@ class SSLConnection(_SSLChannel, Connection):
 ###############################################################################
 
 class SSLServer(_SSLChannel, Server):
+    """
+    A basic implementation of an SSL server.
+    """
     ConnectionClass = SSLConnection
     
     def __init__(self, *args, **kwargs):
