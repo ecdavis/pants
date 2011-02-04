@@ -4,12 +4,12 @@ from distutils.core import setup
 
 setup(
     name="pants",
-    version="0.9.4",
+    version="0.9.5",
     description="A lightweight framework for writing asynchronous network applications in Python.",
     author="Christopher Davis",
     author_email="chris@wtfrak.com",
     url="http://pants.wtfrak.com/",
-    download_url="http://pants.wtfrak.com/release/pants-0.9.4.zip",
+    download_url="https://bitbucket.org/ecdavis/pants/downloads/pants-0.9.5.zip",
     packages=["pants", "pants.contrib"],
     classifiers=[
         "Programming Language :: Python :: 2.6",

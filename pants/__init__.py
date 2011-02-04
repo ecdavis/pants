@@ -32,7 +32,7 @@ from pants.publisher import publisher
 ###############################################################################
 
 __author__ = "Christopher Davis"
-__version__ = "0.9.4"
+__version__ = "0.9.5"
 
 __all__ = [
     "engine", # Core
