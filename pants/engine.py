@@ -505,7 +505,7 @@ class _Cycle(_Deferred):
     def run(self):
         _Deferred.run(self)
         
-        self.engine.cycle(self.func, self.delay, *self.args, **self.kwargs)
+        engine.cycle(self.func, self.delay, *self.args, **self.kwargs)
 
 
 ###############################################################################
