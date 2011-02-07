@@ -14,6 +14,10 @@ To install:
 
     sudo python setup.py install
 
-Alternatively, using setuptools:
+Using pip:
+
+    pip install pants --upgrade
+
+Or setuptools:
 
     easy_install -U pants
