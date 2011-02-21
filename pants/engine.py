@@ -102,8 +102,6 @@ class Engine(object):
             log.info("Entering main loop.")
             
             while not self._shutdown:
-                # TODO timers
-                
                 self.poll(poll_timeout)
         
         except KeyboardInterrupt:
