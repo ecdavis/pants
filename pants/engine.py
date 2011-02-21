@@ -248,6 +248,23 @@ class Engine(object):
         
         return callback
     
+    def loop(self, func, *args, **kwargs):
+        """
+        Schedule a loop.
+        
+        Args:
+            func: A callable to be executed when the loop is run.
+            *args: Positional arguments to be passed to the loop.
+            **kwargs: Keyword arguments to be passed to the loop.
+        
+        Returns:
+            An object which can be used to cancel the loop.
+        """
+        loop = _Loop(func, *args, **kwargs)
+        self._callbacks.append(loop)
+        
+        return loop
+    
     def defer(self, func, delay, *args, **kwargs):
         """
         Schedule a deferred.
@@ -474,6 +491,17 @@ class _Callback(object):
 
 
 ###############################################################################
+# _Loop Class
+###############################################################################
+
+class _Loop(object):
+    def run(self):
+        _Callback.run(self)
+        
+        engine._callbacks.append(self)
+
+
+###############################################################################
 # _Deferred Class
 ###############################################################################
 
@@ -505,7 +533,8 @@ class _Cycle(_Deferred):
     def run(self):
         _Deferred.run(self)
         
-        engine.cycle(self.func, self.delay, *self.args, **self.kwargs)
+        self.end = engine.time + self.delay
+        bisect.insort(engine._deferreds, self)
 
 
 ###############################################################################

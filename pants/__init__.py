@@ -38,7 +38,7 @@ __all__ = [
     "engine", # Core
     "Client", "Connection", "Server", # Networking
     "event", "publish", "subscribe", "unsubscribe", # Publisher
-    "callback", "cycle", "defer", # Scheduling
+    "callback", "loop", "cycle", "defer", # Scheduling
     ]
 
 
@@ -60,6 +60,9 @@ unsubscribe = publisher.unsubscribe
 
 #: Alias for pants.engine.engine.callback
 callback = engine.callback
+
+#: Alias for pants.engine.engine.loop
+loop = engine.loop
 
 #: Alias for pant.engine.engine.defer
 defer = engine.defer
