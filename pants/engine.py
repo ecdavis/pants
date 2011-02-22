@@ -56,15 +56,8 @@ class Engine(object):
         self._shutdown = False
         self._running = False
         
-        if poller:
-            self._poller = poller
-        elif hasattr(select, "epoll"):
-            self._poller = _EPoll()
-        elif hasattr(select, "kqueue"):
-            self._poller = _KQueue()
-        else:
-            self._poller = _Select()
         self._channels = {}
+        self._install_poller(poller)
         
         self._callbacks = []
         self._deferreds = []
@@ -317,13 +310,55 @@ class Engine(object):
                 self._callbacks.remove(timer)
             except ValueError:
                 pass # Callback not present.
+    
+    ##### Poller Methods ######################################################
+    
+    def _install_poller(self, poller=None):
+        if self._poller is not None:
+            self._destroy_poller()
+        
+        if poller is not None:
+            self._poller = poller
+        elif hasattr(select, "epoll"):
+            self._poller = _EPoll()
+        elif hasattr(select, "kqueue"):
+            self._poller = _KQueue()
+        else:
+            self._poller = _Select()
+        
+        for fileno, channel in self._channels.iteritems():
+            self._poller.add(fileno, channel._events)
+    
+    def _destroy_poller(self):
+        self._poller.destroy()
+
+
+###############################################################################
+# _Poller Class
+###############################################################################
+
+class _Poller(object):
+    def add(self, fileno, events):
+        pass
+    
+    def modify(self, fileno, events):
+        pass
+    
+    def remove(self, fileno):
+        pass
+    
+    def poll(self, timeout):
+        pass
+    
+    def destroy(self):
+        pass
 
 
 ###############################################################################
 # _EPoll Class
 ###############################################################################
 
-class _EPoll(object):
+class _EPoll(_Poller):
     """
     An epoll()-based polling object.
     
@@ -360,7 +395,7 @@ class _EPoll(object):
 # _KQueue Class
 ###############################################################################
 
-class _KQueue(object):
+class _KQueue(_Poller):
     """
     A kqueue()-based polling object.
     
@@ -416,7 +451,7 @@ class _KQueue(object):
 # _Select Class
 ###############################################################################
 
-class _Select(object):
+class _Select(_Poller):
     """
     A select()-based polling object.
     
