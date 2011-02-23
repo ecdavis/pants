@@ -39,6 +39,13 @@ class Publisher(object):
     def __init__(self):
         self._events = {}
     
+    @classmethod
+    def instance(cls):
+        if not hasattr(cls, "_instance"):
+            cls._instance = cls()
+        
+        return cls._instance
+    
     def event(self, event):
         """
         Decorator. Subscribe a function to an event.
@@ -104,10 +111,3 @@ class Publisher(object):
             self._events[event] = []
         else:
             self._events[event].remove(handler)
-
-
-###############################################################################
-# Initialisation
-###############################################################################
-
-publisher = Publisher()

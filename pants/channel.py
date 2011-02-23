@@ -24,7 +24,7 @@ import errno
 import os
 import socket
 
-from pants.engine import engine
+from pants.engine import Engine
 
 
 ###############################################################################
@@ -85,12 +85,12 @@ class Channel(object):
         self._write_file_chunk = 65536
         
         # Initialisation
-        self._events = engine.ERROR
+        self._events = Engine.ERROR
         if self.readable():
-            self._events |= engine.READ
+            self._events |= Engine.READ
         if self.writable():
-            self._events |= engine.WRITE
-        engine.add_channel(self)
+            self._events |= Engine.WRITE
+        Engine.instance().add_channel(self)
     
     ##### General Methods #####################################################
     
@@ -193,7 +193,7 @@ class Channel(object):
             self._write_file = None
             self._write_file_left = None
         
-        engine.remove_channel(self)
+        Engine.instance().remove_channel(self)
         self._socket_close()
         self._update_addr()
         self._safely_call(self.handle_close)
@@ -226,7 +226,7 @@ class Channel(object):
             self._write_buffer += data
         else:
             self._secondary_write_buffer += data
-        self._add_event(engine.WRITE)
+        self._add_event(Engine.WRITE)
     
     def send_file(self, file, length=None):
         self.write_file(file, length)
@@ -242,7 +242,7 @@ class Channel(object):
         
         self._write_file = file
         self._write_file_left = length
-        self._add_event(engine.WRITE)
+        self._add_event(Engine.WRITE)
     
     ##### Public Event Handlers ###############################################
     
@@ -296,7 +296,7 @@ class Channel(object):
     def _add_event(self, event):
         if not self._events & event:
             self._events |= event
-            engine.modify_channel(self)
+            Engine.instance().modify_channel(self)
     
     def _safely_call(self, callable, *args, **kwargs):
         """
@@ -351,7 +351,7 @@ class Channel(object):
         try:
             self._socket.connect((host, port))
             # A write event is raised when the connection has completed.
-            self._add_event(engine.WRITE)
+            self._add_event(Engine.WRITE)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 # EAGAIN: Try again.
@@ -506,7 +506,7 @@ class Channel(object):
             return
         
         # Read event.
-        if events & engine.READ:
+        if events & Engine.READ:
             if self._listening:
                 self._handle_accept_event()
             elif not self._connected:
@@ -517,22 +517,22 @@ class Channel(object):
                 return
         
         # Write event.
-        if events & engine.WRITE:
+        if events & Engine.WRITE:
             self._handle_write_event()
             if not self.active():
                 return
         
         # Error event.
-        if events & engine.ERROR:
+        if events & Engine.ERROR:
             self.close_immediately()
             return
         
         # Update events.
-        events = engine.ERROR
+        events = Engine.ERROR
         if self.readable():
-            events |= engine.READ
+            events |= Engine.READ
         if self.writable():
-            events |= engine.WRITE
+            events |= Engine.WRITE
         elif self._closing:
             # Done writing, so close.
             self.close_immediately()
@@ -540,7 +540,7 @@ class Channel(object):
         
         if events != self._events:
             self._events = events
-            engine.modify_channel(self)
+            Engine.instance().modify_channel(self)
     
     def _handle_accept_event(self):
         while True:

@@ -22,9 +22,9 @@
 
 import logging
 
-from pants.engine import engine
+from pants.engine import Engine
 from pants.network import Client, Connection, Server
-from pants.publisher import publisher
+from pants.publisher import Publisher
 
 
 ###############################################################################
@@ -43,31 +43,42 @@ __all__ = [
 
 
 ###############################################################################
+# Properties
+###############################################################################
+
+#: Alias for pants.engine.Engine.instance
+engine = property(Engine.instance)
+
+#: Alias for pants.publisher.Publisher.instance
+publisher = property(Publisher.instance)
+
+
+###############################################################################
 # Functions
 ###############################################################################
 
-#: Alias for pants.publisher.event
+#: Alias for pants.publisher.Publisher.instance().event
 event = publisher.event
 
-#: Alias for pants.publisher.publisher.publish
+#: Alias for pants.publisher.Publisher.instance().publish
 publish = publisher.publish
 
-#: Alias for pants.publisher.publisher.subscribe
+#: Alias for pants.publisher.Publisher.instance().subscribe
 subscribe = publisher.subscribe
 
-#: Alias for pants.publisher.publisher.unsubscribe
+#: Alias for pants.publisher.Publisher.instance().unsubscribe
 unsubscribe = publisher.unsubscribe
 
-#: Alias for pants.engine.engine.callback
+#: Alias for pants.engine.Engine.instance().callback
 callback = engine.callback
 
-#: Alias for pants.engine.engine.loop
+#: Alias for pants.engine.Engine.instance().loop
 loop = engine.loop
 
-#: Alias for pant.engine.engine.defer
+#: Alias for pants.engine.Engine.instance().defer
 defer = engine.defer
 
-#: Alias for pants.engine.engine.cycle
+#: Alias for pants.engine.Engine.instance().cycle
 cycle = engine.cycle
 
 

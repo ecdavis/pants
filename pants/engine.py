@@ -25,7 +25,7 @@ import errno
 import select
 import time
 
-from pants.publisher import publisher
+from pants.publisher import Publisher
 
 
 ###############################################################################
@@ -62,6 +62,13 @@ class Engine(object):
         self._callbacks = []
         self._deferreds = []
     
+    @classmethod
+    def instance(cls):
+        if not hasattr(cls, "_instance"):
+            cls._instance = cls()
+        
+        return cls._instance
+    
     ##### Engine Methods ######################################################
     
     def start(self, poll_timeout=0.02):
@@ -88,7 +95,7 @@ class Engine(object):
         
         # Initialise engine.
         log.info("Starting engine.")
-        publisher.publish("pants.engine.start")
+        Publisher.instance().publish("pants.engine.start")
         
         # Main loop.
         try:
@@ -106,7 +113,7 @@ class Engine(object):
         finally:
             # Graceful shutdown.
             log.info("Stopping engine.")
-            publisher.publish("pants.engine.stop")
+            Publisher.instance()..publish("pants.engine.stop")
             
             log.info("Shutting down.")
             self._shutdown = False
@@ -505,7 +512,7 @@ class _Callback(object):
     immediately but rather at the beginning of the next iteration of the
     main engine loop.
     """
-    def __init__(self,func, *args, **kwargs):
+    def __init__(self, engine, func, *args, **kwargs):
         self.func = func
         self.args = args
         self.kwargs = kwargs
@@ -520,7 +527,7 @@ class _Callback(object):
         """
         Stop the callback from being executed.
         """
-        engine.remove(self)
+        Engine.instance().remove(self)
 
 
 ###############################################################################
@@ -531,7 +538,7 @@ class _Loop(object):
     def run(self):
         _Callback.run(self)
         
-        engine._callbacks.append(self)
+        Engine.instance()._callbacks.append(self)
 
 
 ###############################################################################
@@ -566,13 +573,5 @@ class _Cycle(_Deferred):
     def run(self):
         _Deferred.run(self)
         
-        self.end = engine.time + self.delay
-        bisect.insort(engine._deferreds, self)
-
-
-###############################################################################
-# Initialisation
-###############################################################################
-
-# The fantastical Pants engine.
-engine = Engine()
+        self.end = Engine.instance()time + self.delay
+        bisect.insort(Engine.instance()._deferreds, self)
