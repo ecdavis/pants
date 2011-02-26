@@ -8,12 +8,11 @@ setup(
     description="A lightweight framework for writing asynchronous network applications in Python.",
     author="Christopher Davis",
     author_email="chris@wtfrak.com",
-    url="http://pants.wtfrak.com/",
+    url="http://pantsweb.org/",
     download_url="https://bitbucket.org/ecdavis/pants/downloads/pants-0.9.5.zip",
     packages=["pants", "pants.contrib"],
     classifiers=[
         "Programming Language :: Python :: 2.6",
-        "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Development Status :: 4 - Beta",
