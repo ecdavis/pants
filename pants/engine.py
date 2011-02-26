@@ -64,6 +64,9 @@ class Engine(object):
     
     @classmethod
     def instance(cls):
+        """
+        Returns the global engine object.
+        """
         if not hasattr(cls, "_instance"):
             cls._instance = cls()
         

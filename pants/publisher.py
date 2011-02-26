@@ -41,6 +41,9 @@ class Publisher(object):
     
     @classmethod
     def instance(cls):
+        """
+        Returns the global publisher object.
+        """
         if not hasattr(cls, "_instance"):
             cls._instance = cls()
         
