@@ -113,7 +113,7 @@ class Engine(object):
         finally:
             # Graceful shutdown.
             log.info("Stopping engine.")
-            Publisher.instance()..publish("pants.engine.stop")
+            Publisher.instance().publish("pants.engine.stop")
             
             log.info("Shutting down.")
             self._shutdown = False
@@ -573,5 +573,5 @@ class _Cycle(_Deferred):
     def run(self):
         _Deferred.run(self)
         
-        self.end = Engine.instance()time + self.delay
+        self.end = Engine.instance().time + self.delay
         bisect.insort(Engine.instance()._deferreds, self)
