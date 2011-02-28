@@ -345,28 +345,38 @@ class Channel(object):
             host: The hostname to connect to.
             port: The port to connect to.
         """
-        self._connected = False
-        self._connecting = True
+        if self._connected:
+            return
+        elif not self._connecting:
+            self._connected = False
+            self._connecting = True
         
         try:
-            self._socket.connect((host, port))
-            # A write event is raised when the connection has completed.
-            self._add_event(Engine.WRITE)
+            result = self._socket.connect_ex((host, port))
         except socket.error, err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                # EAGAIN: Try again.
-                # EWOULDBLOCK: Operation would block.
-                return # TODO Return False to indicate failure to connect?
-            elif err[0] in (errno.EALREADY, errno.EINPROGRESS):
-                # EALREADY: Operation already in progress.
-                # EINPROGRESS: Operation now in progress.
+            result = err[0]
+        
+        if result and result != errno.EISCONN:
+            if result in (errno.EWOULDBLOCK, errno.EINPROGRESS,errno.EALREADY):
+                self._add_event(Engine.READ)
+                self._add_event(Engine.WRITE)
                 return
-            elif err[0] in (0, errno.EISCONN):
-                # 0: No error.
-                # EISCONN: Transport endpoint is already connected.
-                self._handle_connect_event()
+            
+            elif result == errno.EAGAIN:
+                # EAGAIN: Try again. TODO: Something.
+                return
+            
             else:
-                raise
+                errstr = "Unknown error %d" % result
+                try:
+                    errstr = os.strerror(result)
+                except (NameError, OverflowError, ValueError):
+                    if result in errno.errorcode:
+                        errstr = errno.errorcode[result]
+                
+                raise socket.error(result, errstr)
+        
+        self._handle_connect_event()
     
     def _socket_bind(self, host, port):
         """
@@ -518,7 +528,10 @@ class Channel(object):
         
         # Write event.
         if events & Engine.WRITE:
-            self._handle_write_event()
+            if not self._connected:
+                self._handle_connect_event()
+            else:
+                self._handle_write_event()
             if not self.active():
                 return
         
