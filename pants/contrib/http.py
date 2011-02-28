@@ -216,7 +216,7 @@ class HTTPClient(object):
     
     ##### Private Methods #####################################################
     
-    def _add_request(self, method, url, headers, body, timeout):
+    def _add_request(self, method, url, headers, body, timeout, append=True):
         parts = urlparse.urlparse(url)
         
         # Build our headers.
@@ -224,10 +224,10 @@ class HTTPClient(object):
             headers = {}
         
         if not 'Accept-Encoding' in headers:
-            headers['Accept-Encoding'] = 'gzip'
+            headers['Accept-Encoding'] = 'deflate, gzip'
         
         if not 'Host' in headers:
-            headers['Host'] = parts.hostname
+            headers['Host'] = parts.netloc
         
         if not 'User-Agent' in headers:
             headers['User-Agent'] = USER_AGENT
@@ -235,22 +235,21 @@ class HTTPClient(object):
         if body:
             headers['Content-Length'] = len(body)
         
-        path = parts.path
+        path = parts.path or '/'
         if parts.query:
             path = '%s?%s' % (path, parts.query)
         if parts.fragment:
             path = '%s#%s' % (path, parts.fragment)
         
-        if not path:
-            path = '/'
-        
         request = [method, url, parts, headers, body, timeout, None, time(),
                     path]
-        self._requests.append(request)
         
-        # If we're just starting, start to process.
-        if len(self._requests) == 1:
-            callback(self._process_request)
+        if append:
+            self._requests.append(request)
+            
+            # If we're just starting, start to process.
+            if len(self._requests) == 1:
+                callback(self._process_request)
         
         return request
     
@@ -334,17 +333,40 @@ class HTTPClient(object):
         Call the response handler.
         """
         request = self._requests.pop(0)
+        response = self.current_response
         
-        if callable(request[6]):
-            func = request[6]
+        # Did we catch a redirect?
+        if response.status in (301,302):
+            # Generate a new request, using the new URL.
+            new_url = urlparse.urljoin(response.full_url,
+                        response.headers['Location'])
+            
+            new_headers = request[3].copy()
+            del new_headers['Host']
+            
+            new_req = self._add_request(request[0], new_url, new_headers,
+                                        request[4], request[5], False)
+            new_req[6] = request[6]
+            new_req[7] = request[7]
+            
+            self._requests.insert(0, new_req)
+            self.current_response = None
+            del response
+            
         else:
-            func = self.handle_response
+            # Determine the handler function to use.
+            if callable(request[6]):
+                func = request[6]
+            else:
+                func = self.handle_response
+            
+            # Call the handler function.
+            try:
+                func(response)
+            except Exception:
+                log.exception('Error handling HTTP response.')
         
-        try:
-            func(self.current_response)
-        except Exception:
-            log.exception('Error handling HTTP response.')
-        
+        # Process the next request.
         self.current_response = None
         self._process_request()
     
@@ -422,8 +444,11 @@ class HTTPClient(object):
             
             # Do we have a Content-Encoding header?
             if 'Content-Encoding' in headers:
-                if headers['Content-Encoding'] == 'gzip':
+                encoding = headers['Content-Encoding']
+                if encoding == 'gzip':
                     response._decompressor = zlib.decompressobj(16+zlib.MAX_WBITS)
+                elif encoding == 'deflate':
+                    response._decompressor = zlib.decompressobj(-15)
             
             # Do we have a Content-Length header?
             if 'Content-Length' in headers:
