@@ -47,10 +47,10 @@ __all__ = [
 ###############################################################################
 
 #: Alias for pants.engine.Engine.instance
-engine = property(Engine.instance)
+engine = Engine.instance()
 
 #: Alias for pants.publisher.Publisher.instance
-publisher = property(Publisher.instance)
+publisher = Publisher.instance()
 
 
 ###############################################################################

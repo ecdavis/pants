@@ -57,6 +57,7 @@ class Engine(object):
         self._running = False
         
         self._channels = {}
+        self._poller = None
         self._install_poller(poller)
         
         self._callbacks = []
