@@ -22,6 +22,7 @@
 
 import Cookie
 import logging
+import mimetypes
 import pprint
 import urllib
 import urlparse
@@ -173,10 +174,6 @@ class HTTPClient(object):
         if helper is None:
             helper = ClientHelper(self)
         
-        u = url.lower()
-        if not u.startswith('http://') or u.startswith('https://'):
-            raise ValueError("Can only make HTTP or HTTPS requests with HTTPClient.")
-        
         if kwargs:
             query, fragment = urlparse.urlparse(url)[4:6]
             if query:
@@ -198,7 +195,50 @@ class HTTPClient(object):
         return helper
     
     def post(self, url, timeout=None, headers=None, files=None, **kwargs):
-        raise NotImplementedError
+        """
+        Perform an HTTP POST request for the specified URL.
+        
+        Args:
+            url: The URL to fetch.
+            timeout: The time, in seconds, to wait for a response before
+                erroring out. Defaults to 30.
+            headers: An optional dict of headers to send with the request.
+            files: An optional dict of files to submit to the server.
+        
+        Any additional keyword arguments will be sent in the request body as
+        POST variables.
+        """
+        helper = self._helper
+        if helper is None:
+            helper = ClientHelper(self)
+        
+        body = ''
+        
+        if headers is None:
+            headers = {}
+        
+        if headers.get('Content-Type', '') == 'application/x-www-form-urlencoded' and files:
+            raise ValueError("Cannot send files with Content-Type "
+                             "'application/x-www-form-urlencoded'.")
+        
+        if files:
+            headers['Content-Type'] = 'multipart/form-data'
+        elif not 'Content-Type' in headers:
+            headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        
+        if headers['Content-Type'] == 'multipart/form-data':
+            boundary, body = encode_multipart(kwargs, files)
+            
+            headers['Content-Type'] = 'multipart/form-data; boundary=%s' % \
+                boundary
+        
+        elif kwargs:
+            body = urllib.urlencode(kwargs, True)
+        
+        helper.requests.append(self._add_request('POST', url, headers, body,
+                                timeout))
+        
+        return helper
     
     def process(self):
         """
@@ -225,6 +265,10 @@ class HTTPClient(object):
     ##### Private Methods #####################################################
     
     def _add_request(self, method, url, headers, body, timeout, append=True):
+        u = url.lower()
+        if not u.startswith('http://') or u.startswith('https://'):
+            raise ValueError("Can only make HTTP or HTTPS requests with HTTPClient.")
+        
         parts = urlparse.urlparse(url)
         
         # Build our headers.
@@ -343,6 +387,23 @@ class HTTPClient(object):
         request = self._requests.pop(0)
         response = self.current_response
         
+        close_after = response.headers.get('Connection', '') == 'close'
+        close_after &= self.keep_alive
+        
+        # Is this a 100 Continue?
+        if response.status == 100:
+            self.current_response = None
+            del response
+            
+            # Process the request.
+            if close_after:
+                if self._channel:
+                    self._channel.close_immediately()
+                    return
+            
+            self._process_request()
+            return
+        
         # Did we catch a redirect?
         if response.status in (301,302) and request[9] <= self.max_redirects:
             # Generate a new request, using the new URL.
@@ -363,6 +424,11 @@ class HTTPClient(object):
             del response
             
             # Process the request.
+            if close_after:
+                if self._channel:
+                    self._channel.close_immediately()
+                    return
+            
             self._process_request()
             return
         
@@ -390,6 +456,12 @@ class HTTPClient(object):
         
         # Process the next request.
         self.current_response = None
+        
+        if close_after:
+            if self._channel:
+                self._channel.close_immediately()
+                return
+        
         self._process_request()
     
     def _read_body(self, data):
@@ -406,6 +478,40 @@ class HTTPClient(object):
             resp.body = data
         self._handle_response()
         
+    def _read_additional_headers(self, data):
+        resp = self.current_response
+        
+        if data:
+            resp._additional_headers += '%s%s' % (data, CRLF)
+            return
+        
+        headers = read_headers(resp._additional_headers)
+        del resp._additional_headers
+        
+        # Did we get an additional header for Content-Encoding?
+        enc = resp.headers.get('Content-Encoding', '')
+        
+        for k,v in headers.iteritems():
+            if k in resp.headers:
+                if not isinstance(resp.headers[k], list):
+                    resp.headers[k] = [resp.headers[k]]
+                if isinstance(v, list):
+                    resp.headers[k].extend(v)
+                else:
+                    resp.headers[k].append(v)
+            else:
+                resp.headers[k] = v
+        
+        new_enc = resp.headers.get('Content-Encoding', '')
+        if (new_enc == 'gzip' or new_enc == 'deflate') and enc == '':
+            if new_enc == 'gzip':
+                resp.body = zlib.decompress(resp.body, 16 + zlib.MAX_WBITS)
+            elif new_enc == 'deflate':
+                resp.body = zlib.decompress(resp.body, -zlib.MAX_WBITS)
+        
+        # Finally, handle it.
+        self._handle_response()
+        
     def _read_chunk_head(self, data):
         """
         Read a chunk header.
@@ -417,29 +523,33 @@ class HTTPClient(object):
         
         length = int(data.strip(), 16)
         
-        self._channel.handle_read = self._read_chunk_body
-        self._channel.read_delimiter = length + 2
+        if length == 0:
+            resp = self.current_response
+            if resp._decompressor:
+                resp.body += resp._decompressor.flush()
+                del resp._decompressor
+            
+            self._channel.handle_read = self._read_additional_headers
+            resp._additional_headers = ''
+            self._channel.read_delimiter = CRLF
+        
+        else:
+            self._channel.handle_read = self._read_chunk_body
+            self._channel.read_delimiter = length + 2
     
     def _read_chunk_body(self, data):
         """
         Read a chunk body.
         """
         resp = self.current_response
-        
-        if len(data) == 2:
-            if resp._decompressor:
-                resp.body += resp._decompressor.flush()
-                del resp._decompressor
-            self._handle_response()
-            
+    
+        if resp._decompressor:
+            resp.body += resp._decompressor.decompress(data[:-2])
         else:
-            if resp._decompressor:
-                resp.body += resp._decompressor.decompress(data[:-2])
-            else:
-                resp.body += data[:-2]
-            
-            self._channel.handle_read = self._read_chunk_head
-            self._channel.read_delimiter = CRLF
+            resp.body += data[:-2]
+        
+        self._channel.handle_read = self._read_chunk_head
+        self._channel.read_delimiter = CRLF
         
     def _read_headers(self, data):
         """
@@ -452,9 +562,14 @@ class HTTPClient(object):
         try:
             initial_line, data = data.split(CRLF, 1)
             try:
-                http_version, status, status_text = initial_line.split(' ', 2)
-                status = int(status)
-            except:
+                try:
+                    http_version, status, status_text = initial_line.split(' ', 2)
+                    status = int(status)
+                except ValueError:
+                    http_version, status = initial_line.split(' ')
+                    status = int(status)
+                    status_text = HTTP.get(status, '')
+            except ValueError:
                 raise BadRequest('Invalid HTTP status line %r.' % initial_line)
             
             # Parse the headers.
@@ -470,7 +585,7 @@ class HTTPClient(object):
                 if encoding == 'gzip':
                     response._decompressor = zlib.decompressobj(16+zlib.MAX_WBITS)
                 elif encoding == 'deflate':
-                    response._decompressor = zlib.decompressobj(-15)
+                    response._decompressor = zlib.decompressobj(-zlib.MAX_WBITS)
             
             # Do we have a Content-Length header?
             if 'Content-Length' in headers:
@@ -483,6 +598,10 @@ class HTTPClient(object):
                     self._channel.read_delimiter = CRLF
                 else:
                     raise BadRequest("Unsupported Transfer-Encoding: %s" % headers['Transfer-Encoding'])
+            
+            # Is this a HEAD request? If so, then handle the request NOW.
+            if response.method == 'HEAD':
+                self._handle_response()
         
         except BadRequest, e:
             log.info('Bad response from %r: %s',
@@ -1116,6 +1235,47 @@ class HTTPServer(Server):
 ###############################################################################
 # Support Functions
 ###############################################################################
+
+def content_type(filename):
+    return mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+def encode_multipart(vars, files=None, boundary=None):
+    """
+    Encode a set of variables and/or files into a multipart/form-data request
+    body.
+    
+    Args:
+        vars: A dictionary of variables to encode.
+        files: A dictionary of tuples of (filename, data) to encode. Optional.
+        boundary: The boundary to use while encoding. Defaults to a crazy
+            string that would probably never show up. If it does show up,
+            however, you can set it here.
+    """
+    
+    if boundary is None:
+        boundary = '-----pants-----PANTS-----pants$'
+    
+    out = []
+    
+    for k, v in vars.iteritems():
+        out.append('--%s' % boundary)
+        out.append(CRLF.join([
+            'Content-Disposition: form-data; name="%s"' % k,
+            '', str(v)]))
+    if files:
+        for k, (fn, v) in files.iteritems():
+            out.append('--%s' % boundary)
+            out.append(CRLF.join([
+                'Content-Disposition: form-data; name="%s"; filename="%s"' % (
+                    k, fn),
+                'Content-Type: %s' % content_type(fn),
+                '',
+                str(v)]))
+    
+    out.append('--%s--' % boundary)
+    out.append('')
+    
+    return boundary, CRLF.join(out)
 
 def parse_multipart(request, boundary, data):
     """
