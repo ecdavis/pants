@@ -23,25 +23,32 @@
 import Cookie
 import logging
 import pprint
+import urllib
 import urlparse
+import zlib
 
 from time import time
-from pants import Connection, Server
+from pants import callback, Connection, Server, __version__ as pants_version
+from pants.channel import Channel
 
 ###############################################################################
 # Logging
 ###############################################################################
+
 log = logging.getLogger('http')
 
 ###############################################################################
 # Constants
 ###############################################################################
 
-COMMA_HEADERS = ('Accept', 'Accept-Charset','Accept-Encoding','Accept-Language',
-    'Accept-Ranges', 'Allow', 'Cache-Control', 'Connection', 'Content-Encoding',
-    'Content-Language', 'Expect', 'If-Match', 'If-None-Match', 'Pragma',
-    'Proxy-Authenticate', 'TE', 'Trailer', 'Transfer-Encoding','Upgrade','Vary',
-    'Via', 'Warning', 'WWW-Authenticate')
+USER_AGENT = "HTTPants/%s" % pants_version
+
+COMMA_HEADERS = ('Accept', 'Accept-Charset', 'Accept-Encoding',
+    'Accept-Language', 'Accept-Ranges', 'Allow', 'Cache-Control', 'Connection',
+    'Content-Encoding', 'Content-Language', 'Expect', 'If-Match',
+    'If-None-Match', 'Pragma', 'Proxy-Authenticate', 'TE', 'Trailer',
+    'Transfer-Encoding', 'Upgrade', 'Vary', 'Via', 'Warning',
+    'WWW-Authenticate')
 
 CRLF = '\r\n'
 DOUBLE_CRLF = CRLF + CRLF
@@ -94,6 +101,481 @@ class BadRequest(Exception):
         Exception.__init__(self, message)
         self.code = code
 
+###############################################################################
+# HTTPClient Class
+###############################################################################
+
+class HTTPClient(object):
+    """
+    An HTTP client, capable of communicating with most, if not all, servers
+    using an incomplete implementation of HTTP/1.1.
+    
+    The HTTPClient's behavior is defined, mainly, through the handle_response
+    function that's expected as the first argument when constructing a new
+    HTTPClient.
+    
+    Alternatively, you may subclass HTTPClient to modify the response handler.
+    """
+    def __init__(self, response_handler=None, keep_alive=True):
+        """
+        Initialize a new HTTPClient instance.
+        
+        Args:
+            response_handler: Optionally, a function to use for handling
+                received responses from the server. If None is provided, the
+                default will be used instead.
+            keep_alive: If True, the connection will be reused as much as
+                possible. Defaults to True.
+        """
+        if response_handler is not None:
+            if not callable(response_handler):
+                raise ValueError("response handler must be callable.")
+            self.handle_response = response_handler
+        
+        # Internal State
+        self._channel = None
+        self._processing = False
+        self._requests = []
+        self._server = None
+        self._helper = None
+        
+        # External State
+        self.keep_alive = keep_alive
+    
+    ##### General Methods #####################################################
+    
+    def get(self, url, timeout=30, headers=None, **kwargs):
+        """
+        Perform an HTTP GET request for the specified URL. Additional query
+        parameters may be specified as keyword arguments. For example:
+            
+            client.get('http://www.google.com/search', q='test')
+        
+        Is equivilent to:
+            
+            client.get('http://www.google.com/search?q=test')
+        
+        Args:
+            url: The URL to fetch.
+            timeout: The time, in seconds, to wait for a response before
+                erroring out. Defaults to 30.
+            headers: An optional dict of headers to send with the request.
+        """
+        helper = self._helper
+        if helper is None:
+            helper = ClientHelper(self)
+        
+        u = url.lower()
+        if not u.startswith('http://') or u.startswith('https://'):
+            raise ValueError("Can only make HTTP or HTTPS requests with HTTPClient.")
+        
+        if kwargs:
+            query, fragment = urlparse.urlparse(url)[4:6]
+            if query:
+                query = "%s&%s" % (query, urllib.urlencode(kwargs, True))
+                url = "%s?%s" % (url.partition('?')[0], query)
+                if fragment:
+                    url = "%s#%s" % (url, fragment)
+            
+            else:
+                query = urllib.urlencode(kwargs, True)
+                if fragment:
+                    url = "%s?%s#%s" % (url.partition('#')[0], query, fragment)
+                else:
+                    url = "%s?%s" % (url, query)
+        
+        helper.requests.append(self._add_request('GET', url, headers, None,
+                                timeout))
+        
+        return helper
+    
+    def post(self, url, timeout=None, headers=None, files=None, **kwargs):
+        raise NotImplementedError
+    
+    def process(self):
+        """
+        Block until the queued requests finish.
+        """
+        if not self._requests:
+            return
+        
+        self._processing = True
+        from pants.engine import Engine
+        Engine.instance().start()
+    
+    ##### Public Event Handlers ###############################################
+    
+    def handle_response(self, response):
+        """
+        Placeholder. Called when an HTTP response is received.
+        
+        Args:
+            response: The HTTP response that was received.
+        """
+        pass
+    
+    ##### Private Methods #####################################################
+    
+    def _add_request(self, method, url, headers, body, timeout):
+        parts = urlparse.urlparse(url)
+        
+        # Build our headers.
+        if headers is None:
+            headers = {}
+        
+        if not 'Accept-Encoding' in headers:
+            headers['Accept-Encoding'] = 'gzip'
+        
+        if not 'Host' in headers:
+            headers['Host'] = parts.hostname
+        
+        if not 'User-Agent' in headers:
+            headers['User-Agent'] = USER_AGENT
+        
+        if body:
+            headers['Content-Length'] = len(body)
+        
+        path = parts.path
+        if parts.query:
+            path = '%s?%s' % (path, parts.query)
+        if parts.fragment:
+            path = '%s#%s' % (path, parts.fragment)
+        
+        if not path:
+            path = '/'
+        
+        request = [method, url, parts, headers, body, timeout, None, time(),
+                    path]
+        self._requests.append(request)
+        
+        # If we're just starting, start to process.
+        if len(self._requests) == 1:
+            callback(self._process_request)
+        
+        return request
+    
+    def _process_request(self):
+        """
+        Starts processing the first request on the stack.
+        """
+        if not self._requests:
+            if self._channel:
+                self._channel.close_immediately()
+                self._channel = None
+            if self._processing:
+                self._processing = False
+                from pants.engine import Engine
+                Engine.instance().stop()
+            return
+        
+        request = self._requests[0]
+        
+        port = request[2].port
+        if not port:
+            if request[2].scheme.lower() == 'https':
+                port = 443
+            else:
+                port = 80
+        
+        host = "%s:%d" % (request[2].hostname, port)
+        
+        if self._channel and not self._server == host.lower():
+            self._channel.close()
+            return
+        
+        if not self._channel:
+            # Store the current server.
+            self._server = host.lower()
+            
+            # Create a Channel, hook into it, and connect.
+            self._channel = Channel()
+            
+            self._channel.handle_close = self._handle_close
+            self._channel.handle_connect = self._handle_connect
+            
+            self._channel.connect(request[2].hostname, port)
+            return
+        
+        # If we got here, we're connected, and to the right server. Do stuff.
+        self._send('%s %s HTTP/1.1%s' % (request[0], request[8], CRLF))
+        for k, v in request[3].iteritems():
+            self._send('%s: %s%s' % (k, v, CRLF))
+        
+        if request[4]:
+            self._send('%s%s' % (CRLF, request[4]))
+        else:
+            self._send(CRLF)
+        
+        # Now, wait for a response.
+        self._channel.handle_read = self._read_headers
+        self._channel.read_delimiter = DOUBLE_CRLF
+    
+    def _send(self, data):
+        self._channel.write(data)
+    
+    ##### Internal Event Handlers #############################################
+    
+    def _handle_connect(self):
+        if self._requests:
+            self._process_request()
+        else:
+            self._channel.close()
+    
+    def _handle_close(self):
+        """
+        In the event that the connection is closed, see if there's another
+        request to process. If so, reconnect to the given host.
+        """
+        self._channel = None
+        self._process_request()
+    
+    def _handle_response(self):
+        """
+        Call the response handler.
+        """
+        request = self._requests.pop(0)
+        
+        if callable(request[6]):
+            func = request[6]
+        else:
+            func = self.handle_response
+        
+        try:
+            func(self.current_response)
+        except Exception:
+            log.exception('Error handling HTTP response.')
+        
+        self.current_response = None
+        self._process_request()
+    
+    def _read_body(self, data):
+        """ 
+        Read the response body, decompress it if necessary, and then call the
+        response handler.
+        """
+        resp = self.current_response
+        if resp._decompressor:
+            resp.body = resp._decompressor.decompress(data)
+            resp.body += resp._decompressor.flush()
+            del resp._decompressor
+        else:
+            resp.body = data
+        self._handle_response()
+        
+    def _read_chunk_head(self, data):
+        """
+        Read a chunk header.
+        """
+        if ';' in data:
+            data, ext = data.split(';', 1)
+        else:
+            ext = ''
+        
+        length = int(data.strip(), 16)
+        
+        self._channel.handle_read = self._read_chunk_body
+        self._channel.read_delimiter = length + 2
+    
+    def _read_chunk_body(self, data):
+        """
+        Read a chunk body.
+        """
+        resp = self.current_response
+        
+        if len(data) == 2:
+            if resp._decompressor:
+                resp.body += resp._decompressor.flush()
+                del resp._decompressor
+            self._handle_response()
+            
+        else:
+            if resp._decompressor:
+                resp.body += resp._decompressor.decompress(data[:-2])
+            else:
+                resp.body += data[:-2]
+            
+            self._channel.handle_read = self._read_chunk_head
+            self._channel.read_delimiter = CRLF
+        
+    def _read_headers(self, data):
+        """
+        Read the headers of an HTTP response from the socket, and the response
+        body as well, into a new HTTPResponse instance. Then call the request
+        handler.
+        """
+        do_close = False
+        
+        try:
+            initial_line, data = data.split(CRLF, 1)
+            try:
+                http_version, status, status_text = initial_line.split(' ', 2)
+                status = int(status)
+            except:
+                raise BadRequest('Invalid HTTP status line %r.' % initial_line)
+            
+            # Parse the headers.
+            headers = read_headers(data)
+            
+            # Construct a HTTPResponse object.
+            self.current_response = response = HTTPResponse(self,
+                self._requests[0], http_version, status, status_text, headers)
+            
+            # Do we have a Content-Encoding header?
+            if 'Content-Encoding' in headers:
+                if headers['Content-Encoding'] == 'gzip':
+                    response._decompressor = zlib.decompressobj(16+zlib.MAX_WBITS)
+            
+            # Do we have a Content-Length header?
+            if 'Content-Length' in headers:
+                self._channel.handle_read = self._read_body
+                self._channel.read_delimiter = int(headers['Content-Length'])
+            
+            elif 'Transfer-Encoding' in headers:
+                if headers['Transfer-Encoding'] == 'chunked':
+                    self._channel.handle_read = self._read_chunk_head
+                    self._channel.read_delimiter = CRLF
+                else:
+                    raise BadRequest("Unsupported Transfer-Encoding: %s" % headers['Transfer-Encoding'])
+        
+        except BadRequest, e:
+            log.info('Bad response from %r: %s',
+                self._server, e)
+            do_close = True
+        
+        except Exception:
+            log.exception('Error handling HTTP response.')
+            do_close = True
+        
+        # Clear the way for the next request.
+        if do_close:
+            self._requests.pop(0)
+            self.current_response = None
+            if self._channel:
+                self._channel.close_immediately()
+                self._channel = None
+
+class ClientHelper(object):
+    """
+    This is returned by calls to HTTPClient.get and HTTPClient.post to allow
+    you to decorate functions to be used as response handlers for specific
+    requests.
+    """
+    def __init__(self, parent):
+        self.parent = parent
+        self.requests = []
+        self._responses = []
+    
+    def get(self, *a, **kw):
+        self.parent._helper = self
+        try:
+            return self.parent.get(*a, **kw)
+        finally:
+            self.parent._helper = None
+    
+    def post(self, *a, **kw):
+        self.parent._helper = self
+        try:
+            return self.parent.post(*a, **kw)
+        finally:
+            self.parent._helper = None
+    
+    def _collect(self, response):
+        self._responses.append(response)
+    
+    def fetch(self):
+        for req in self.requests:
+            req[6] = self._collect
+        
+        self.process()
+        
+        out = self._responses
+        self._responses = []
+        
+        if len(out) == 1:
+            return out[0]
+        return out
+    
+    def process(self):
+        return self.parent.process()
+    
+    def __call__(self, func):
+        for req in self.requests:
+            req[6] = func
+        return func
+
+###############################################################################
+# HTTPResponse Class
+###############################################################################
+
+class HTTPResponse(object):
+    """
+    Represents a single HTTP response.
+    
+    This class contains all the information received in a given HTTP response.
+    """
+    
+    def __init__(self, client, request, http_version, status, status_text,
+                    headers):
+        """
+        Initialize a HTTPResponse object.
+        
+        Args:
+            client: The HTTPClient that received this response.
+            request: The request list containing all the information passed
+                to the call that generated the request.
+            http_version: The HTTP protocol version used for this request.
+            status: The HTTP status code of the response.
+            status_text: A human readable status code.
+            headers: The headers received with the response.
+        """
+        
+        self.body = ''
+        self.client = client
+        self.headers = headers
+        self.method = request[0]
+        self.protocol = request[2].scheme
+        self.request = request
+        self.uri = request[8]
+        self.version = http_version
+        
+        self.host = client._server
+        if self.host.endswith(':80'):
+            self.host = self.host[:-3]
+        
+        self.status = status
+        self.status_text = status_text
+        
+        self._decompressor = None
+        
+        # Timing Information
+        self._start = request[7]
+        self._finish = time()
+        self.time = self._finish - self._start
+    
+    ##### Properties ##########################################################
+    
+    @property
+    def cookies(self):
+        """
+        The cookies provided to the response.
+        """
+        try:
+            return self._cookies
+        except AttributeError:
+            self._cookies = cookies = Cookie.SimpleCookie()
+            if 'Set-Cookie' in self.headers:
+                raw = self.headers['Set-Cookie']
+                if isinstance(raw, list):
+                    for i in raw:
+                        cookies.load(i)
+                else:
+                    cookies.load(raw)
+            return self._cookies
+    
+    @property
+    def full_url(self):
+        return "%s://%s%s" % (self.protocol, self.host, self.uri)
+    
 ###############################################################################
 # HTTPConnection Class
 ###############################################################################
@@ -304,7 +786,7 @@ class HTTPRequest(object):
             method: The HTTP method of the request.
             uri: The requested URI.
             http_version: The HTTP protocol version used for this request.
-            headers: A dictionary of HTTP headers recieved for this connection.
+            headers: A dictionary of HTTP headers received for this connection.
                 Optional.
             protocol: Either 'http' or 'https', depending on whether or not the
                 connection that received this request is secure.
@@ -394,7 +876,7 @@ class HTTPRequest(object):
     @property
     def time(self):
         """
-        Returns the time elapsed since the request was recieved, or the total
+        Returns the time elapsed since the request was received, or the total
         processing time if the request has been finished.
         """
         if self._finish is None:
