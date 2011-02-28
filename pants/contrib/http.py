@@ -116,7 +116,8 @@ class HTTPClient(object):
     
     Alternatively, you may subclass HTTPClient to modify the response handler.
     """
-    def __init__(self, response_handler=None, keep_alive=True):
+    def __init__(self, response_handler=None, max_redirects=5, keep_alive=True,
+                unicode=True):
         """
         Initialize a new HTTPClient instance.
         
@@ -124,8 +125,13 @@ class HTTPClient(object):
             response_handler: Optionally, a function to use for handling
                 received responses from the server. If None is provided, the
                 default will be used instead.
+            max_redirects: The number of times to follow a redirect from the
+                server. Defaults to 5.
             keep_alive: If True, the connection will be reused as much as
                 possible. Defaults to True.
+            unicode: If True, the Content-Type header will be checked for a
+                character set. If one is present, the body will be converted
+                to unicode, using that character set. Defauls to True.
         """
         if response_handler is not None:
             if not callable(response_handler):
@@ -141,6 +147,8 @@ class HTTPClient(object):
         
         # External State
         self.keep_alive = keep_alive
+        self.max_redirects = max_redirects
+        self.unicode = unicode
     
     ##### General Methods #####################################################
     
@@ -242,7 +250,7 @@ class HTTPClient(object):
             path = '%s#%s' % (path, parts.fragment)
         
         request = [method, url, parts, headers, body, timeout, None, time(),
-                    path]
+                    path, 0]
         
         if append:
             self._requests.append(request)
@@ -336,7 +344,7 @@ class HTTPClient(object):
         response = self.current_response
         
         # Did we catch a redirect?
-        if response.status in (301,302):
+        if response.status in (301,302) and request[9] <= self.max_redirects:
             # Generate a new request, using the new URL.
             new_url = urlparse.urljoin(response.full_url,
                         response.headers['Location'])
@@ -348,23 +356,37 @@ class HTTPClient(object):
                                         request[4], request[5], False)
             new_req[6] = request[6]
             new_req[7] = request[7]
+            new_req[9] = request[9] + 1
             
             self._requests.insert(0, new_req)
             self.current_response = None
             del response
             
+            # Process the request.
+            self._process_request()
+            return
+        
+        # Try converting to unicode?
+        if self.unicode:
+            content_type = response.headers.get('Content-Type','')
+            if 'charset=' in content_type:
+                content_type, _, encoding = content_type.partition('charset=')
+                try:
+                    response.body = response.body.decode(encoding)
+                except (LookupError, UnicodeDecodeError):
+                    pass
+        
+        # Determine the handler function to use.
+        if callable(request[6]):
+            func = request[6]
         else:
-            # Determine the handler function to use.
-            if callable(request[6]):
-                func = request[6]
-            else:
-                func = self.handle_response
-            
-            # Call the handler function.
-            try:
-                func(response)
-            except Exception:
-                log.exception('Error handling HTTP response.')
+            func = self.handle_response
+        
+        # Call the handler function.
+        try:
+            func(response)
+        except Exception:
+            log.exception('Error handling HTTP response.')
         
         # Process the next request.
         self.current_response = None
