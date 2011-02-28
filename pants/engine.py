@@ -516,7 +516,7 @@ class _Callback(object):
     immediately but rather at the beginning of the next iteration of the
     main engine loop.
     """
-    def __init__(self, engine, func, *args, **kwargs):
+    def __init__(self, func, *args, **kwargs):
         self.func = func
         self.args = args
         self.kwargs = kwargs
@@ -538,7 +538,7 @@ class _Callback(object):
 # _Loop Class
 ###############################################################################
 
-class _Loop(object):
+class _Loop(_Callback):
     def run(self):
         _Callback.run(self)
         
@@ -554,11 +554,11 @@ class _Deferred(_Callback):
     A deferred is a function (or other callable) that is not executed
     immediately but rather after a certain amount of time.
     """
-    def __init__(self,  func, delay, *args, **kwargs):
+    def __init__(self, func, delay, *args, **kwargs):
         _Callback.__init__(self, func, *args, **kwargs)
         
         self.delay = delay
-        self.end = engine.time + delay
+        self.end = Engine.instance().time + delay
     
     def __cmp__(self, to):
         return cmp(self.end, to.end)
