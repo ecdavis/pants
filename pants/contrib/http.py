@@ -29,8 +29,10 @@ import urlparse
 import zlib
 
 from time import time
-from pants import callback, Connection, Server, __version__ as pants_version
+from pants import callback, Connection, __version__ as pants_version
 from pants.channel import Channel
+
+from pants.contrib.ssl import SSLServer
 
 ###############################################################################
 # Logging
@@ -144,6 +146,7 @@ class HTTPClient(object):
         self._processing = False
         self._requests = []
         self._server = None
+        self._is_secure = False
         self._helper = None
         
         # External State
@@ -266,7 +269,7 @@ class HTTPClient(object):
     
     def _add_request(self, method, url, headers, body, timeout, append=True):
         u = url.lower()
-        if not u.startswith('http://') or u.startswith('https://'):
+        if not (u.startswith('http://') or u.startswith('https://')):
             raise ValueError("Can only make HTTP or HTTPS requests with HTTPClient.")
         
         parts = urlparse.urlparse(url)
@@ -330,9 +333,11 @@ class HTTPClient(object):
         
         host = "%s:%d" % (request[2].hostname, port)
         
-        if self._channel and not self._server == host.lower():
-            self._channel.close()
-            return
+        if self._channel:
+            if not self._server == host.lower() or not \
+                    self._is_secure == (request[2].scheme.lower() == 'https'):
+                self._channel.close()
+                return
         
         if not self._channel:
             # Store the current server.
@@ -343,6 +348,10 @@ class HTTPClient(object):
             
             self._channel.handle_close = self._handle_close
             self._channel.handle_connect = self._handle_connect
+            
+            self._is_secure = request[2].scheme.lower() == 'https'
+            if self._is_secure:
+                self._channel.startTLS()
             
             self._channel.connect(request[2].hostname, port)
             return
@@ -367,6 +376,10 @@ class HTTPClient(object):
     ##### Internal Event Handlers #############################################
     
     def _handle_connect(self):
+        #if self._is_secure and not self._channel.is_secure():
+        #    self._channel.startTLS()
+        #    return
+        
         if self._requests:
             self._process_request()
         else:
@@ -378,6 +391,7 @@ class HTTPClient(object):
         request to process. If so, reconnect to the given host.
         """
         self._channel = None
+        self._is_secure = False
         self._process_request()
     
     def _handle_response(self):
@@ -843,9 +857,14 @@ class HTTPConnection(Connection):
             # Parse the headers.
             headers = read_headers(data)
             
+            protocol = 'http'
+            
+            if self.is_secure():
+                protocol = 'https'
+            
             # Construct a HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
-                method, uri, http_version, headers)
+                method, uri, http_version, headers, protocol)
             
             # If we have a Content-Length header, read the request body.
             length = headers.get('Content-Length')
@@ -1160,7 +1179,7 @@ class HTTPRequest(object):
 # HTTPServer Class
 ###############################################################################
 
-class HTTPServer(Server):
+class HTTPServer(SSLServer):
     """
     An HTTP server, extending the default Server class.
     
@@ -1199,7 +1218,8 @@ class HTTPServer(Server):
     """
     ConnectionClass = HTTPConnection
     
-    def __init__(self, request_handler, max_request=104857600, keep_alive=True):
+    def __init__(self, request_handler, max_request=104857600, keep_alive=True,
+                    ssl_options=None):
         """
         Initializes an HTTP server object.
         
@@ -1212,25 +1232,37 @@ class HTTPServer(Server):
                 files. Optional. Defaults to 10MB.
             keep_alive: If set to False, only one request will be allowed per
                 connection. Optional.
+            ssl_options: A dict of options for establishing SSL connections. If
+                this is set, the server will be able to serve pages via HTTPS
+                and not just HTTP. The keys and values provided should mimic
+                the arguments taken by ssl.wrap_socket.
         """
-        Server.__init__(self)
+        SSLServer.__init__(self, ssl_options=ssl_options)
         
         # Storage
         self.request_handler    = request_handler
         self.max_request        = max_request
         self.keep_alive         = keep_alive
     
-    def listen(self, port=80, host='', backlog=1024):
+    def listen(self, port=None, host='', backlog=1024):
         """
         Begins listening on the given host and port.
         
         Args:
-            port: The port to listen on. Defaults to 80 for regular HTTP.
+            port: The port to listen on. Optional. If not specified, will be
+                set to 80 for regular HTTP, or 443 if SSL options have been
+                set.
             host: The hostname to listen on. Defaults to ''.
             backlog: The maximum number of queued connections. Defaults
                 to 1024.
         """
-        Server.listen(self, port, host, backlog)
+        if not port:
+            if self.ssl_options:
+                port = 443
+            else:
+                port = 80
+        
+        SSLServer.listen(self, port, host, backlog)
     
 ###############################################################################
 # Support Functions
