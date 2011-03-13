@@ -25,7 +25,7 @@ import logging
 from pants.engine import Engine
 from pants.network import Client, Connection, Server
 from pants.publisher import Publisher
-
+from pants.udp import UDPChannel, sendto
 
 ###############################################################################
 # Exports
@@ -39,6 +39,7 @@ __all__ = [
     "Client", "Connection", "Server", # Networking
     "event", "publish", "subscribe", "unsubscribe", # Publisher
     "callback", "loop", "cycle", "defer", # Scheduling
+    "UDPChannel", "sendto", # UDP Support
     ]
 
 
