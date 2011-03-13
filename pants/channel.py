@@ -134,7 +134,7 @@ class Channel(object):
         """
         if self.active():
             log.warning("Channel.connect() called on active channel %d." % self.fileno)
-            return
+            return self
         
         self._socket_connect(host, port)
         
@@ -155,7 +155,7 @@ class Channel(object):
         """
         if self.active():
             log.warning("Channel.listen() called on active channel %d." % self.fileno)
-            return
+            return self
         
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket_bind(host, port)
