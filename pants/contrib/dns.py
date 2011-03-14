@@ -56,13 +56,6 @@ OP_STATUS = 2
 IN = 1
 
 ###############################################################################
-# RDATA Handlers
-###############################################################################
-
-rdata_process = {}
-rdata_process[A] = socket.inet_ntoa
-
-###############################################################################
 # OS-Specific DNS Server Listing Code
 ###############################################################################
 
@@ -182,7 +175,20 @@ class Query(object):
         return self.buildHeader() + out
     
 ###############################################################################
-# Resolver Class
+# RDATA Handlers
+###############################################################################
+
+rdata_process = {}
+
+def handle(*types):
+    def handler(func):
+        for type in types:
+            rdata_process[type] = func
+        return func
+    return handler
+
+###############################################################################
+# Record Reading Stuff
 ###############################################################################
 
 def readName(data, full_data=None):
@@ -220,10 +226,8 @@ def readAnswer(data, full_data):
     rdata = data[:rdlength]
     data = data[rdlength:]
     
-    if type == CNAME:
-        rdata = readName(rdata, full_data)[0]
-    elif type in rdata_process:
-        rdata = rdata_process[type](rdata)
+    if type in rdata_process:
+        rdata = rdata_process[type](rdata, full_data)
     
     return name, type, clss, ttl, rdata, orig - len(data)
 
@@ -237,6 +241,28 @@ def readQuery(data):
     
     return qname, qtype, qclass, (orig - len(data)) + 4
 
+###############################################################################
+# More RDATA Handlers
+###############################################################################
+
+@handle(A)
+def handle_a(data, full_data):
+    return socket.inet_ntoa(data)
+
+@handle(MX)
+def handle_mx(data, full_data):
+    preference, = struct.unpack('!H', data[:2])
+    name = readName(data[2:], full_data)[0]
+    return preference, name
+
+@handle(PTR, CNAME)
+def handle(data, full_data):
+    return readName(data, full_data)[0]
+
+###############################################################################
+# Resolver Class
+###############################################################################
+    
 class Resolver(object):
     def __init__(self, servers=None, channel=None):
         """
