@@ -201,8 +201,13 @@ def readName(data, full_data=None):
             offset, = struct.unpack('!H', data[:2])
             offset ^= 0xC000
             
-            return readName(full_data[offset:], full_data)[0], 2
-        
+            if name:
+                name += '.%s' % readName(full_data[offset:], full_data)[0]
+            else:
+                name = readName(full_data[offset:], full_data)[0]
+            data = data[2:]
+            break
+            
         if l == 0:
             data = data[1:]
             break
