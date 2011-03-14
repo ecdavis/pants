@@ -227,7 +227,10 @@ def readAnswer(data, full_data):
     data = data[rdlength:]
     
     if type in rdata_process:
-        rdata = rdata_process[type](rdata, full_data)
+        try:
+            rdata = rdata_process[type](rdata, full_data)
+        except Exception:
+            log.exception('Invalid RDATA data.')
     
     return name, type, clss, ttl, rdata, orig - len(data)
 
@@ -249,15 +252,60 @@ def readQuery(data):
 def handle_a(data, full_data):
     return socket.inet_ntoa(data)
 
+@handle(AAAA)
+def handle_aaaa(data, full_data):
+    return socket.inet_ntop(AF_INET6, data)
+
+@handle(HINFO)
+def handle_hinfo(data, full_data):
+    l = struct.unpack('!B', data[0])[0]
+    cpu = data[1:1+l]
+    data = data[1+l:]
+    
+    l = struct.unpack('!B', data[0])[0]
+    os = data[1:1+l]
+    
+    return cpu, os
+
+@handle(MINFO, RP)
+def handle_minfo(data, full_data):
+    rmailbx, bytes = readName(data, full_data)
+    return rmailbx, readName(data[bytes:], full_data)[0]
+
 @handle(MX)
 def handle_mx(data, full_data):
     preference, = struct.unpack('!H', data[:2])
-    name = readName(data[2:], full_data)[0]
-    return preference, name
+    return preference, readName(data[2:], full_data)[0]
 
-@handle(PTR, CNAME)
-def handle(data, full_data):
+@handle(NS,MD,MF,CNAME,MB,MG,MR,PTR,DNAME)
+def handle_many(data, full_data):
     return readName(data, full_data)[0]
+    
+@handle(SOA)
+def handle_soa(data, full_data):
+    mname, bytes = readName(data, full_data)
+    data = data[bytes:]
+    
+    rname, bytes = readName(data, full_data)
+    data = data[bytes:]
+    
+    serial, refresh, retry, expire, minimum = struct.unpack('!LlllL', data[:20])
+    
+    return mname, rname, serial, refresh, retry, expire, minimum
+
+@handle(SRV)
+def handle_srv(data, full_data):
+    priority, weight, port = struct.unpack('!HHH', data[:6])
+    target = readName(data[6:], full_data)[0]
+    
+    return priority, weight, port, target
+    
+@handle(WKS)
+def handle_wks(data, full_data):
+    address = socket.inet_ntoa(data[:4])
+    protocol = struct.unpack('!B', data[4])
+    
+    return address, protocol, data[5:]
 
 ###############################################################################
 # Resolver Class
