@@ -23,12 +23,17 @@
 import Cookie
 import logging
 import mimetypes
+import os
 import pprint
 import urllib
 import urlparse
 import zlib
 
-from time import time
+if os.name == 'nt':
+    from time import clock as time
+else:
+    from time import time
+
 from pants import callback, Connection, __version__ as pants_version
 from pants.channel import Channel
 
