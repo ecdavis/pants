@@ -33,7 +33,7 @@ from pants.stream import Stream
 ###############################################################################
 
 __author__ = "Christopher Davis"
-__version__ = "0.9.6"
+__version__ = "0.10.0"
 
 __all__ = [
     "engine", # Core
