@@ -22,14 +22,14 @@
 
 import weakref
 
-from pants.channel import Channel
+from pants.stream import Stream
 
 
 ###############################################################################
 # Client Class
 ###############################################################################
 
-class Client(Channel):
+class Client(Stream):
     """
     A basic implementation of a client.
     """
@@ -42,7 +42,7 @@ class Client(Channel):
 # Connection Class
 ###############################################################################
 
-class Connection(Channel):
+class Connection(Stream):
     """
     A basic implementation of a connection to a server.
     """
@@ -58,7 +58,7 @@ class Connection(Channel):
             socket and parent arguments are non-optional because they
             are determined by the server.
         """
-        Channel.__init__(self, socket)
+        Stream.__init__(self, socket=socket)
         
         self.server = server
 
@@ -67,7 +67,7 @@ class Connection(Channel):
 # Server Class
 ###############################################################################
 
-class Server(Channel):
+class Server(Stream):
     """
     A basic implementation of a server.
     """
@@ -82,29 +82,17 @@ class Server(Channel):
             ConnectionClass: The class to use to wrap newly connected
             sockets. Optional.
         """
-        Channel.__init__(self)
+        Stream.__init__(self)
         
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
         
-        # A dictionary mapping file descriptors to channels.
-        self.channels = weakref.WeakValueDictionary()
-    
-    ##### General Methods #####################################################
-    
-    def writable(self):
-        """
-        Servers are never writable.
-        
-        Returns:
-            False.
-        """
-        return False
+        self.channels = weakref.WeakValueDictionary() # fd : channel
     
     ##### Public Event Handlers ###############################################
     
-    def handle_accept(self, socket, addr):
+    def on_accept(self, socket, addr):
         """
         Called when a new connection has been made to the channel.
         
@@ -119,7 +107,7 @@ class Server(Channel):
         self.channels[connection.fileno] = connection
         connection._handle_connect_event()
     
-    def handle_close(self):
+    def on_close(self):
         """
         Closes all active connections to the server.
         """
