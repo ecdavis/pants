@@ -41,669 +41,361 @@ log = logging.getLogger("pants")
 
 class Channel(object):
     """
-    A raw socket wrapper object.
-    
-    This class wraps a raw socket object and provides a basic API to
-    make socket programming significantly simpler. It handles read,
-    write and exception events, has a level of inbuilt error handling
-    and calls placeholder methods when certain events occur. The Channel
-    class can be subclassed directly, but it is recommended that the
-    Server, Connection and Client classes be used to develop networking
-    code as they provide slightly less generic APIs.
     """
-    def __init__(self, socket=None):
-        """
-        Initialises the channel object.
+    def __init__(self, **kwargs):
+        # Keyword arguments
+        sock = kwargs.get("socket", None)
+        sock_family = kwargs.get("family", socket.AF_INET)
+        sock_type = kwargs.get("type", socket.SOCK_STREAM)
         
-        Args:
-            socket: A pre-existing socket that this channel should wrap.
-                Optional.
-        """
         # Socket
-        self._socket = socket or self._socket_create()
-        self._socket.setblocking(False)
+        self._socket = sock or self._socket_create(sock_family, sock_type)
         self.fileno = self._socket.fileno()
         self.remote_addr = (None, None)
         self.local_addr = (None, None)
         
-        # Internal state
-        self._connected = False
-        self._connecting = False
-        self._listening = False
-        self._closing = False
+        # I/O attributes
+        self._recv_amount = 4096
+        self._recv_buffer = ""
+        self._recv_delimiter = None
+        self._send_buffer = ""
         
-        # Input
-        self.read_delimiter = None # String, integer or None.
-        self._read_amount = 4096
-        self._read_buffer = ""
-        
-        # Output
-        self._write_buffer = ""
-        self._secondary_write_buffer = ""
-        self._write_file = None
-        self._write_file_left = None
-        self._write_file_chunk = 65536
-        
-        # Initialisation
-        self._events = Engine.ERROR
-        if self.readable():
-            self._events |= Engine.READ
-        if self.writable():
-            self._events |= Engine.WRITE
+        # Events
+        self._events = Engine.ERROR | Engine.READ | Engine.WRITE
         Engine.instance().add_channel(self)
     
-    ##### General Methods #####################################################
+    ##### Status Methods ######################################################
     
-    def active(self):
+    def closed(self):
         """
-        Check if the channel is currently active.
+        Returns True if the Channel is closed.
         
-        Returns:
-            True or False
+        Not implemented in Channel.
         """
-        return self._socket and (self._connected or self._listening or self._connecting)
+        raise NotImplementedError
     
-    def readable(self):
-        """
-        Check if the channel is currently readable.
-        
-        Returns:
-            True or False
-        """
-        return not self._closing
+    ##### Control Methods #####################################################
     
-    def writable(self):
+    def connect(self, *args, **kwargs):
         """
-        Check if the channel is currently writable.
+        Connects the channel to a remote socket.
         
-        Returns:
-            True or False
+        Not implemented in Channel.
         """
-        return len(self._write_buffer) > 0 or self._write_file
+        raise NotImplementedError
     
-    def connect(self, host, port):
+    def listen(self, *args, **kwargs):
         """
-        Connects to the given host and port.
+        Begins listening for connections made to the channel.
         
-        Args:
-            host: The hostname to connect to.
-            port: The port to connect to.
-        
-        Returns:
-            The Channel object.
+        Not implemented in Channel.
         """
-        if self.active():
-            log.warning("Channel.connect() called on active channel %d." % self.fileno)
-            return self
-        
-        self._socket_connect(host, port)
-        
-        return self
+        raise NotImplementedError
     
-    def listen(self, port=8080, host='', backlog=1024):
+    def close(self, *args, **kwargs):
         """
-        Begins listening on the given host and port.
+        Closes the channel.
         
-        Args:
-            port: The port to listen on. Defaults to 8080.
-            host: The hostname to listen on. Defaults to ''.
-            backlog: The maximum number of queued connections. Defaults
-                to 1024.
-        
-        Returns:
-            The Channel object.
+        Not implemented in Channel.
         """
-        if self.active():
-            log.warning("Channel.listen() called on active channel %d." % self.fileno)
-            return self
-        
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket_bind(host, port)
-        self._socket_listen(backlog)
-        self._update_addr()
-        
-        return self
+        raise NotImplementedError
     
-    def close(self):
+    def end(self, *args, **kwargs):
         """
-        Close the socket.
+        Closes the stream after writing any pending data to the socket.
         
-        Currently pending data will be sent, any further data will not
-        be sent.
+        Not implemented in Channel.
         """
-        if not self.active():
-            return
-        
-        if self.writable():
-            self._closing = True
-        else:
-            self.close_immediately()
-    
-    def close_immediately(self):
-        """
-        Close the socket immediately.
-        
-        Any pending data will not be sent.
-        """
-        if not self.active():
-            return
-        
-        if self._write_file:
-            self._write_file.close()
-            self._write_file = None
-            self._write_file_left = None
-        
-        Engine.instance().remove_channel(self)
-        self._socket_close()
-        self._update_addr()
-        self._safely_call(self.handle_close)
+        raise NotImplementedError
     
     ##### I/O Methods #########################################################
     
-    def send(self, data):
+    def read(self, *args, **kwargs):
         """
-        Overridable wrapper for Channel.write()
-        
-        Args:
-            data: The data to be sent.
         """
-        self.write(data)
+        raise NotImplementedError
     
-    def write(self, data):
+    def read_until(self, *args, **kwargs):
         """
-        Writes data to the socket.
-        
-        Args:
-            data: The data to be sent.
         """
-        if not self.active():
-            raise IOError("Attempted to write to closed channel %d." % self.fileno)
-        if self._closing:
-            log.warning("Attempted to write to closing channel %d." % self.fileno)
-            return
-        
-        if not self._write_file:
-            self._write_buffer += data
-        else:
-            self._secondary_write_buffer += data
-        self._add_event(Engine.WRITE)
+        raise NotImplementedError
     
-    def send_file(self, file, length=None):
-        self.write_file(file, length)
+    def read_bytes(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError
     
-    def write_file(self, file, length=None):
-        if not self.active():
-            raise IOError("Attempted to write to closed channel %d." % self.fileno)
-        if self._closing:
-            log.warning("Attempted to write to closing channel %d." % self.fileno)
-            return
-        if self._write_file:
-            raise IOError("Channel %d is already writing a file." % self.fileno)
-        
-        self._write_file = file
-        self._write_file_left = length
-        self._add_event(Engine.WRITE)
+    def _recv(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError
+    
+    def write(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError
+    
+    def _send(self, *args, **kwargs):
+        """
+        """
+        raise NotImplementedError
     
     ##### Public Event Handlers ###############################################
     
-    def handle_read(self, data):
+    def on_read(self, data):
         """
-        Placeholder. Called when the channel is ready to receive data.
-        
-        Args:
-            data: The chunk of received data.
         """
         pass
     
-    def handle_write(self):
+    def on_write(self):
         """
-        Placeholder. Called after the channel has written data.
-        """
-        pass
-    
-    def handle_write_file(self):
-        """
-        Placeholder. Called after the channel has written a file.
         """
         pass
     
-    def handle_accept(self, socket, addr):
+    def on_connect(self):
         """
-        Placeholder. Called when a new connection has been made to the
-        channel.
-        
-        Args:
-            socket: The newly-connected socket object.
-            addr: The socket's address.
         """
         pass
     
-    def handle_connect(self):
+    def on_accept(self, socket, addr):
         """
-        Placeholder. Called after the channel has connected to a remote
-        host.
         """
         pass
     
-    def handle_close(self):
+    def on_close(self):
         """
-        Placeholder. Called when the channel is about to close.
         """
         pass
-    
-    ##### Private Methods #####################################################
-    
-    def _add_event(self, event):
-        if not self._events & event:
-            self._events |= event
-            Engine.instance().modify_channel(self)
-    
-    def _safely_call(self, callable, *args, **kwargs):
-        """
-        Args:
-            callable: The callable to execute.
-            *args: Positional arguments to pass to the callable.
-            **kwargs: Keyword arguments to pass to the callable.
-        """
-        try:
-            callable(*args, **kwargs)
-        except Exception:
-            log.exception("Exception raised on channel %d." % self.fileno)
-            self.close_immediately()
-    
-    def _update_addr(self):
-        if self._connected:
-            self.remote_addr = self._socket.getpeername()
-            self.local_addr = self._socket.getsockname()
-        elif self._listening:  
-            self.remote_addr = (None, None)
-            self.local_addr = self._socket.getsockname()
-        else:
-            self.remote_addr = (None, None)
-            self.local_addr = (None, None)
     
     ##### Socket Method Wrappers ##############################################
     
-    def _socket_create(self, family=socket.AF_INET, type=socket.SOCK_STREAM):
+    def _socket_create(self, socket_family, socket_type):
         """
-        Wrapper for socket.socket().
-        
-        Args:
-            family: The address family. Defaults to AF_INET.
-            type: The socket type. Defaults to SOCK_STREAM.
-        
-        Returns:
-            A new socket object.
+        Returns a new non-blocking socket with the given family and type.
         """
-        return socket.socket(family, type)
+        if socket_family not in (socket.AF_INET, socket.AF_INET6, socket.AF_UNIX):
+            raise ValueError("Specified socket family is not supported.")
+        elif socket_family == socket.AF_UNIX and not hasattr(socket, "AF_UNIX"):
+            raise ValueError("Specified socket family is not supported.")
+        if socket_type not in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
+            raise ValueError("Specified socket type is not supported.")
+        
+        sock = socket.socket(socket_family, socket_type)
+        sock.setblocking(False)
+        self.fileno = sock.fileno()
+        
+        return sock
     
-    def _socket_connect(self, host, port):
+    def _socket_connect(self, addr):
         """
-        Wrapper for self._socket.connect().
-        
-        Args:
-            host: The hostname to connect to.
-            port: The port to connect to.
+        Connects the socket to a remote socket at the given address.
+        Returns True if the connection was immediate, False otherwise.
         """
-        if self._connected:
-            return
-        elif not self._connecting:
-            self._connected = False
-            self._connecting = True
-        
         try:
-            result = self._socket.connect_ex((host, port))
+            result = self._socket.connect_ex(addr)
         except socket.error, err:
             result = err[0]
         
-        if result and result != errno.EISCONN:
-            if result in (errno.EWOULDBLOCK, errno.EINPROGRESS,errno.EALREADY):
-                self._add_event(Engine.READ)
-                self._add_event(Engine.WRITE)
-                return
-            
-            elif result == errno.EAGAIN:
-                # EAGAIN: Try again. TODO: Something.
-                return
-            
+        if not result or result == errno.EISCONN:
+            return True
+        
+        if result in (errno.EINPROGRESS, errno.EALREADY):
+            # TODO Check for EAGAIN, EWOULDBLOCK here?
+            self._add_event(Engine.WRITE)
+            return False
+        
+        try:
+            errstr = os.strerror(result)
+        except ValueError:
+            if result in errno.errorcode:
+                errstr = errno.errorcode[result]
             else:
-                errstr = "Unknown error %d" % result
-                try:
-                    errstr = os.strerror(result)
-                except (NameError, OverflowError, ValueError):
-                    if result in errno.errorcode:
-                        errstr = errno.errorcode[result]
-                
-                raise socket.error(result, errstr)
+                errstr = "Unknown error %d." % result
         
-        self._handle_connect_event()
+        raise socket.error(result, errstr)
     
-    def _socket_bind(self, host, port):
+    def _socket_bind(self, addr):
         """
-        Wrapper for self._socket.bind().
-        
-        Args:
-            host: The hostname to bind to.
-            port: The port to bind to.
+        Binds the socket to the given address. The address format should
+        be correct for the socket's family.
         """
-        self._socket.bind((host, port))
+        self._socket.bind(addr)
     
-    def _socket_listen(self, backlog=5):
+    def _socket_listen(self, backlog):
         """
-        Wrapper for self._socket.listen().
-        
-        Args:
-            backlog: The maximum number of queued connections. Defaults
-                to 5.
+        Begins listening for connections made to the socket.
         """
-        self._listening = True
-        
         if os.name == "nt" and backlog > 5:
+            log.warning("Setting backlog to 5 due to OS constraints.")
             backlog = 5
         
         self._socket.listen(backlog)
     
     def _socket_close(self):
         """
-        Wrapper for self._socket.close().
+        Closes the socket.
         """
-        self._connected = False
-        self._listening = False
-        
         try:
             self._socket.close()
-        except AttributeError:
-            # self._socket is None - closed already.
+        except (AttributeError, socket.error):
             return
-        except socket.error, err:
-            if err[0] in (errno.EBADF, errno.ENOTCONN):
-                # EBADF: Bad file number.
-                # ENOTCONN: Transport endpoint is not connected.
-                return
-            else:
-                raise
         finally:
             self._socket = None
+            self.fileno = None
     
     def _socket_accept(self):
         """
-        Wrapper for self._socket.accept().
-        
-        Returns:
-            A 2-tuple (sock, addr). sock is None if an exception was
-            raised by self._socket.accept().
+        Accepts a new connection to the socket.
         """
         try:
             return self._socket.accept()
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                # EAGAIN: Try again.
-                # EWOULDBLOCK: Operation would block.
-                return None, () # sock, addr
-            else:
-                raise
-    
-    def _socket_send(self, data):
-        """
-        Wrapper for self._socket.send().
-        
-        Args:
-            data: The data to be sent.
-        
-        Returns:
-            The number of bytes sent.
-        """
-        try:
-            return self._socket.send(data)
-        except socket.error, err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                # EAGAIN: Try again.
-                # EWOULDBLOCK: Operation would block.
-                return 0
-            elif err[0] in (errno.ECONNABORTED, errno.ECONNRESET,
-                            errno.ENOTCONN, errno.ESHUTDOWN):
-                # ECONNABORTED: Software caused connection abort.
-                # ECONNRESET: Connection reset by peer.
-                # ENOTCONN: Transport endpoint is not connected.
-                # ESHUTDOWN: Cannot send after transport endpoint shutdown.
-                self.close_immediately()
-                return 0
+                return None, () # sock, addr placeholders.
             else:
                 raise
     
     def _socket_recv(self):
         """
-        Wrapper for self._socket.recv().
-        
-        Returns:
-            The data received.
+        Returns a string of data read from the socket or None if the
+        connection has been closed.
         """
         try:
-            data = self._socket.recv(self._read_amount)
+            data = self._socket.recv(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                # EAGAIN: Try again.
-                # EWOULDBLOCK: Operation would block.
-                return ''
-            elif err[0] in (errno.ECONNABORTED, errno.ECONNRESET,
-                            errno.ENOTCONN, errno.ESHUTDOWN,):
-                # ECONNABORTED: Software caused connection abort.
-                # ECONNRESET: Connection reset by peer.
-                # ENOTCONN: Transport endpoint is not connected.
-                # ESHUTDOWN: Cannot send after transport endpoint shutdown.
-                self.close_immediately()
                 return ''
             else:
                 raise
         
         if not data:
-            # A closed connection is signalled by a read condition
-            # and having recv() return an empty string.
-            self.close_immediately()
-            return ''
+            return None
         else:
             return data
     
-    ##### Private Event Handlers ##############################################
+    def _socket_recvfrom(self):
+        """
+        Returns a string of data read from the socket and the address of
+        the sender. The data is None if reading failed. The address is
+        None if no data was received.
+        """
+        try:
+            data, addr = self._socket.recvfrom(self._recv_amount)
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                return '', None
+            else:
+                raise
+        
+        # TODO Is this section necessary?
+        if not data:
+            return None, None
+        else:
+            return data, addr
+    
+    def _socket_send(self, data):
+        """
+        Returns the number of bytes that were sent to the socket.
+        """
+        try:
+            return self._socket.send(data)
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                return 0
+            else:
+                raise
+    
+    def _socket_sendto(self, data, addr):
+        """
+        Returns the number of bytes that were sent to the socket.
+        """
+        try:
+            return self._socket.sendto(data, addr)
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                return 0
+            else:
+                raise
+    
+    ##### Internal Methods ####################################################
+    
+    def _add_event(self, event):
+        """
+        Adds an event to the channel and updates the engine.
+        """
+        if not self._events & event:
+            self._events |= event
+            Engine.instance().modify_channel(self)
+    
+    def _safely_call(self, thing_to_call, *args, **kwargs):
+        """
+        Wraps a callable in a try block. If an exception is raised it is
+        logged and the channel is closed.
+        """
+        if thing_to_call is None:
+            return
+        
+        try:
+            return thing_to_call(*args, **kwargs)
+        except Exception:
+            log.exception("Exception raised on %s #%d." %
+                    (self.__class__.__name__, self.fileno))
+            self.close()
+    
+    def _update_addr(self):
+        """
+        Updates the channel's remote_addr and local_addr attributes.
+        
+        Not implemented in Channel.
+        """
+        raise NotImplementedError
+    
+    ##### Internal Event Handler Methods ######################################
     
     def _handle_events(self, events):
         """
-        Args:
-            events: The events raised on the channel.
+        Handles events raised on the channel.
         """
-        if not self.active():
-            log.warning("Received events for closed channel %d." % self.fileno)
+        if self.closed():
+            log.warning("Received events for closed %s #%d." %
+                    (self.__class__.__name__, self.fileno))
             return
         
-        # Read event.
         if events & Engine.READ:
-            if self._listening:
-                self._handle_accept_event()
-            elif not self._connected:
-                self._handle_connect_event()
-            else:
-                self._handle_read_event()
-            if not self.active():
+            self._handle_read_event()
+            if self.closed():
                 return
         
-        # Write event.
         if events & Engine.WRITE:
-            if not self._connected:
-                self._handle_connect_event()
-            else:
-                self._handle_write_event()
-            if not self.active():
+            self._handle_write_event()
+            if self.closed():
                 return
         
-        # Error event.
         if events & Engine.ERROR:
-            self.close_immediately()
+            # TODO Should we log this?
+            # TODO Should this be above the read/write event handling?
+            self.close()
             return
         
-        # Update events.
-        events = Engine.ERROR
-        if self.readable():
-            events |= Engine.READ
-        if self.writable():
+        events = Engine.ERROR | Engine.READ
+        if self._send_buffer:
             events |= Engine.WRITE
-        elif self._closing:
-            # Done writing, so close.
-            self.close_immediately()
-            return
-        
         if events != self._events:
             self._events = events
             Engine.instance().modify_channel(self)
     
-    def _handle_accept_event(self):
-        while True:
-            sock, addr = self._socket_accept()
-            
-            if sock is None:
-                return
-            
-            self._safely_call(self.handle_accept, sock, addr)
-    
-    def _handle_connect_event(self):
-        self._update_addr()
-        self._connected = True
-        self._connecting = False
-        self._safely_call(self.handle_connect)
-    
     def _handle_read_event(self):
-        # Receive incoming data.
-        while True:
-            data = self._socket_recv()
-            if not data:
-                break
-            self._read_buffer += data
+        """
+        Handles a read event raised on the channel.
         
-        # Handle incoming data.
-        while self._read_buffer:
-            delimiter = self.read_delimiter
-            
-            if delimiter is None:
-                data = self._read_buffer
-                self._read_buffer = ""
-                self._safely_call(self.handle_read, data)
-                
-            elif isinstance(delimiter, (int, long)):
-                if len(self._read_buffer) < delimiter:
-                    break
-                
-                data = self._read_buffer[:delimiter]
-                self._read_buffer = self._read_buffer[delimiter:]
-                self._safely_call(self.handle_read, data)
-                
-            elif isinstance(delimiter, basestring):
-                mark = self._read_buffer.find(delimiter)
-                if mark == -1:
-                    break
-                
-                data = self._read_buffer[:mark]
-                self._read_buffer = self._read_buffer[mark+len(delimiter):]
-                self._safely_call(self.handle_read, data)
-            
-            else:
-                log.warning("Invalid read_delimiter on channel %d." % self.fileno)
-                break
-            
-            if not self.active():
-                break
+        Not implemented in Channel.
+        """
+        raise NotImplementedError
     
     def _handle_write_event(self):
-        if self._listening:
-            log.warning("Received write event for listening channel %d." % self.fileno)
-            return
+        """
+        Handles a write event raised on the Channel.
         
-        if not self._connected:
-            # socket.connect() has completed, returning either 0 or an errno.
-            err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-            if err == 0:
-                self._safely_call(self._handle_connect_event())
-            else:
-                errstr = "Unknown error %d" % err
-                try:
-                    errstr = os.strerror(err)
-                except (NameError, OverflowError, ValueError):
-                    if err in errno.errorcode:
-                        errstr = errno.errorcode[err]
-                
-                raise socket.error(err, errstr)
-            
-            # Write events are raised on clients when they initially
-            # connect. In these circumstances, we may not need to write
-            # any data, so we check.
-            if not self.writable():
-                return
-        
-        if not self._write_buffer and self._write_file:
-            self._handle_write_file()
-        else:
-            self._handle_write_buffer()
-    
-    def _handle_write_buffer(self):
-        # We only get to this stage if there's no file to be written.
-        if self._secondary_write_buffer:
-            self._write_buffer += self._secondary_write_buffer
-            self._secondary_write_buffer = ""
-        
-        # Empty as much of the write buffer as possible.
-        while self._write_buffer:
-            sent = self._socket_send(self._write_buffer)
-            if sent == 0:
-                break
-            self._write_buffer = self._write_buffer[sent:]
-        
-        self._safely_call(self.handle_write)
-    
-    def _handle_write_file(self):
-        # Find how much needs to be written.
-        if self._write_file_left:
-            to_write = min(self._write_file_left, self._write_file_chunk)
-            limited = True
-        else:
-            to_write = self._write_file_chunk
-            limited = False
-        
-        # Read in data from the file.
-        out = self._write_file.read(to_write)
-        if len(out) < to_write:
-            to_write = len(out)
-            limited = True
-        if to_write != 0:
-            done = False
-        else:
-            done = True
-        
-        # If there's data to be written, write it.
-        if not done:
-            written = 0
-            while out:
-                sent = self._socket_send(out)
-                if sent == 0:
-                    break
-                out = out[sent:]
-                written += sent
-            
-            # File doesn't exist any more? _socket_send closed the channel.
-            if not self._write_file:
-                return
-            
-            # Written all we need to? We're done.
-            if self._write_file_left:
-                self._write_file_left -= written
-                if self._write_file_left <= 0:
-                    done = True
-            
-            # Written less than we need to? Back up.
-            if written < to_write:
-                self._write_file.seek(written - to_write, 1)
-                if not limited:
-                    self._write_file_chunk = written
-        
-        # We're done. Close the file and call the callback.
-        if done:
-            self._write_file.close()
-            self._write_file = None
-            self._safely_call(self.handle_write_file)
+        Not implemented in Channel.
+        """
+        raise NotImplementedError
