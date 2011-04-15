@@ -23,9 +23,10 @@
 import logging
 
 from pants.engine import Engine
+from pants.datagram import Datagram, sendto
 from pants.network import Client, Connection, Server
-from pants.publisher import Publisher
-from pants.udp import UDPChannel, sendto
+from pants.stream import Stream
+
 
 ###############################################################################
 # Exports
@@ -36,10 +37,9 @@ __version__ = "0.9.6"
 
 __all__ = [
     "engine", # Core
-    "Client", "Connection", "Server", # Networking
-    "event", "publish", "subscribe", "unsubscribe", # Publisher
     "callback", "loop", "cycle", "defer", # Scheduling
-    "UDPChannel", "sendto", # UDP Support
+    "Datagram", "sendto", "Stream", # Low-level networking
+    "Client", "Connection", "Server", # High-level networking
     ]
 
 
@@ -50,25 +50,10 @@ __all__ = [
 #: Alias for pants.engine.Engine.instance
 engine = Engine.instance()
 
-#: Alias for pants.publisher.Publisher.instance
-publisher = Publisher.instance()
-
 
 ###############################################################################
 # Functions
 ###############################################################################
-
-#: Alias for pants.publisher.Publisher.instance().event
-event = publisher.event
-
-#: Alias for pants.publisher.Publisher.instance().publish
-publish = publisher.publish
-
-#: Alias for pants.publisher.Publisher.instance().subscribe
-subscribe = publisher.subscribe
-
-#: Alias for pants.publisher.Publisher.instance().unsubscribe
-unsubscribe = publisher.unsubscribe
 
 #: Alias for pants.engine.Engine.instance().callback
 callback = engine.callback
