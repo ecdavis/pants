@@ -55,9 +55,9 @@ class Channel(object):
         self.local_addr = (None, None)
         
         # I/O attributes
+        self.read_delimiter = None
         self._recv_amount = 4096
         self._recv_buffer = ""
-        self._recv_delimiter = None
         self._send_buffer = ""
         
         # Events
@@ -109,26 +109,6 @@ class Channel(object):
         raise NotImplementedError
     
     ##### I/O Methods #########################################################
-    
-    def read(self, *args, **kwargs):
-        """
-        """
-        raise NotImplementedError
-    
-    def read_until(self, *args, **kwargs):
-        """
-        """
-        raise NotImplementedError
-    
-    def read_bytes(self, *args, **kwargs):
-        """
-        """
-        raise NotImplementedError
-    
-    def _recv(self, *args, **kwargs):
-        """
-        """
-        raise NotImplementedError
     
     def write(self, *args, **kwargs):
         """

@@ -112,7 +112,7 @@ class Datagram(Channel):
         self._socket_close()
         self._listening = False
         self._recv_buffer = {}
-        self._recv_delimiter = None
+        self.read_delimiter = None
         self._send_buffer = []
         self._update_addr()
         self._safely_call(self.on_close)
@@ -130,41 +130,12 @@ class Datagram(Channel):
     
     ##### I/O Methods #########################################################
     
-    def read(self, read_callback):
+    def write(self, data, addr=None, buffer_data=False):
         """
         """
-        self._recv(None, read_callback)
+        self._send(data, addr, buffer_data)
     
-    def read_until(self, pattern, read_callback):
-        """
-        """
-        if not isinstance(pattern, basestr):
-            log.warning("Non-string delimiter passed to %s.read_until."
-                    % self.__class__.__name__)
-        
-        self._recv(pattern, read_callback)
-    
-    def read_bytes(self, bytes, read_callback):
-        """
-        """
-        if not isinstance(bytes, (int, long)):
-            log.warning("Non-integer delimiter passed to %s.read_bytes"
-                    % self.__class__.__name__)
-        
-        self._recv(bytes, read_callback)
-    
-    def _recv(self, delimiter, read_callback):
-        """
-        """
-        self.on_read = read_callback
-        self._recv_delimiter = delimiter
-    
-    def write(self, data, addr=None, write_callback=None, buffer_data=False):
-        """
-        """
-        self._send(data, addr, write_callback, buffer_data)
-    
-    def _send(self, data, addr, write_callback, buffer_data):
+    def _send(self, data, addr, buffer_data):
         """
         """
         if self.closed():
@@ -178,9 +149,6 @@ class Datagram(Channel):
                 log.warning("Attempted to write to %s #%d with no remote address." %
                         (self.__class__.__name__, self.fileno))
                 return
-        
-        # TODO Should we really overwrite the write callback here?
-        self.on_write = write_callback
         
         if buffer_data or self._send_buffer:
             self._send_buffer.append((data, addr))
@@ -276,7 +244,7 @@ class Datagram(Channel):
             self.remote_addr = addr
             
             while buf:
-                delimiter = self._recv_delimiter
+                delimiter = self.read_delimiter
                 
                 if delimiter is None:
                     self._safely_call(self.on_read, buf)

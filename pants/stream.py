@@ -156,7 +156,7 @@ class Stream(Channel):
         self._connecting = False
         self._listening = False
         self._recv_buffer = ""
-        self._recv_delimiter = None
+        self.read_delimiter = None
         self._send_buffer = ""
         self._update_addr()
         self._safely_call(self.on_close)
@@ -175,41 +175,12 @@ class Stream(Channel):
     
     ##### I/O Methods #########################################################
     
-    def read(self, read_callback):
+    def write(self, data, buffer_data=False):
         """
         """
-        self._recv(None, read_callback)
+        self._send(data, buffer_data)
     
-    def read_until(self, pattern, read_callback):
-        """
-        """
-        if not isinstance(pattern, basestr):
-            log.warning("Non-string delimiter passed to %s.read_until."
-                    % self.__class__.__name__)
-        
-        self._recv(pattern, read_callback)
-    
-    def read_bytes(self, bytes, read_callback):
-        """
-        """
-        if not isinstance(bytes, (int, long)):
-            log.warning("Non-integer delimiter passed to %s.read_bytes"
-                    % self.__class__.__name__)
-        
-        self._recv(bytes, read_callback)
-    
-    def _recv(self, delimiter, read_callback):
-        """
-        """
-        self.on_read = read_callback
-        self._recv_delimiter = delimiter
-    
-    def write(self, data, write_callback=None, buffer_data=False):
-        """
-        """
-        self._send(data, write_callback, buffer_data)
-    
-    def _send(self, data, write_callback, buffer_data):
+    def _send(self, data, buffer_data):
         """
         """
         if self.closed():
@@ -221,9 +192,6 @@ class Stream(Channel):
             log.warning("Attempted to write to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
-        # TODO Should we really overwrite the existing callback here?
-        self.on_write = write_callback
         
         if buffer_data or self._send_buffer:
             self._send_buffer += data
@@ -396,7 +364,7 @@ class Stream(Channel):
     
     def _process_recv_buffer(self):
         while self._recv_buffer:
-            delimiter = self._recv_delimiter
+            delimiter = self.read_delimiter
             
             if delimiter is None:
                 data = self._recv_buffer
