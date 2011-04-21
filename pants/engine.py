@@ -25,8 +25,6 @@ import errno
 import select
 import time
 
-from pants.publisher import Publisher
-
 
 ###############################################################################
 # Logging
@@ -99,7 +97,6 @@ class Engine(object):
         
         # Initialise engine.
         log.info("Starting engine.")
-        Publisher.instance().publish("pants.engine.start")
         
         # Main loop.
         try:
@@ -117,9 +114,6 @@ class Engine(object):
         finally:
             # Graceful shutdown.
             log.info("Stopping engine.")
-            Publisher.instance().publish("pants.engine.stop")
-            
-            log.info("Shutting down.")
             self._shutdown = False
             self._running = False
     
