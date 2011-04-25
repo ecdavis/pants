@@ -388,7 +388,7 @@ class Stream(Channel):
             
             else:
                 log.warning("Invalid read_delimiter on %s #%d." %
-                        (self.__class__.__name__, self.fileno)
+                        (self.__class__.__name__, self.fileno))
                 break
             
             if self.closed() or not self.connected():
