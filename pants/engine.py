@@ -182,7 +182,7 @@ class Engine(object):
             except (IOError, OSError), err:
                 if err[0] == errno.EPIPE:
                     # EPIPE: Broken pipe.
-                    self._channels[fileno].close_immediately()
+                    self._channels[fileno].close()
                 else:
                     log.exception("Error while handling I/O events on channel %d." % fileno)
             except (KeyboardInterrupt, SystemExit):
