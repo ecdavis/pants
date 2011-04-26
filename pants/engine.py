@@ -100,11 +100,8 @@ class Engine(object):
         
         # Main loop.
         try:
-            log.info("Entering main loop.")
-            
             while not self._shutdown:
                 self.poll(poll_timeout)
-        
         except KeyboardInterrupt:
             pass
         except SystemExit:
@@ -139,8 +136,7 @@ class Engine(object):
         self.time = time.time()
         
         # Update timers.
-        for callback in self._callbacks[:]:
-            # Callbacks can remove one another.
+        for callback in self._callbacks[:]: # Copy list, since we modify it.
             try:
                 self._callbacks.remove(callback)
             except ValueError:
@@ -161,6 +157,7 @@ class Engine(object):
             timeout = min(timeout, poll_timeout)
             if timeout < 0:
                 timeout = 0.0
+            poll_timeout = timeout
         
         # Update channels.
         if not self._channels:
