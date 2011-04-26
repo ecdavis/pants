@@ -333,9 +333,6 @@ class Channel(object):
         Wraps a callable in a try block. If an exception is raised it is
         logged and the channel is closed.
         """
-        if thing_to_call is None:
-            return
-        
         try:
             return thing_to_call(*args, **kwargs)
         except Exception:
