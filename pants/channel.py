@@ -60,8 +60,8 @@ class Channel(object):
         self._socket = None
         self.fileno = None
         self._socket_set(sock)
-        self.remote_addr = (None, None)
-        self.local_addr = (None, None)
+        self.remote_addr = (None, None) # TODO Should this be None?
+        self.local_addr = (None, None) # TODO Should this be None?
         
         # Socket state
         self._readable = False # Possible to read from the socket?
@@ -74,7 +74,7 @@ class Channel(object):
         self._send_buffer = ""
         
         # Events
-        self._events = Engine.ERROR | Engine.READ | Engine.WRITE
+        self._events = Engine.ALL_EVENTS
         Engine.instance().add_channel(self)
     
     ##### Status Methods ######################################################
@@ -166,16 +166,15 @@ class Channel(object):
         """
         Sets the channel's current socket and updates certain details.
         """
+        if self._socket is not None:
+            raise RuntimeError("Cannot replace existing socket.")
         if sock.family not in SUPPORTED_FAMILIES:
             raise ValueError("Unsupported socket family.")
         if sock.type not in SUPPORTED_TYPES:
             raise ValueError("Unsupported socket type.")
         
-        # TODO Close pre-existing socket here?
-        
         sock.setblocking(False)
         self.fileno = sock.fileno()
-        
         self._socket = sock
     
     def _socket_connect(self, addr):
