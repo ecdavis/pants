@@ -36,6 +36,14 @@ log = logging.getLogger("pants")
 
 
 ###############################################################################
+# Constants
+###############################################################################
+
+SUPPORTED_FAMILIES = (socket.AF_INET,)
+SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
+
+
+###############################################################################
 # Channel Class
 ###############################################################################
 
@@ -44,13 +52,14 @@ class Channel(object):
     """
     def __init__(self, **kwargs):
         # Keyword arguments
-        sock = kwargs.get("socket", None)
         sock_family = kwargs.get("family", socket.AF_INET)
         sock_type = kwargs.get("type", socket.SOCK_STREAM)
+        sock = kwargs.get("socket", socket.socket(sock_family, sock_type))
         
         # Socket
-        self._socket = sock or self._socket_create(sock_family, sock_type)
-        self.fileno = self._socket.fileno()
+        self._socket = None
+        self.fileno = None
+        self._socket_set(sock)
         self.remote_addr = (None, None)
         self.local_addr = (None, None)
         
@@ -153,22 +162,21 @@ class Channel(object):
     
     ##### Socket Method Wrappers ##############################################
     
-    def _socket_create(self, socket_family, socket_type):
+    def _socket_set(self, sock):
         """
-        Returns a new non-blocking socket with the given family and type.
+        Sets the channel's current socket and updates certain details.
         """
-        if socket_family not in (socket.AF_INET, socket.AF_INET6, socket.AF_UNIX):
-            raise ValueError("Specified socket family is not supported.")
-        elif socket_family == socket.AF_UNIX and not hasattr(socket, "AF_UNIX"):
-            raise ValueError("Specified socket family is not supported.")
-        if socket_type not in (socket.SOCK_STREAM, socket.SOCK_DGRAM):
-            raise ValueError("Specified socket type is not supported.")
+        if sock.family not in SUPPORTED_FAMILIES:
+            raise ValueError("Unsupported socket family.")
+        if sock.type not in SUPPORTED_TYPES:
+            raise ValueError("Unsupported socket type.")
         
-        sock = socket.socket(socket_family, socket_type)
+        # TODO Close pre-existing socket here?
+        
         sock.setblocking(False)
         self.fileno = sock.fileno()
         
-        return sock
+        self._socket = sock
     
     def _socket_connect(self, addr):
         """
