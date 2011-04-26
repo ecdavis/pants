@@ -97,7 +97,6 @@ class Datagram(Channel):
             return self
         
         self._update_addr()
-        self._wait_for_read() # Incoming data raisies a read event.
         self._listening = True
         
         return self
@@ -152,7 +151,10 @@ class Datagram(Channel):
         
         if buffer_data or self._send_buffer:
             self._send_buffer.append((data, addr))
-            self._wait_for_write() # A write event indicates we can send.
+            # NOTE _wait_for_write() is normally called by _socket_send()
+            #      when no more data can be sent. We call it here because
+            #      _socket_send() will not be called.
+            self._wait_for_write()
             return
         
         try:
@@ -167,7 +169,6 @@ class Datagram(Channel):
         
         if len(data[bytes_sent:]) > 0:
             self._send_buffer.append((data[bytes_sent:], addr))
-            self._wait_for_write() # A write event indicates we can send.
         else:
             self._safely_call(self.on_write)
     

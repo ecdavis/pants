@@ -105,8 +105,6 @@ class Stream(Channel):
         
         if connected:
             self._handle_connect_event()
-        else:
-            self._wait_for_write() # A completed connection raises a write event.
         
         return self
     
@@ -138,7 +136,6 @@ class Stream(Channel):
             return self
         
         self._update_addr()
-        self._wait_for_read() # New connections raise a read event.
         self._listening = True
         
         return self
@@ -195,7 +192,10 @@ class Stream(Channel):
         
         if buffer_data or self._send_buffer:
             self._send_buffer += data
-            self._wait_for_write() # A write event indicated we can send.
+            # NOTE _wait_for_write() is normally called by _socket_send()
+            #      when no more data can be sent. We call it here because
+            #      _socket_send() will not be called.
+            self._wait_for_write()
             return
         
         try:
@@ -210,7 +210,6 @@ class Stream(Channel):
         
         if len(data[bytes_sent:]) > 0:
             self._send_buffer += data[bytes_sent:]
-            self._wait_for_write() # A write event indicated we can send.
         else:
             self._safely_call(self.on_write)
     
@@ -306,7 +305,6 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        self._wait_for_read() # New connections raise a read event.
         while True:
             try:
                 sock, addr = self._socket_accept()

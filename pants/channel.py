@@ -193,7 +193,7 @@ class Channel(object):
         
         if result in (errno.EINPROGRESS, errno.EALREADY):
             # TODO Check for EAGAIN, EWOULDBLOCK here?
-            self._writable = False # Completed connections raise write events.
+            self._wait_for_write()
             return False
         
         try:
@@ -222,6 +222,7 @@ class Channel(object):
             backlog = 5
         
         self._socket.listen(backlog)
+        self._wait_for_read()
     
     def _socket_close(self):
         """
@@ -243,7 +244,7 @@ class Channel(object):
             return self._socket.accept()
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._readable = False # New connections raise read events.
+                self._wait_for_read()
                 return None, () # sock, addr placeholders.
             else:
                 raise
@@ -257,7 +258,7 @@ class Channel(object):
             data = self._socket.recv(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._readable = False
+                self._wait_for_read()
                 return ''
             else:
                 raise
@@ -277,7 +278,7 @@ class Channel(object):
             data, addr = self._socket.recvfrom(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._readable = False
+                self._wait_for_read()
                 return '', None
             else:
                 raise
@@ -296,7 +297,7 @@ class Channel(object):
             return self._socket.send(data)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._writable = False
+                self._wait_for_write()
                 return 0
             else:
                 raise
@@ -309,7 +310,7 @@ class Channel(object):
             return self._socket.sendto(data, addr)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._writable = False
+                self._wait_for_write()
                 return 0
             else:
                 raise
