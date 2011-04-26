@@ -47,6 +47,7 @@ class Engine(object):
     READ = 0x01
     WRITE = 0x04
     ERROR = 0x08 | 0x10 | 0x2000
+    ALL_EVENTS = READ | WRITE | ERROR
     
     def __init__(self, poller=None):
         self.time = time.time()
@@ -336,31 +337,10 @@ class Engine(object):
 
 
 ###############################################################################
-# _Poller Class
-###############################################################################
-
-class _Poller(object):
-    def add(self, fileno, events):
-        pass
-    
-    def modify(self, fileno, events):
-        pass
-    
-    def remove(self, fileno):
-        pass
-    
-    def poll(self, timeout):
-        pass
-    
-    def destroy(self):
-        pass
-
-
-###############################################################################
 # _EPoll Class
 ###############################################################################
 
-class _EPoll(_Poller):
+class _EPoll(object):
     """
     An epoll()-based polling object.
     
@@ -383,12 +363,7 @@ class _EPoll(_Poller):
         events = {}
         
         for fileno, event in epoll_events:
-            if event & select.EPOLLIN:
-                events[fileno] = events.get(fileno, 0) | Engine.READ
-            if event & select.EPOLLOUT:
-                events[fileno] = events.get(fileno, 0) | Engine.WRITE
-            if event & (select.EPOLLERR | select.EPOLLHUP | 0x2000):
-                events[fileno] = events.get(fileno, 0) | Engine.ERROR
+            events[fileno] = event
         
         return events
 
@@ -397,12 +372,14 @@ class _EPoll(_Poller):
 # _KQueue Class
 ###############################################################################
 
-class _KQueue(_Poller):
+class _KQueue(object):
     """
     A kqueue()-based polling object.
     
     kqueue() can only be used on BSD.
     """
+    MAX_EVENTS = 1024
+    
     def __init__(self):
         self._kqueue = select.kqueue()
     
@@ -414,10 +391,10 @@ class _KQueue(_Poller):
         self.add(fileno, events)
     
     def remove(self, fileno):
-        self._control(fileno, Engine.NONE, select.KQ_EV_DELETE)
+        self._control(fileno, Engine.ALL_EVENTS, select.KQ_EV_DELETE)
     
     def poll(self, timeout):
-        kqueue_events = self._kqueue.control(None, 1024, timeout)
+        kqueue_events = self._kqueue.control(None, _KQueue.MAX_EVENTS, timeout)
         events = {}
         
         for event in kqueue_events:
@@ -433,19 +410,14 @@ class _KQueue(_Poller):
         return events
     
     def _control(self, fileno, events, flags):
-        kqueue_events = []
-        
         if events & Engine.WRITE:
             event = select.kevent(fileno, filter=select.KQ_FILTER_WRITE,
                                   flags=flags)
-            kqueue_events.append(event)
+            self._kqueue.control([event], 0)
         
-        if events & Engine.READ or not kqueue_events:
+        if events & Engine.READ:
             event = select.kevent(fileno, filter=select.KQ_FILTER_READ,
                                   flags=flags)
-            kqueue_events.append(event)
-        
-        for event in kqueue_events:
             self._kqueue.control([event], 0)
 
 
@@ -453,7 +425,7 @@ class _KQueue(_Poller):
 # _Select Class
 ###############################################################################
 
-class _Select(_Poller):
+class _Select(object):
     """
     A select()-based polling object.
     
