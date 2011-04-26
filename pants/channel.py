@@ -316,13 +316,17 @@ class Channel(object):
     
     ##### Internal Methods ####################################################
     
-    def _add_event(self, event):
+    def _wait_for_read(self):
         """
-        Adds an event to the channel and updates the engine.
+        Force the channel to begin waiting for read events.
         """
-        if not self._events & event:
-            self._events |= event
-            Engine.instance().modify_channel(self)
+        self._readable = False
+    
+    def _wait_for_write(self):
+        """
+        Force the channel to being waiting for write events.
+        """
+        self._writable = False
     
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -359,13 +363,13 @@ class Channel(object):
             return
         
         if events & Engine.READ:
-            self._readable = True
+            self._readable = True # Possible to read.
             self._handle_read_event()
             if self.closed():
                 return
         
         if events & Engine.WRITE:
-            self._writable = True
+            self._writable = True # Possible to write.
             self._handle_write_event()
             if self.closed():
                 return
