@@ -454,6 +454,7 @@ class Channel(object):
             # TODO Should this be above the read/write event handling?
             # TODO Improve the below hackjob.
             err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+            errstr = ""
             if err != 0:
                 errstr = "Unknown error %d" % err
                 try:
