@@ -67,7 +67,9 @@ class Channel(object):
         # Keyword arguments
         sock_family = kwargs.get("family", socket.AF_INET)
         sock_type = kwargs.get("type", socket.SOCK_STREAM)
-        sock = kwargs.get("socket", socket.socket(sock_family, sock_type))
+        sock = kwargs.get("socket", None)
+        if sock is None:
+            sock = socket.socket(sock_family, sock_type)
         
         # Socket
         self._socket = None
