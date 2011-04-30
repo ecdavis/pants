@@ -307,15 +307,8 @@ class Stream(Channel):
         """
         Handles a connect event raised on the Stream.
         """
-        err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        err, srrstr = self._get_socket_error()
         if err != 0:
-            errstr = "Unknown error %d" % err
-            try:
-                errstr = os.strerror(err)
-            except (NameError, OverflowError, ValueError):
-                if err in errno.errorcode:
-                    errstr = errno.errorcode[err]
-            
             raise socket.error(err, errstr)
         
         self._update_addr()

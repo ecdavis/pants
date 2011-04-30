@@ -416,6 +416,20 @@ class Channel(object):
                     (self.__class__.__name__, self.fileno))
             self.close()
     
+    def _get_socket_error(self):
+        err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+        errstr = ""
+        
+        if err != 0:
+            errstr = "Unknown error %d" % err
+            try:
+                errstr = os.strerror(err)
+            except (NameError, OverflowError, ValueError):
+                if err in errno.errorcode:
+                    errstr = errno.errorcode[err]
+        
+        return err, errstr
+    
     def _update_addr(self):
         """
         Updates the channel's remote_addr and local_addr attributes.
@@ -452,18 +466,10 @@ class Channel(object):
         
         if events & Engine.ERROR:
             # TODO Should this be above the read/write event handling?
-            # TODO Improve the below hackjob.
-            err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
-            errstr = ""
+            err, errstr = self._get_socket_error()
             if err != 0:
-                errstr = "Unknown error %d" % err
-                try:
-                    errstr = os.strerror(err)
-                except (NameError, OverflowError, ValueError):
-                    if err in errno.errorcode:
-                        errstr = errno.errorcode[err]
-            log.error("Error on %s #%d: %s (%d)" %
-                    (self.__class__.__name__, self.fileno, errstr, err))
+                log.error("Error on %s #%d: %s (%d)" %
+                        (self.__class__.__name__, self.fileno, errstr, err))
             self.close()
             return
         
