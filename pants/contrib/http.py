@@ -34,10 +34,11 @@ if os.name == 'nt':
 else:
     from time import time
 
-from pants import callback, Connection, __version__ as pants_version
-from pants.channel import Channel
+from pants import callback, Connection, Server, __version__ as pants_version
+from pants.stream import Stream
 
-from pants.contrib.ssl import SSLServer
+
+#from pants.contrib.ssl import SSLServer
 
 ###############################################################################
 # Logging
@@ -118,7 +119,7 @@ class HTTPClient(object):
     An HTTP client, capable of communicating with most, if not all, servers
     using an incomplete implementation of HTTP/1.1.
     
-    The HTTPClient's behavior is defined, mainly, through the handle_response
+    The HTTPClient's behavior is defined, mainly, through the on_response
     function that's expected as the first argument when constructing a new
     HTTPClient.
     
@@ -144,10 +145,10 @@ class HTTPClient(object):
         if response_handler is not None:
             if not callable(response_handler):
                 raise ValueError("response handler must be callable.")
-            self.handle_response = response_handler
+            self.on_response = response_handler
         
         # Internal State
-        self._channel = None
+        self._stream = None
         self._processing = False
         self._requests = []
         self._server = None
@@ -261,7 +262,7 @@ class HTTPClient(object):
     
     ##### Public Event Handlers ###############################################
     
-    def handle_response(self, response):
+    def on_response(self, response):
         """
         Placeholder. Called when an HTTP response is received.
         
@@ -318,9 +319,9 @@ class HTTPClient(object):
         Starts processing the first request on the stack.
         """
         if not self._requests:
-            if self._channel:
-                self._channel.close_immediately()
-                self._channel = None
+            if self._stream:
+                self._stream.close()
+                self._stream = None
             if self._processing:
                 self._processing = False
                 from pants.engine import Engine
@@ -338,27 +339,27 @@ class HTTPClient(object):
         
         host = "%s:%d" % (request[2].hostname, port)
         
-        if self._channel:
+        if self._stream:
             if not self._server == host.lower() or not \
                     self._is_secure == (request[2].scheme.lower() == 'https'):
-                self._channel.close()
+                self._stream.end()
                 return
         
-        if not self._channel:
+        if not self._stream:
             # Store the current server.
             self._server = host.lower()
             
-            # Create a Channel, hook into it, and connect.
-            self._channel = Channel()
+            # Create a Stream, hook into it, and connect.
+            self._stream = Stream()
             
-            self._channel.handle_close = self._handle_close
-            self._channel.handle_connect = self._handle_connect
+            self._stream.on_close = self._on_close
+            self._stream.on_connect = self._on_connect
             
             self._is_secure = request[2].scheme.lower() == 'https'
             if self._is_secure:
-                self._channel.startTLS()
+                self._stream.startTLS()
             
-            self._channel.connect(request[2].hostname, port)
+            self._stream.connect(request[2].hostname, port)
             return
         
         # If we got here, we're connected, and to the right server. Do stuff.
@@ -372,34 +373,30 @@ class HTTPClient(object):
             self._send(CRLF)
         
         # Now, wait for a response.
-        self._channel.handle_read = self._read_headers
-        self._channel.read_delimiter = DOUBLE_CRLF
+        self._stream.on_read = self._read_headers
+        self._stream.read_delimiter = DOUBLE_CRLF
     
     def _send(self, data):
-        self._channel.write(data)
+        self._stream.write(data)
     
     ##### Internal Event Handlers #############################################
     
-    def _handle_connect(self):
-        #if self._is_secure and not self._channel.is_secure():
-        #    self._channel.startTLS()
-        #    return
-        
+    def _on_connect(self):
         if self._requests:
             self._process_request()
         else:
-            self._channel.close()
+            self._stream.end()
     
-    def _handle_close(self):
+    def _on_close(self):
         """
         In the event that the connection is closed, see if there's another
         request to process. If so, reconnect to the given host.
         """
-        self._channel = None
+        self._stream = None
         self._is_secure = False
         self._process_request()
     
-    def _handle_response(self):
+    def _on_response(self):
         """
         Call the response handler.
         """
@@ -416,8 +413,8 @@ class HTTPClient(object):
             
             # Process the request.
             if close_after:
-                if self._channel:
-                    self._channel.close_immediately()
+                if self._stream:
+                    self._stream.close()
                     return
             
             self._process_request()
@@ -444,8 +441,8 @@ class HTTPClient(object):
             
             # Process the request.
             if close_after:
-                if self._channel:
-                    self._channel.close_immediately()
+                if self._stream:
+                    self._stream.close()
                     return
             
             self._process_request()
@@ -465,7 +462,7 @@ class HTTPClient(object):
         if callable(request[6]):
             func = request[6]
         else:
-            func = self.handle_response
+            func = self.on_response
         
         # Call the handler function.
         try:
@@ -477,8 +474,8 @@ class HTTPClient(object):
         self.current_response = None
         
         if close_after:
-            if self._channel:
-                self._channel.close_immediately()
+            if self._stream:
+                self._stream.close()
                 return
         
         self._process_request()
@@ -495,7 +492,7 @@ class HTTPClient(object):
             del resp._decompressor
         else:
             resp.body = data
-        self._handle_response()
+        self._on_response()
         
     def _read_additional_headers(self, data):
         resp = self.current_response
@@ -529,7 +526,7 @@ class HTTPClient(object):
                 resp.body = zlib.decompress(resp.body, -zlib.MAX_WBITS)
         
         # Finally, handle it.
-        self._handle_response()
+        self._on_response()
         
     def _read_chunk_head(self, data):
         """
@@ -548,13 +545,13 @@ class HTTPClient(object):
                 resp.body += resp._decompressor.flush()
                 del resp._decompressor
             
-            self._channel.handle_read = self._read_additional_headers
+            self._stream.on_read = self._read_additional_headers
             resp._additional_headers = ''
-            self._channel.read_delimiter = CRLF
+            self._stream.read_delimiter = CRLF
         
         else:
-            self._channel.handle_read = self._read_chunk_body
-            self._channel.read_delimiter = length + 2
+            self._stream.on_read = self._read_chunk_body
+            self._stream.read_delimiter = length + 2
     
     def _read_chunk_body(self, data):
         """
@@ -567,8 +564,8 @@ class HTTPClient(object):
         else:
             resp.body += data[:-2]
         
-        self._channel.handle_read = self._read_chunk_head
-        self._channel.read_delimiter = CRLF
+        self._stream.on_read = self._read_chunk_head
+        self._stream.read_delimiter = CRLF
         
     def _read_headers(self, data):
         """
@@ -608,19 +605,19 @@ class HTTPClient(object):
             
             # Do we have a Content-Length header?
             if 'Content-Length' in headers:
-                self._channel.handle_read = self._read_body
-                self._channel.read_delimiter = int(headers['Content-Length'])
+                self._stream.on_read = self._read_body
+                self._stream.read_delimiter = int(headers['Content-Length'])
             
             elif 'Transfer-Encoding' in headers:
                 if headers['Transfer-Encoding'] == 'chunked':
-                    self._channel.handle_read = self._read_chunk_head
-                    self._channel.read_delimiter = CRLF
+                    self._stream.on_read = self._read_chunk_head
+                    self._stream.read_delimiter = CRLF
                 else:
                     raise BadRequest("Unsupported Transfer-Encoding: %s" % headers['Transfer-Encoding'])
             
             # Is this a HEAD request? If so, then handle the request NOW.
             if response.method == 'HEAD':
-                self._handle_response()
+                self._on_response()
         
         except BadRequest, e:
             log.info('Bad response from %r: %s',
@@ -635,9 +632,9 @@ class HTTPClient(object):
         if do_close:
             self._requests.pop(0)
             self.current_response = None
-            if self._channel:
-                self._channel.close_immediately()
-                self._channel = None
+            if self._stream:
+                self._stream.close()
+                self._stream = None
 
 class ClientHelper(object):
     """
@@ -790,18 +787,18 @@ class HTTPConnection(Connection):
         client has finished.
         """
         self._finished = True
-        if not self.writable():
+        if not self._writable:
             self._request_finished()
     
     ##### Public Event Handlers ###############################################
     
-    def handle_write(self, bytes_written=None):
+    def on_write(self, bytes_written=None):
         """
         If writing is finished, and the request is also finished, either closes
         the connection or, if keep-alive is supported, attempts to read another
         request.
         """
-        if self._finished and not self.writable():
+        if self._finished and not self._writable:
             self._request_finished()
     
     ##### Internal Event Handlers #############################################
@@ -811,7 +808,7 @@ class HTTPConnection(Connection):
         Sets the read handler and read delimiter to prepare to read an HTTP
         request from the socket.
         """
-        self.handle_read = self._read_header
+        self.on_read = self._read_header
         self.read_delimiter = DOUBLE_CRLF
     
     def _request_finished(self):
@@ -837,8 +834,8 @@ class HTTPConnection(Connection):
         self._finished = False
         
         if disconnect:
-            self.handle_read = None
-            self.close()
+            self.on_read = None
+            self.end()
         else:
             self._await_request()
     
@@ -864,8 +861,8 @@ class HTTPConnection(Connection):
             
             protocol = 'http'
             
-            if self.is_secure():
-                protocol = 'https'
+            #if self.is_secure():
+            #    protocol = 'https'
             
             # Construct a HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
@@ -887,7 +884,7 @@ class HTTPConnection(Connection):
                         http_version, DOUBLE_CRLF))
                 
                 # Await a request body.
-                self.handle_read = self._read_request_body
+                self.on_read = self._read_request_body
                 self.read_delimiter = length
                 return
             
@@ -904,12 +901,12 @@ class HTTPConnection(Connection):
                 self.write(e.body)
             else:
                 self.write(CRLF)
-            self.close()
+            self.end()
         
         except Exception:
             log.exception('Error handling HTTP request.')
             self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
-            self.close()
+            self.end()
     
     def _read_request_body(self, data):
         """
@@ -947,12 +944,12 @@ class HTTPConnection(Connection):
                 self.write(e.body)
             else:
                 self.write(CRLF)
-            self.close()
+            self.end()
         
         except Exception:
             log.exception('Error handling HTTP request.')
             self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
-            self.close()
+            self.end()
 
 ###############################################################################
 # HTTPRequest Class
@@ -1184,7 +1181,7 @@ class HTTPRequest(object):
 # HTTPServer Class
 ###############################################################################
 
-class HTTPServer(SSLServer):
+class HTTPServer(Server): # TODO: SSLServer):
     """
     An HTTP server, extending the default Server class.
     
@@ -1202,7 +1199,7 @@ class HTTPServer(SSLServer):
         from pants.contrib.http import HTTPServer
         from pants import engine
         
-        def handle_request(request):
+        def on_request(request):
             response = ''.join([
                 '<!DOCTYPE html>',
                 '<title>Hello, World!</title>',
@@ -1210,13 +1207,13 @@ class HTTPServer(SSLServer):
                 '<p>Your request was for <code>%s</code>.</p>' % request.uri
             ])
             
-            request.write('HTTP/1.1 200 OK\r\n')
-            request.write('Content-Type: text/html\r\n')
-            request.write('Content-Length: %d\r\n\r\n' % len(response))
-            request.write(response)
+            request.send('HTTP/1.1 200 OK\r\n')
+            request.send('Content-Type: text/html\r\n')
+            request.send('Content-Length: %d\r\n\r\n' % len(response))
+            request.send(response)
             request.finish()
         
-        server = HTTPServer(handle_request)
+        server = HTTPServer(on_request)
         server.listen(80)
         
         engine.start()
@@ -1242,7 +1239,7 @@ class HTTPServer(SSLServer):
                 and not just HTTP. The keys and values provided should mimic
                 the arguments taken by ssl.wrap_socket.
         """
-        SSLServer.__init__(self, ssl_options=ssl_options)
+        Server.__init__(self) #TODO: , ssl_options=ssl_options)
         
         # Storage
         self.request_handler    = request_handler
@@ -1267,7 +1264,7 @@ class HTTPServer(SSLServer):
             else:
                 port = 80
         
-        SSLServer.listen(self, port, host, backlog)
+        Server.listen(self, port, host, backlog) # TODO: SSL
     
 ###############################################################################
 # Support Functions
