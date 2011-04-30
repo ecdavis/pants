@@ -155,10 +155,8 @@ class Engine(object):
         
         if self._deferreds:
             timeout = self._deferreds[0].end - self.time
-            timeout = min(timeout, poll_timeout)
-            if timeout < 0:
-                timeout = 0.0
-            poll_timeout = timeout
+            if timeout > 0.0:
+                poll_timeout = min(timeout, poll_timeout)
         
         # Update channels.
         if not self._channels:
