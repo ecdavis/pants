@@ -47,7 +47,7 @@ class Engine(object):
     READ = 0x01
     WRITE = 0x04
     ERROR = 0x08
-    HANGUP = 0x10
+    HANGUP = 0x10 | 0x2000
     ALL_EVENTS = READ | WRITE | ERROR | HANGUP
     
     def __init__(self, poller=None):
