@@ -59,7 +59,7 @@ class Stream(Channel):
         Returns True if the stream is not closed and is either connected
         or listening.
         """
-        return not self.closed() and (self.connected() or self.listening())
+        return not self.closed() and (self._listening or self._connected or self._connecting)
     
     def connected(self):
         """
@@ -185,7 +185,7 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self.connected():
+        if not self._connected:
             log.warning("Attempted to write to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -216,10 +216,10 @@ class Stream(Channel):
     ##### Internal Methods ####################################################
     
     def _update_addr(self):
-        if self.connected():
+        if self._connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
-        elif self.listening():  
+        elif self._listening:  
             self.remote_addr = (None, None)
             self.local_addr = self._socket.getsockname()
         else:
@@ -232,12 +232,7 @@ class Stream(Channel):
         """
         Handles a read event raised on the Stream.
         """
-        if self.closed():
-            log.warning("Received write event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
-        if self.listening():
+        if self._listening:
             self._handle_accept_event()
             return
         
@@ -262,17 +257,12 @@ class Stream(Channel):
         """
         Handles a write event raised on the Stream.
         """
-        if self.closed():
-            log.warning("Received write event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
-        if self.listening():
+        if self._listening:
             log.warning("Received write event for listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self.connected():
+        if not self._connected:
             self._handle_connect_event()
         
         if not self._send_buffer:
@@ -295,16 +285,6 @@ class Stream(Channel):
         """
         Handles an accept event raised on the Stream.
         """
-        if self.closed():
-            log.warning("Received accept event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
-        if not self.listening():
-            log.warning("Received accept event for non-listening %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
         while True:
             try:
                 sock, addr = self._socket_accept()
@@ -327,21 +307,6 @@ class Stream(Channel):
         """
         Handles a connect event raised on the Stream.
         """
-        if self.closed():
-            log.warning("Received connect event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
-        if self.connected():
-            log.warning("Received connect event for connected %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
-        if self.connected():
-            log.warning("Received connect event for connected %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-        
         err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if err != 0:
             errstr = "Unknown error %d" % err
@@ -389,5 +354,5 @@ class Stream(Channel):
                         (self.__class__.__name__, self.fileno))
                 break
             
-            if self.closed() or not self.connected():
+            if self.closed() or not self._connected:
                 break
