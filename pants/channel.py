@@ -465,7 +465,6 @@ class Channel(object):
                 return
         
         if events & Engine.ERROR:
-            # TODO Should this be above the read/write event handling?
             err, errstr = self._get_socket_error()
             if err != 0:
                 log.error("Error on %s #%d: %s (%d)" %
@@ -474,7 +473,7 @@ class Channel(object):
             return
         
         if events & Engine.HANGUP:
-            log.debug("Hangup occurred on %s #%d." %
+            log.debug("%s #%d hung up." %
                     (self.__class__.__name__, self.fileno))
             self.close()
             return

@@ -179,15 +179,15 @@ class Engine(object):
             except (IOError, OSError), err:
                 if err[0] == errno.EPIPE:
                     # EPIPE: Broken pipe.
-                    log.debug("Broken pipe on %s #%d." %
-                            (self._channels[fileno].__class__.__name__, fileno))
                     self._channels[fileno].close()
                 else:
-                    log.exception("Error while handling I/O events on channel %d." % fileno)
+                    log.exception("Error while handling I/O events on %s #%d." %
+                            (self.__channels[fileno].__class__.__name__, fileno))
             except (KeyboardInterrupt, SystemExit):
                 raise
-            except Exception:
-                log.exception("Error while handling I/O events on channel %d." % fileno)
+            except Exception:    
+                log.exception("Error while handling I/O events on %s #%d." %
+                        (self.__channels[fileno].__class__.__name__, fileno))
     
     ##### Channel Methods #####################################################
     
@@ -221,8 +221,9 @@ class Engine(object):
         
         try:
             self._poller.remove(channel.fileno)
-        except (IOError, OSError):
-            log.exception("Error while removing channel %d." % channel.fileno)
+        except (IOError, OSError):    
+            log.exception("Error while handling I/O events on %s #%d." %
+                    (self.__channels[fileno].__class__.__name__, fileno))
     
     ##### Timer Methods #######################################################
     
@@ -491,7 +492,8 @@ class _Callback(object):
         try:
             self.func(*self.args, **self.kwargs)
         except Exception:
-            log.exception("Exception raised while executing callback.")
+            log.exception("Exception raised while executing callback '%s'." %
+                    self.func.__name__)
     
     def cancel(self):
         """
