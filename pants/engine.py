@@ -46,8 +46,9 @@ class Engine(object):
     NONE = 0x00
     READ = 0x01
     WRITE = 0x04
-    ERROR = 0x08 | 0x10 | 0x2000
-    ALL_EVENTS = READ | WRITE | ERROR
+    ERROR = 0x08
+    HANGUP = 0x10
+    ALL_EVENTS = READ | WRITE | ERROR | HANGUP
     
     def __init__(self, poller=None):
         self.time = time.time()
@@ -404,6 +405,8 @@ class _KQueue(object):
                 events[fileno] = events.get(fileno, 0) | Engine.WRITE
             if event.flags & select.KQ_EV_ERROR:
                 events[fileno] = events.get(fileno, 0) | Engine.ERROR
+            if event.flags & select.KQ_EV_EOF:
+                events[fileno] = events.get(fileno, 0) | Engine.HANGUP
         
         return events
     

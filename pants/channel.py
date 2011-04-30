@@ -467,7 +467,13 @@ class Channel(object):
             self.close()
             return
         
-        events = Engine.ERROR
+        if events & Engine.HANGUP:
+            log.debug("Hangup occured on %s #%d." %
+                    (self.__class__.__name__, self.fileno))
+            self.close()
+            return
+        
+        events = Engine.ERROR | Engine.HANGUP
         if self._readable == False:
             events |= Engine.READ
         if self._writable == False:
