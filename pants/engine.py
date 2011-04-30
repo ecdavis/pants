@@ -220,10 +220,10 @@ class Engine(object):
         self._channels.pop(channel.fileno, None)
         
         try:
-            self._poller.remove(channel.fileno)
+            self._poller.remove(channel.fileno, channel._events)
         except (IOError, OSError):    
-            log.exception("Error while handling I/O events on %s #%d." %
-                    (self._channels[fileno].__class__.__name__, fileno))
+            log.exception("Error while removing %s #%d." %
+                    (channel.__class__.__name__, channel.fileno))
     
     ##### Timer Methods #######################################################
     
@@ -357,7 +357,7 @@ class _EPoll(object):
     def modify(self, fileno, events):
         self._epoll.modify(fileno, events)
     
-    def remove(self, fileno):
+    def remove(self, fileno, events):
         self._epoll.unregister(fileno)
     
     def poll(self, timeout):
@@ -383,17 +383,20 @@ class _KQueue(object):
     MAX_EVENTS = 1024
     
     def __init__(self):
+        self._events = {}
         self._kqueue = select.kqueue()
     
     def add(self, fileno, events):
+        self._events[fileno] = events
         self._control(fileno, events, select.KQ_EV_ADD)
     
     def modify(self, fileno, events):
-        self.remove(fileno)
+        self.remove(fileno, self._events[fileno])
         self.add(fileno, events)
     
-    def remove(self, fileno):
-        self._control(fileno, Engine.ALL_EVENTS, select.KQ_EV_DELETE)
+    def remove(self, fileno, events):
+        self._control(fileno, events, select.KQ_EV_DELETE)
+        self._events.pop(fileno, None)
     
     def poll(self, timeout):
         kqueue_events = self._kqueue.control(None, _KQueue.MAX_EVENTS, timeout)
@@ -453,7 +456,7 @@ class _Select(object):
         self.remove(fileno)
         self.add(fileno, events)
     
-    def remove(self, fileno):
+    def remove(self, fileno, events):
         self._r.discard(fileno)
         self._w.discard(fileno)
         self._e.discard(fileno)
