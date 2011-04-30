@@ -468,7 +468,7 @@ class Channel(object):
             return
         
         if events & Engine.HANGUP:
-            log.debug("Hangup occured on %s #%d." %
+            log.debug("Hangup occurred on %s #%d." %
                     (self.__class__.__name__, self.fileno))
             self.close()
             return
