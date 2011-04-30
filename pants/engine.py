@@ -182,12 +182,12 @@ class Engine(object):
                     self._channels[fileno].close()
                 else:
                     log.exception("Error while handling I/O events on %s #%d." %
-                            (self.__channels[fileno].__class__.__name__, fileno))
+                            (self._channels[fileno].__class__.__name__, fileno))
             except (KeyboardInterrupt, SystemExit):
                 raise
             except Exception:    
                 log.exception("Error while handling I/O events on %s #%d." %
-                        (self.__channels[fileno].__class__.__name__, fileno))
+                        (self._channels[fileno].__class__.__name__, fileno))
     
     ##### Channel Methods #####################################################
     
@@ -223,7 +223,7 @@ class Engine(object):
             self._poller.remove(channel.fileno)
         except (IOError, OSError):    
             log.exception("Error while handling I/O events on %s #%d." %
-                    (self.__channels[fileno].__class__.__name__, fileno))
+                    (self._channels[fileno].__class__.__name__, fileno))
     
     ##### Timer Methods #######################################################
     
