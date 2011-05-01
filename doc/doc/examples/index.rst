@@ -1,0 +1,7 @@
+Examples
+********
+
+.. toctree::
+    
+    echo
+    chat
