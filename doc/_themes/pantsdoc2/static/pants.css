@@ -27,7 +27,7 @@ div.header .links {
 /* Start the actual styling. */
 
 html {
-	background: #EEE;
+	background: #CCC;
 }
 
 html, body {
@@ -62,21 +62,20 @@ div.column {
 
 div.header {
 	margin: 0 95px;
-	height: 50px;
+	height: 60px;
 	position: relative;
-	margin-top: 10px;
 }
 
 div.header .heading {
 	margin: 0 !important;
 	position: absolute;
-	top: 10px;
+	bottom: 5px;
 	left: 5px;
 }
 
 div.header .links {
 	position: absolute;
-	top: 10px;
+	bottom: 10px;
 	right: 5px;
 	float: right;
 }
@@ -88,6 +87,15 @@ div.header .links ul {
 div.header .links ul li {
 	display: inline;
 	padding: 0 5px;
+}
+
+div.header a {
+	padding: 2px 5px;
+	border-radius: 5px;
+}
+
+div.header a:hover, div.header a:focus {
+	background: #FFF;
 }
 
 div.topnav, div.bottomnav {
