@@ -146,7 +146,7 @@ class Channel(object):
     
     def _send(self):
         """
-        Send data to the channel.
+        Send data over the channel.
         """
         raise NotImplementedError
     

@@ -206,12 +206,12 @@ class Stream(Channel):
     
     def _send(self, data, buffer_data):
         """
-        Send data to the stream.
+        Send data over the stream.
         
         ============  ============
         Arguments     Description
         ============  ============
-        data          A string of data to send to the stream.
+        data          A string of data to send over the stream.
         buffer_data   If True, the data will be buffered and sent later.
         ============  ============
         """
@@ -252,7 +252,8 @@ class Stream(Channel):
     
     def _update_addr(self):
         """
-        Update the stream's remote_addr and local_addr attributes.
+        Update the stream's attr:`remote_addr` and attr:`local_addr`
+        attributes.
         """
         if self._connected:
             self.remote_addr = self._socket.getpeername()
