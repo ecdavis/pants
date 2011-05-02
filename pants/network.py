@@ -33,8 +33,6 @@ class Client(Stream):
     """
     A basic implementation of a client.
     """
-    # NOTE This class exists because I may, in the future, implement
-    # some sort of client-specific functionality. Maybe.
     pass
 
 
@@ -45,19 +43,15 @@ class Client(Stream):
 class Connection(Stream):
     """
     A basic implementation of a connection to a server.
+    
+    =========  ============
+    Argument   Description
+    =========  ============
+    socket     A pre-existing socket that this channel should wrap.
+    server     The server to which this channel is connected.
+    =========  ============
     """
     def __init__(self, socket, server):
-        """
-        Initialises the connection.
-        
-        Args:
-            socket: A pre-existing socket that this channel should wrap.
-            server: The server to which this channel is connected.
-        
-        Note:
-            socket and parent arguments are non-optional because they
-            are determined by the server.
-        """
         Stream.__init__(self, socket=socket)
         
         self.server = server
@@ -70,18 +64,17 @@ class Connection(Stream):
 class Server(Stream):
     """
     A basic implementation of a server.
+    
+    ================  ============
+    Argument          Description
+    ================  ============
+    ConnectionClass   *Optional.* A :obj:`pants.network.Connection` subclass with which to wrap newly connected sockets.
+    ================  ============
     """
-    # The class to use to wrap newly connected sockets.
+    #: A :obj:`pants.network.Connection` subclass with which to wrap newly connected sockets.
     ConnectionClass = Connection
     
     def __init__(self, ConnectionClass=None):
-        """
-        Initialises the server.
-        
-        Args:
-            ConnectionClass: The class to use to wrap newly connected
-            sockets. Optional.
-        """
         Stream.__init__(self)
         
         # Sets instance attribute, NOT class attribute.
@@ -94,14 +87,17 @@ class Server(Stream):
     
     def on_accept(self, socket, addr):
         """
-        Called when a new connection has been made to the channel.
+        Called after the channel has accepted a new connection.
         
-        Creates a new instance of the server's ConnectionClass and adds
-        it to the server.
+        Create a new instance of :attr:`ConnectonClass` to wrap the socket
+        and add it to the server.
         
-        Args:
-            socket: The newly-connected socket object.
-            addr: The socket's address.
+        =========  ============
+        Argument   Description
+        =========  ============
+        sock       The newly connected socket object.
+        addr       The new socket's address.
+        =========  ============
         """
         connection = self.ConnectionClass(socket, self)
         self.channels[connection.fileno] = connection
@@ -109,7 +105,9 @@ class Server(Stream):
     
     def on_close(self):
         """
-        Closes all active connections to the server.
+        Called after the channel has finished closing.
+        
+        Close all active connections to the server.
         """
         for channel in self.channels.values():
             channel.close()

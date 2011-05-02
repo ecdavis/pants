@@ -63,26 +63,26 @@ class Stream(Channel):
     
     def active(self):
         """
-        Check if the stream is active - either connected or listening.
+        Check if the channel is active - either connected or listening.
         
-        Returns True if the stream is active, False otherwise.
+        Returns True if the channel is active, False otherwise.
         """
         return self._socket is not None and (self._listening or
                 self._connected or self._connecting)
     
     def connected(self):
         """
-        Check if the stream is connected or connecting to a remote socket.
+        Check if the channel is connected or connecting to a remote socket.
         
-        Returns True if the stream is connected, False otherwise.
+        Returns True if the channel is connected, False otherwise.
         """
         return self._connected or self._connecting
     
     def listening(self):
         """
-        Check if the stream is listening for connections.
+        Check if the channel is listening for connections.
         
-        Returns True if the stream is listening, False otherwise.
+        Returns True if the channel is listening, False otherwise.
         """
         return self._listening
     
@@ -90,9 +90,9 @@ class Stream(Channel):
     
     def connect(self, host, port):
         """
-        Connect the stream to a remote socket.
+        Connect the channel to a remote socket.
         
-        Returns the stream.
+        Returns the channel.
         
         ==========  ============
         Arguments   Description
@@ -126,9 +126,9 @@ class Stream(Channel):
     
     def listen(self, port=8080, host='', backlog=1024):
         """
-        Begin listening for connections made to the stream.
+        Begin listening for connections made to the channel.
         
-        Returns the stream.
+        Returns the channel.
         
         ==========  ============
         Arguments   Description
@@ -168,7 +168,7 @@ class Stream(Channel):
     
     def close(self):
         """
-        Close the stream.
+        Close the channel.
         """
         if self._socket is None:
             return
@@ -186,7 +186,7 @@ class Stream(Channel):
     
     def end(self):
         """
-        Close the stream after writing is finished.
+        Close the channel after writing is finished.
         """
         if self._socket is None:
             return
@@ -206,12 +206,12 @@ class Stream(Channel):
     
     def _send(self, data, buffer_data):
         """
-        Send data over the stream.
+        Send data over the channel.
         
         ============  ============
         Arguments     Description
         ============  ============
-        data          A string of data to send over the stream.
+        data          A string of data to send over the channel.
         buffer_data   If True, the data will be buffered and sent later.
         ============  ============
         """
@@ -252,7 +252,7 @@ class Stream(Channel):
     
     def _update_addr(self):
         """
-        Update the stream's attr:`remote_addr` and attr:`local_addr`
+        Update the channel's attr:`remote_addr` and attr:`local_addr`
         attributes.
         """
         if self._connected:
@@ -269,7 +269,7 @@ class Stream(Channel):
     
     def _handle_read_event(self):
         """
-        Handle a read event raised on the stream.
+        Handle a read event raised on the channel.
         """
         if self._listening:
             self._handle_accept_event()
@@ -294,7 +294,7 @@ class Stream(Channel):
     
     def _handle_write_event(self):
         """
-        Handle a write event raised on the stream.
+        Handle a write event raised on the channel.
         """
         if self._listening:
             log.warning("Received write event for listening %s #%d." %
@@ -322,7 +322,7 @@ class Stream(Channel):
     
     def _handle_accept_event(self):
         """
-        Handle an accept event raised on the stream.
+        Handle an accept event raised on the channel.
         """
         while True:
             try:
@@ -344,7 +344,7 @@ class Stream(Channel):
     
     def _handle_connect_event(self):
         """
-        Handle a connect event raised on the stream.
+        Handle a connect event raised on the channel.
         """
         err, srrstr = self._get_socket_error()
         if err != 0:

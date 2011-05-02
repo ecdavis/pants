@@ -56,19 +56,19 @@ class Datagram(Channel):
     
     def active(self):
         """
-        Check if the datagram is active - either sending data or
+        Check if the channel is active - either sending data or
         listening.
         
-        Returns True if the datagram is active, False otherwise.
+        Returns True if the channel is active, False otherwise.
         """
         return self._socket is not None and (self._listening or
                 self._send_buffer)
     
     def listening(self):
         """
-        Check if the datagram is listening for packets.
+        Check if the channel is listening for packets.
         
-        Returns True if the datagram is listening, False otherwise.
+        Returns True if the channel is listening, False otherwise.
         """
         return self._listening
     
@@ -76,9 +76,9 @@ class Datagram(Channel):
     
     def listen(self, port=8080, host=''):  
         """
-        Begin listening for packets sent to the datagram.
+        Begin listening for packets sent to the channel.
         
-        Returns the datagram.
+        Returns the channel.
         
         ==========  ============
         Arguments   Description
@@ -116,7 +116,7 @@ class Datagram(Channel):
     
     def close(self):
         """
-        Close the datagram.
+        Close the channel.
         """
         if self._socket is None:
             return
@@ -132,7 +132,7 @@ class Datagram(Channel):
     
     def end(self):
         """
-        Close the datagram after writing is finished.
+        Close the channel after writing is finished.
         """    
         if self._socket is None:
             return
@@ -152,12 +152,12 @@ class Datagram(Channel):
     
     def _send(self, data, addr, buffer_data):
         """
-        Send data over the datagram.
+        Send data over the channel.
         
         ============  ============
         Arguments     Description
         ============  ============
-        data          A string of data to send over the datagram.
+        data          A string of data to send over the channel.
         addr          The remote address to send the data to.
         buffer_data   If True, the data will be buffered and sent later.
         ============  ============
@@ -201,7 +201,7 @@ class Datagram(Channel):
     
     def _update_addr(self):
         """
-        Update the datagram's :attr:`local_addr` attribute.
+        Update the channel's :attr:`local_addr` attribute.
         """
         if self._listening:
             self.local_addr = self._socket.getsockname()
@@ -212,7 +212,7 @@ class Datagram(Channel):
     
     def _handle_read_event(self):
         """
-        Handle a read event raised on the datagram.
+        Handle a read event raised on the channel.
         """
         if self._socket is None:
             log.warning("Received read event for closed %s #%d." %
@@ -244,7 +244,7 @@ class Datagram(Channel):
     
     def _handle_write_event(self):
         """
-        Handle a write event raised on the datagram.
+        Handle a write event raised on the channel.
         """
         if self._socket is None:
             log.warning("Received write event for closed %s #%d." %
