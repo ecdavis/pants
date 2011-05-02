@@ -117,31 +117,24 @@ class BadRequest(Exception):
 class HTTPClient(object):
     """
     An HTTP client, capable of communicating with most, if not all, servers
-    using an incomplete implementation of HTTP/1.1.
+    using an incomplete implementation of HTTP protocol version 1.1.
     
-    The HTTPClient's behavior is defined, mainly, through the on_response
-    function that's expected as the first argument when constructing a new
-    HTTPClient.
+    The behavior of an instance of HTTPClient is determined by that instance's
+    :func:`on_response` function. That function may be changed by subclassing
+    HTTPClient, assigning it directly, or supplying a suitable callable as the
+    first argument when creating an instance of HTTPClient.
     
-    Alternatively, you may subclass HTTPClient to modify the response handler.
+    =================  ============
+    Argument           Description
+    =================  ============
+    response_handler   *Optional.* A callable that will handle any received responses.
+    max_redirects      *Optional.* The number of times to follow a redirect issued by the server. By default, this is 5.
+    keep_alive         *Optional.* Whether or not a single connection will be reused for multiple requests. By default, this is True.
+    unicode            *Optional.* Whether or not to attempt to convert the response body to unicode using the provided Content-Type header's encoding information. By default, this is True.
+    =================  ============
     """
     def __init__(self, response_handler=None, max_redirects=5, keep_alive=True,
                 unicode=True):
-        """
-        Initialize a new HTTPClient instance.
-        
-        Args:
-            response_handler: Optionally, a function to use for handling
-                received responses from the server. If None is provided, the
-                default will be used instead.
-            max_redirects: The number of times to follow a redirect from the
-                server. Defaults to 5.
-            keep_alive: If True, the connection will be reused as much as
-                possible. Defaults to True.
-            unicode: If True, the Content-Type header will be checked for a
-                character set. If one is present, the body will be converted
-                to unicode, using that character set. Defauls to True.
-        """
         if response_handler is not None:
             if not callable(response_handler):
                 raise ValueError("response handler must be callable.")
@@ -165,19 +158,21 @@ class HTTPClient(object):
     def get(self, url, timeout=30, headers=None, **kwargs):
         """
         Perform an HTTP GET request for the specified URL. Additional query
-        parameters may be specified as keyword arguments. For example:
+        parameters may be specified as keyword arguments. For example::
             
             client.get('http://www.google.com/search', q='test')
         
-        Is equivilent to:
+        Is equivilent to::
             
             client.get('http://www.google.com/search?q=test')
         
-        Args:
-            url: The URL to fetch.
-            timeout: The time, in seconds, to wait for a response before
-                erroring out. Defaults to 30.
-            headers: An optional dict of headers to send with the request.
+        =========  ============
+        Argument   Description
+        =========  ============
+        url        The URL to request.
+        timeout    *Optional.* The time, in seconds, to wait for a response before erroring. By default, this is 30.
+        headers    *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
+        =========  ============
         """
         helper = self._helper
         if helper is None:
@@ -207,12 +202,14 @@ class HTTPClient(object):
         """
         Perform an HTTP POST request for the specified URL.
         
-        Args:
-            url: The URL to fetch.
-            timeout: The time, in seconds, to wait for a response before
-                erroring out. Defaults to 30.
-            headers: An optional dict of headers to send with the request.
-            files: An optional dict of files to submit to the server.
+        =========  ============
+        Argument   Description
+        =========  ============
+        url        The URL to request.
+        timeout    *Optional.* The time, in seconds, to wait for a response before erroring. By default, this is 30.
+        headers    *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
+        files      *Optional.* A dictionary of files to send with the request. If this is provided, the dictionary keys should be equivilent to HTML form field names, and the values should be tuples of ``(filename, data)``.
+        =========  ============
         
         Any additional keyword arguments will be sent in the request body as
         POST variables.
@@ -251,7 +248,9 @@ class HTTPClient(object):
     
     def process(self):
         """
-        Block until the queued requests finish.
+        Useful for testing, and other synchronous work, this function will
+        start the Pants engine and block until all outstanding requests
+        complete.
         """
         if not self._requests:
             return
@@ -266,8 +265,11 @@ class HTTPClient(object):
         """
         Placeholder. Called when an HTTP response is received.
         
-        Args:
-            response: The HTTP response that was received.
+        =========  ============
+        Argument   Description
+        =========  ============
+        response   The received HTTP response.
+        =========  ============
         """
         pass
     
@@ -591,7 +593,7 @@ class HTTPClient(object):
             # Parse the headers.
             headers = read_headers(data)
             
-            # Construct a HTTPResponse object.
+            # Construct an HTTPResponse object.
             self.current_response = response = HTTPResponse(self,
                 self._requests[0], http_version, status, status_text, headers)
             
@@ -638,9 +640,10 @@ class HTTPClient(object):
 
 class ClientHelper(object):
     """
-    This is returned by calls to HTTPClient.get and HTTPClient.post to allow
-    you to decorate functions to be used as response handlers for specific
-    requests.
+    An instance of this class is returned by calls to :func:`HTTPClient.get`
+    and :func:`HTTPClient.post` to allow for a bit of decorator magic.
+    
+    For further information, please see the :class:`HTTPClient` documentation.
     """
     def __init__(self, parent):
         self.parent = parent
@@ -691,26 +694,27 @@ class ClientHelper(object):
 
 class HTTPResponse(object):
     """
-    Represents a single HTTP response.
+    Instances of this class represent singular HTTP responses that an instance
+    of :class:`HTTPClient` has received. Such instances contain all the
+    information needed to act upon a response.
     
-    This class contains all the information received in a given HTTP response.
+    This class should, generally, not be used directly. Instead, allow the
+    HTTPClient to create instances for you.
+    
+    =============  ============
+    Argument       Description
+    =============  ============
+    client         The instance of :class:`HTTPClient` that received this response.
+    request        The request list, containing all the information passed to the call that generated the request responsible for this response.
+    http_version   The HTTP protocol version used in this response. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
+    status         The `HTTP status code <http://en.wikipedia.org/wiki/Http_status_codes>`_ received with this response.
+    status_text    The human readable status message that goes with the received status code.
+    headers        A dictionary of HTTP headers received with this response.
+    =============  ============
     """
     
     def __init__(self, client, request, http_version, status, status_text,
                     headers):
-        """
-        Initialize a HTTPResponse object.
-        
-        Args:
-            client: The HTTPClient that received this response.
-            request: The request list containing all the information passed
-                to the call that generated the request.
-            http_version: The HTTP protocol version used for this request.
-            status: The HTTP status code of the response.
-            status_text: A human readable status code.
-            headers: The headers received with the response.
-        """
-        
         self.body = ''
         self.client = client
         self.headers = headers
@@ -739,7 +743,8 @@ class HTTPResponse(object):
     @property
     def cookies(self):
         """
-        The cookies provided to the response.
+        An instance of :class:`Cookie.SimpleCookie` representing the cookies
+        received with this response.
         """
         try:
             return self._cookies
@@ -756,6 +761,9 @@ class HTTPResponse(object):
     
     @property
     def full_url(self):
+        """
+        The full URL of the request that generated this response.
+        """
         return "%s://%s%s" % (self.protocol, self.host, self.uri)
     
 ###############################################################################
@@ -764,9 +772,13 @@ class HTTPResponse(object):
 
 class HTTPConnection(Connection):
     """
-    Handles the connection between the HTTP server and the remove client,
-    parsing headers and response bodies, and executing any received requests
-    with the associated server's registered request handler.
+    Instances of this class represent connections received by an
+    :class:`HTTPServer`, and perform all the actual logic of receiving and
+    responding to an HTTP request.
+    
+    In order, this class is in charge of: reading HTTP request lines, reading
+    the associated headers, reading any request body, and executing the
+    appropriate request handler if the request is valid.
     """
     def __init__(self, *args):
         Connection.__init__(self, *args)
@@ -782,9 +794,13 @@ class HTTPConnection(Connection):
     
     def finish(self):
         """
-        To be called when the current request is finished. Prepares the
-        connection to take appropriate action when writing to the remote
-        client has finished.
+        This function should be called when the response to the current
+        request has been completed, in preparation for either closing the
+        connection or attempting to read a new request from the connection.
+        
+        Failing to call this function (or the finish function of the request,
+        which in turn calls this) will drastically reduce the performance of
+        the HTTP server.
         """
         self._finished = True
         if not self._send_buffer:
@@ -793,11 +809,6 @@ class HTTPConnection(Connection):
     ##### Public Event Handlers ###############################################
     
     def on_write(self, bytes_written=None):
-        """
-        If writing is finished, and the request is also finished, either closes
-        the connection or, if keep-alive is supported, attempts to read another
-        request.
-        """
         if self._finished:
             self._request_finished()
     
@@ -864,7 +875,7 @@ class HTTPConnection(Connection):
             #if self.is_secure():
             #    protocol = 'https'
             
-            # Construct a HTTPRequest object.
+            # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
                 method, uri, http_version, headers, protocol)
             
@@ -957,28 +968,28 @@ class HTTPConnection(Connection):
 
 class HTTPRequest(object):
     """
-    Represents a single HTTP request.
+    Instances of this class represent single HTTP requests that an
+    :class:`HTTPServer` has received. Such instances contain all the
+    information needed to respond to the request, as well as the functions used
+    to actually send a response.
     
-    This class contains all the information needed to respond to a valid HTTP
-    request, as well as containing functions to assist in actually responding.
+    This class should, generally, not be used directly. Instead, allow the
+    HTTPServer to create instances for you.
+    
+    =============  ============
+    Argument       Description
+    =============  ============
+    connection     The instance of :class:`HTTPConnection` that received this request.
+    method         The HTTP method used to send this request. This will almost always be one of: ``GET``, ``HEAD``, or ``POST``.
+    uri            The path part of the URI requested.
+    http_version   The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
+    headers        *Optional.* A dictionary of HTTP headers received with this request.
+    protocol       *Optional.* Either the string ``http` or ``https``, depending on the security of the connection this request was received upon.
+    =============  ============
     """
     
     def __init__(self, connection, method, uri, http_version, headers=None,
                  protocol='http'):
-        """
-        Initialize an HTTPRequest object.
-        
-        Args:
-            connection: The HTTPConnection that received this request.
-            method: The HTTP method of the request.
-            uri: The requested URI.
-            http_version: The HTTP protocol version used for this request.
-            headers: A dictionary of HTTP headers received for this connection.
-                Optional.
-            protocol: Either 'http' or 'https', depending on whether or not the
-                connection that received this request is secure.
-        """
-        
         self.body       = ''
         self.connection = connection
         self.headers    = headers or {}
@@ -1038,7 +1049,10 @@ class HTTPRequest(object):
     @property
     def cookies(self):
         """
-        The cookies provided to the request.
+        An instance of :class:`Cookie.SimpleCookie` representing the cookies
+        received with this request. Cookies may also be written by adding them
+        to the SimpleCookie instance, and then using the :func:`send_cookies`
+        function.
         """
         try:
             return self._cookies
@@ -1063,8 +1077,8 @@ class HTTPRequest(object):
     @property
     def time(self):
         """
-        Returns the time elapsed since the request was received, or the total
-        processing time if the request has been finished.
+        The amount of time that has elapsed since the request was received, or
+        the total processing time if the request has already been finished.
         """
         if self._finish is None:
             return time() - self._start
@@ -1074,8 +1088,12 @@ class HTTPRequest(object):
     
     def finish(self):
         """
-        Close the response, allowing the underlying connection to either close
-        the socket or begin listening for a new request.
+        This function should be called when the response has been completed,
+        allowing the associated :class:`HTTPConnection` to either close the
+        connection to the client or begin listening for a new request.
+        
+        Failing to call this function will drastically reduce the performance
+        of the HTTP server.
         """
         self._finish = time()
         self.connection.finish()
@@ -1084,23 +1102,26 @@ class HTTPRequest(object):
         """
         Write data to the client.
         
-        Args:
-            data: The data to be sent.
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       A string of data to be sent to the client.
+        =========  ============
         """
         self.connection._send(data, False)
     
     def send_cookies(self, keys=None, end_headers=False):
         """
-        Write the request's cookies to the client. If keys is specified, then
-        only the listed cookies will be sent out. Otherwise, all cookies will
-        be written to the client.
+        Write any cookies associated with the request to the client. If any
+        keys are specified, only the cookies with the specified keys will be
+        transmitted. Otherwise, all cookies will be written to the client.
         
-        Args:
-            keys: The cookies to send.
-            end_headers: If True, a double CRLF will be written at the end of
-                the cookie headers to end them and tell the client to begin
-                reading the response. If False, only a single CRLF will be
-                used to end the headers.
+        ============  ============
+        Argument      Description
+        ============  ============
+        keys          *Optional.* A list of cookie names to send.
+        end_headers   *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response.
+        ============  ============
         """
         if keys is None:
             out = self.cookie.output()
@@ -1119,13 +1140,14 @@ class HTTPRequest(object):
     
     def send_headers(self, headers, end_headers=True):
         """
-        Write a dict of HTTP headers to the client.
+        Write a dictionary of HTTP headers to the client.
         
-        Args:
-            headers: A dict of HTTP headers to be sent to the client.
-            end_headers: If True, a double CRLF will be written after the
-                headers to end them and tell the client to expect a response.
-                If False, only the provided headers will be written.
+        ============  ============
+        Argument      Description
+        ============  ============
+        headers       A dictionary of HTTP headers.
+        end_headers   *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response. By default, is True.
+        ============  ============
         """
         out = []
         append = out.append
@@ -1146,13 +1168,20 @@ class HTTPRequest(object):
     
     def send_status(self, code=200):
         """
-        Write an HTTP status line (the first line of the response) to the
-        client, using the proper HTTP protocol version and a human readable
-        message if one is known for the provided code.
+        Write an HTTP status line (the very first line of any response) to the
+        client, using the same HTTP protocol version as the request. If one is
+        available, a human readable status message will be appended after the
+        provided code.
         
-        Args:
-            code: The HTTP status code to write. Optional. Defaults to 200,
-                which is OK.
+        For example, ``request.send_status(404)`` would result in
+        ``HTTP/1.1 404 Not Found`` being sent to the client, assuming of course
+        that the request used HTTP protocol version ``HTTP/1.1``.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        code       *Optional.* The HTTP status code to send to the client. By default, is 200.
+        =========  ============
         """
         try:
             HTTP[code]
@@ -1184,18 +1213,20 @@ class HTTPRequest(object):
 
 class HTTPServer(Server): # TODO: SSLServer):
     """
-    An HTTP server, extending the default Server class.
+    An `HTTP <http://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol>`_ server,
+    extending the default Server class.
     
-    This class automatically uses an HTTPConnection connection class. Instead,
-    its behavior is customized by providing a request handler function that is
-    called whenever a connection is received and after all HTTP headers have
-    been processed and validated.
+    This class automatically uses the :class:`HTTPConnection` connection class.
+    Rather than through specifying a connection class, its behavior is
+    customized by providing a request handler function that is called whenever
+    a valid request is received.
     
-    A server's behavior is defined almost entirely by its request_handler, and
-    will not send any response unless the received HTTP headers are not valid.
+    A server's behavior is defined almost entirely by its request handler, and
+    will not send any response by itself unless the received HTTP request is
+    not valid or larger than the specified limit (which defaults to 10 MiB).
     
     The following is an example that will display a very simple Hello World to
-    any connecting clients:
+    any connecting clients::
     
         from pants.contrib.http import HTTPServer
         from pants import engine
@@ -1208,9 +1239,9 @@ class HTTPServer(Server): # TODO: SSLServer):
                 '<p>Your request was for <code>%s</code>.</p>' % request.uri
             ])
             
-            request.send('HTTP/1.1 200 OK\r\n')
-            request.send('Content-Type: text/html\r\n')
-            request.send('Content-Length: %d\r\n\r\n' % len(response))
+            request.send('HTTP/1.1 200 OK\\r\\n')
+            request.send('Content-Type: text/html\\r\\n')
+            request.send('Content-Length: %d\\r\\n\\r\\n' % len(response))
             request.send(response)
             request.finish()
         
@@ -1218,28 +1249,20 @@ class HTTPServer(Server): # TODO: SSLServer):
         server.listen(80)
         
         engine.start()
+    
+    ================  ============
+    Argument          Description
+    ================  ============
+    request_handler   A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
+    max_request       *Optional.* The maximum allowed length, in bytes, of an HTTP request body. By default, this is 10 MiB.
+    keep_alive        *Optional.* Whether or not multiple requests are allowed over a single connection. By default, this is True.
+    ssl_options       *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
+    ================  ============
     """
     ConnectionClass = HTTPConnection
     
-    def __init__(self, request_handler, max_request=104857600, keep_alive=True,
+    def __init__(self, request_handler, max_request=10485760, keep_alive=True,
                     ssl_options=None):
-        """
-        Initializes an HTTP server object.
-        
-        Args:
-            request_handler: A callable that should accept a single parameter,
-                that being an instance of the HTTPRequest class representing
-                the current request.
-            max_request: The maximum allowed length of an incoming HTTP request
-                body, which is used for receiving HTTP POST data and uploaded
-                files. Optional. Defaults to 10MB.
-            keep_alive: If set to False, only one request will be allowed per
-                connection. Optional.
-            ssl_options: A dict of options for establishing SSL connections. If
-                this is set, the server will be able to serve pages via HTTPS
-                and not just HTTP. The keys and values provided should mimic
-                the arguments taken by ssl.wrap_socket.
-        """
         Server.__init__(self) #TODO: , ssl_options=ssl_options)
         
         # Storage
@@ -1251,13 +1274,13 @@ class HTTPServer(Server): # TODO: SSLServer):
         """
         Begins listening on the given host and port.
         
-        Args:
-            port: The port to listen on. Optional. If not specified, will be
-                set to 80 for regular HTTP, or 443 if SSL options have been
-                set.
-            host: The hostname to listen on. Defaults to ''.
-            backlog: The maximum number of queued connections. Defaults
-                to 1024.
+        =========  ============
+        Argument   Description
+        =========  ============
+        port       *Optional.* The port for the server to listen on. If this isn't specified, it will be set to either 80, or 443 if SSL options have been provided.
+        host       *Optional.* The host interface to listen on. By default, listen on all interfaces (``''``).
+        backlog    *Optional.* The maximum number of connection attempts to queue. Defaults to 1,024.
+        =========  ============
         """
         if not port:
             if self.ssl_options:
@@ -1276,15 +1299,16 @@ def content_type(filename):
 
 def encode_multipart(vars, files=None, boundary=None):
     """
-    Encode a set of variables and/or files into a multipart/form-data request
-    body.
+    Encode a set of variables and/or files into a ``multipart/form-data``
+    request body.
     
-    Args:
-        vars: A dictionary of variables to encode.
-        files: A dictionary of tuples of (filename, data) to encode. Optional.
-        boundary: The boundary to use while encoding. Defaults to a crazy
-            string that would probably never show up. If it does show up,
-            however, you can set it here.
+    =========  ============
+    Argument   Description
+    =========  ============
+    vars       A dictionary of variables to encode.
+    files      *Optional.* A dictionary of tuples of ``(filename, data)`` to encode.
+    boundary   *Optional.* The boundary string to use when encoding, if for any reason the default string is unacceptable.
+    =========  ============
     """
     
     if boundary is None:
@@ -1314,13 +1338,16 @@ def encode_multipart(vars, files=None, boundary=None):
 
 def parse_multipart(request, boundary, data):
     """
-    Parse a multipart/form-data request body and modify the request's post
-    and files dictionaries as is appropriate.
+    Parse a ``multipart/form-data`` request body and modify the request's
+    ``post`` and ``files`` dictionaries as is appropriate.
     
-    Args:
-        request: An HTTPRequest instance to receive any parsed data.
-        boundary: The multipart/form-data boundary for splitting up parts.
-        data: The data to parse.
+    =========  ============
+    Argument   Description
+    =========  ============
+    request    An :class:`HTTPRequest` instance that should be modified to include the parsed data.
+    boundary   The ``multipart/form-data`` boundary to be used for splitting the data into parts.
+    data       The data to be parsed.
+    =========  ============
     """
     
     if boundary.startswith('"') and boundary.endswith('"'):
@@ -1366,21 +1393,21 @@ def parse_multipart(request, boundary, data):
         else:
             request.post.setdefault(name, []).append(value)
 
-def read_headers(data, d=None):
+def read_headers(data, target=None):
     """
-    Read headers from the given data into the given header dictionary.
+    Read HTTP headers from the supplied data string and return a dictionary
+    of those headers. If bad data is supplied, a :class:`BadRequest` exception
+    will be raised.
     
-    Args:
-        data: The data to parse headers from.
-        d: The dictionary to store parsed headers into. A new dictionary is
-            created if none is provided.
-    
-    Returns:
-        A dictionary of parsed HTTP headers. Raises a BadRequest exception
-        if the provided headers are invalid.
+    =========  ============
+    Argument   Description
+    =========  ============
+    data       A data string containing HTTP headers.
+    target     *Optional.* A dictionary in which to place the processed headers.
+    =========  ============
     """
-    if d is None:
-        d = {}
+    if target is None:
+        target = {}
     
     data = data.rstrip(CRLF)
     key = None
@@ -1399,14 +1426,14 @@ def read_headers(data, d=None):
             key = key.rstrip()
             val = val.strip()
         
-        if key in d:
+        if key in target:
             if key in COMMA_HEADERS:
-                d[key] = '%s, %s' % (d[key], val)
-            elif isinstance(d[key], list):
-                d[key].append(val)
+                target[key] = '%s, %s' % (target[key], val)
+            elif isinstance(target[key], list):
+                target[key].append(val)
             else:
-                d[key] = [d[key], val]
+                target[key] = [target[key], val]
             continue
-        d[key] = val
+        target[key] = val
     
-    return d
+    return target

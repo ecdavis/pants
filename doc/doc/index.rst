@@ -6,3 +6,4 @@ Documentation
     
     tutorial/index
     examples/index
+    contrib/index
