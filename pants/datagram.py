@@ -57,7 +57,7 @@ class Datagram(Channel):
     def active(self):
         """
         """
-        return self._socket and (self.listening() or self._send_buffer)
+        return self._socket and (self._listening or self._send_buffer)
     
     def listening(self):
         """
@@ -74,7 +74,7 @@ class Datagram(Channel):
     def listen(self, port=8080, host='', backlog=1024):  
         """
         """  
-        if self.listening():
+        if self._listening:
             # TODO Should this raise an exception?
             log.warning("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
@@ -192,7 +192,7 @@ class Datagram(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self.listening():
+        if not self._listening:
             # TODO ???
             log.warning("Received read event for non-listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
