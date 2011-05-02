@@ -40,6 +40,13 @@ log = logging.getLogger("pants")
 
 class Stream(Channel):
     """
+    A TCP stream channel class.
+    
+    ==========  ============
+    Arguments   Description
+    ==========  ============
+    kwargs      Keyword arguments to be passed through to :obj:`Channel`
+    ==========  ============
     """
     def __init__(self, **kwargs):
         if "type" not in kwargs:
@@ -56,26 +63,33 @@ class Stream(Channel):
     
     def active(self):
         """
-        Returns True if the stream is not closed and is either connected
-        or listening.
+        Check if the stream is active - either connected or listening.
+        
+        Returns True if the stream is active, False otherwise.
         """
         return not self.closed() and (self._listening or self._connected or self._connecting)
     
     def connected(self):
         """
-        Returns True if the stream is connected to a remote socket.
+        Check if the stream is connected or connecting to a remote socket.
+        
+        Returns True if the stream is connected, False otherwise.
         """
         return self._connected or self._connecting
     
     def listening(self):
         """
-        Returns True if the stream is listening for connections.
+        Check if the stream is listening for connections.
+        
+        Returns True if the stream is listening, False otherwise.
         """
         return self._listening
     
     def closed(self):
         """
-        Returns True if the stream is closed.
+        Check if the stream is closed.
+        
+        Returns True if the stream is closed, False otherwise.
         """
         return self._socket is None
     
@@ -83,7 +97,16 @@ class Stream(Channel):
     
     def connect(self, host, port):
         """
-        Connects the stream to a remote socket.
+        Connect the stream to a remote socket.
+        
+        Returns the stream.
+        
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        host        The remote host to connect to.
+        port        The port to connect on.
+        ==========  ============
         """
         if self.active():
             # TODO Should this raise an exception?
@@ -110,7 +133,17 @@ class Stream(Channel):
     
     def listen(self, port=8080, host='', backlog=1024):
         """
-        Begins listening for connections made to the stream.
+        Begin listening for connections made to the stream.
+        
+        Returns the stream.
+        
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        port        *Optional.* The port to listen for connections on. By default, is 8080.
+        host        *Optional.* The local host to bind to. By default, is ''.
+        backlog     *Optional.* The size of the connection queue. By default, is 1024.
+        ==========  ============
         """
         if self.active():
             # TODO Should this raise an exception?
@@ -142,7 +175,7 @@ class Stream(Channel):
     
     def close(self):
         """
-        Closes the stream.
+        Close the stream.
         """
         if self.closed():
             return
@@ -160,7 +193,7 @@ class Stream(Channel):
     
     def end(self):
         """
-        Closes the stream after writing any pending data to the socket.
+        Close the stream after writing is finished.
         """
         if self.closed():
             return
@@ -174,11 +207,20 @@ class Stream(Channel):
     
     def write(self, data, buffer_data=False):
         """
+        Overridable wrapper for :meth:`_send`.
         """
         self._send(data, buffer_data)
     
     def _send(self, data, buffer_data):
         """
+        Send data to the stream.
+        
+        ============  ============
+        Arguments     Description
+        ============  ============
+        data          A string of data to send to the stream.
+        buffer_data   If True, the data will be buffered and sent later.
+        ============  ============
         """
         if self.closed():
             log.warning("Attempted to write to closed %s #%d." %
@@ -216,6 +258,9 @@ class Stream(Channel):
     ##### Internal Methods ####################################################
     
     def _update_addr(self):
+        """
+        Update the stream's remote_addr and local_addr attributes.
+        """
         if self._connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
@@ -230,7 +275,7 @@ class Stream(Channel):
     
     def _handle_read_event(self):
         """
-        Handles a read event raised on the Stream.
+        Handle a read event raised on the stream.
         """
         if self._listening:
             self._handle_accept_event()
@@ -255,7 +300,7 @@ class Stream(Channel):
     
     def _handle_write_event(self):
         """
-        Handles a write event raised on the Stream.
+        Handle a write event raised on the stream.
         """
         if self._listening:
             log.warning("Received write event for listening %s #%d." %
@@ -283,7 +328,7 @@ class Stream(Channel):
     
     def _handle_accept_event(self):
         """
-        Handles an accept event raised on the Stream.
+        Handle an accept event raised on the stream.
         """
         while True:
             try:
@@ -305,7 +350,7 @@ class Stream(Channel):
     
     def _handle_connect_event(self):
         """
-        Handles a connect event raised on the Stream.
+        Handle a connect event raised on the stream.
         """
         err, srrstr = self._get_socket_error()
         if err != 0:
@@ -319,6 +364,10 @@ class Stream(Channel):
     ##### Internal Processing Methods #########################################    
     
     def _process_recv_buffer(self):
+        """
+        Process the :attr:`_recv_buffer`, passing chunks of data to
+        :meth:`on_read`.
+        """
         while self._recv_buffer:
             delimiter = self.read_delimiter
             

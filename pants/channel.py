@@ -140,7 +140,7 @@ class Channel(object):
     
     def write(self):
         """
-        Overridable wrapper for Channel._send().
+        Overridable wrapper for :meth:`_send()`.
         """
         raise NotImplementedError
     
@@ -274,7 +274,7 @@ class Channel(object):
         =========  ============
         Argument   Description
         =========  ============
-        backlog    The number of connections that should be queued before new connections are refused.
+        backlog    The size of the connection queue.
         =========  ============
         """
         if os.name == "nt" and backlog > 5:
