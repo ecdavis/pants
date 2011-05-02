@@ -100,7 +100,7 @@ class Datagram(Channel):
     def close(self):
         """
         """
-        if self.closed():
+        if self._socket is None:
             return
         
         Engine.instance().remove_channel(self)
@@ -115,7 +115,7 @@ class Datagram(Channel):
     def end(self):
         """
         """    
-        if self.closed():
+        if self._socket is None:
             return
         
         if not self._send_buffer:
@@ -133,7 +133,7 @@ class Datagram(Channel):
     def _send(self, data, addr, buffer_data):
         """
         """
-        if self.closed():
+        if self._socket is None:
             log.warning("Attempted to write to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -183,7 +183,7 @@ class Datagram(Channel):
     def _handle_read_event(self):
         """
         """
-        if self.closed():
+        if self._socket is None:
             log.warning("Received read event for closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -214,7 +214,7 @@ class Datagram(Channel):
     def _handle_write_event(self):
         """
         """
-        if self.closed():
+        if self._socket is None:
             log.warning("Received write event for closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
