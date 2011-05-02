@@ -71,7 +71,7 @@ class TelnetConnection(Connection):
             self.on_telnet_data(self._telnet_recv_buffer)
             self._telnet_recv_buffer = ""
     
-    def on_telnet_message(self, message):
+    def on_telnet_data(self, data):
         """
         Placeholder. Called when the connection receives a chunk of data.
         
