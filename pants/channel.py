@@ -51,17 +51,21 @@ SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
 class Channel(object):
     """
-    A socket wrapper object.
+    A simple interface for a socket wrapper class.
     
-    This class does not implement the Channel API and should be
-    subclassed before being used.
+    Channel is intended to be subclassed rather than instantiated directly.
+    As such, many of its public methods (and some of its private methods)
+    will raise a :obj:`NotImplementedError` if they are called. Subclasses
+    should override these methods and ensure that their behaviour conforms
+    to the specification in this class.
     
-    Args:
-        **kwargs - Channel options:
-            family - A supported socket family. Defaults to AF_INET.
-            type - A supported socket type. Defaults to SOCK_STREAM.
-            socket - A pre-existing socket. Defaults to a new socket with
-                    the given family and type.
+    =================  ============
+    Keyword Argument   Description
+    =================  ============
+    family             *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
+    type               *Optional.* A supported socket type. By default, is :const:`SOCK_STREAM`.
+    socket             *Optional.* A pre-existing socket to wrap.
+    =================  ============
     """
     def __init__(self, **kwargs):
         # Keyword arguments
@@ -96,61 +100,53 @@ class Channel(object):
     
     def closed(self):
         """
-        Checks if the Channel is closed.
+        Check if the channel is closed.
         
-        Not implemented in Channel.
+        Returns True if the channel is closed, False otherwise.
         """
         raise NotImplementedError
     
     ##### Control Methods #####################################################
     
-    def connect(self, *args, **kwargs):
+    def connect(self):
         """
-        Connects the channel to a remote socket.
+        Connect the channel to a remote socket.
         
-        Not implemented in Channel.
+        Returns the channel.
         """
         raise NotImplementedError
     
-    def listen(self, *args, **kwargs):
+    def listen(self):
         """
-        Begins listening for connections made to the channel.
+        Begin listening for connections made to the channel.
         
-        Not implemented in Channel.
+        Returns the channel.
         """
         raise NotImplementedError
     
-    def close(self, *args, **kwargs):
+    def close(self):
         """
-        Closes the channel.
-        
-        Not implemented in Channel.
+        Close the channel.
         """
         raise NotImplementedError
     
-    def end(self, *args, **kwargs):
+    def end(self):
         """
-        Closes the channel after writing any pending data to the socket.
-        
-        Not implemented in Channel.
+        Close the channel after writing is finished.
         """
         raise NotImplementedError
     
     ##### I/O Methods #########################################################
     
-    def write(self, *args, **kwargs):
+    def write(self):
         """
         Overridable wrapper for Channel._send().
-        
-        Not implemented in Channel.
         """
         raise NotImplementedError
     
-    def _send(self, *args, **kwargs):
+    def _send(self):
         """
-        Sends data to the channel.
-        
-        Not implemented in Channel.
+        Send data to the channel.
         """
         raise NotImplementedError
     
@@ -160,8 +156,11 @@ class Channel(object):
         """
         Placeholder. Called when data is read from the channel.
         
-        Args:
-            data - The received data.
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       A chunk of data received from the socket.
+        =========  ============
         """
         pass
     
@@ -183,15 +182,18 @@ class Channel(object):
         Placeholder. Called after the channel has accepted a new
         connection.
         
-        Args:
-            sock - The newly connected socket object.
-            addr - The new socket's address.
+        =========  ============
+        Argument   Description
+        =========  ============
+        sock       The newly connected socket object.
+        addr       The new socket's address.
+        =========  ============
         """
         pass
     
     def on_close(self):
         """
-        Placeholder. Called after the channel has completed closing.
+        Placeholder. Called after the channel has finished closing.
         """
         pass
     
@@ -199,10 +201,13 @@ class Channel(object):
     
     def _socket_set(self, sock):
         """
-        Sets the channel's current socket and updates channel details.
+        Set the channel's current socket and update channel details.
         
-        Args:
-            sock - A socket for this channel to wrap.
+        =========  ============
+        Argument   Description
+        =========  ============
+        sock       A socket for this channel to wrap.
+        =========  ============
         """
         if self._socket is not None:
             raise RuntimeError("Cannot replace existing socket.")
@@ -217,13 +222,15 @@ class Channel(object):
     
     def _socket_connect(self, addr):
         """
-        Connects the socket to a remote socket at the given address.
+        Connect the socket to a remote socket at the given address.
         
-        Args:
-            addr - The remote address to connect to.
+        Returns True if the connection was immediate, False otherwise.
         
-        Returns:
-            True if the connection was immediate, False otherwise.
+        =========  ============
+        Argument   Description
+        =========  ============
+        addr       The remote address to connect to.
+        =========  ============
         """
         try:
             result = self._socket.connect_ex(addr)
@@ -250,20 +257,25 @@ class Channel(object):
     
     def _socket_bind(self, addr):
         """
-        Binds the socket to the given address.
+        Bind the socket to the given address.
         
-        Args:
-            addr - The local address to bind to.
+        =========  ============
+        Argument   Description
+        =========  ============
+        addr       The local address to bind to.
+        =========  ============
         """
         self._socket.bind(addr)
     
     def _socket_listen(self, backlog):
         """
-        Begins listening for connections made to the socket.
+        Begin listening for connections made to the socket.
         
-        Args:
-            backlog - The number of connections that should be queued
-                    before new connections are turned away.
+        =========  ============
+        Argument   Description
+        =========  ============
+        backlog    The number of connections that should be queued before new connections are refused.
+        =========  ============
         """
         if os.name == "nt" and backlog > 5:
             log.warning("Setting backlog to 5 due to OS constraints.")
@@ -274,7 +286,7 @@ class Channel(object):
     
     def _socket_close(self):
         """
-        Closes the socket.
+        Close the socket.
         """
         try:
             self._socket.close()
@@ -286,10 +298,9 @@ class Channel(object):
     
     def _socket_accept(self):
         """
-        Accepts a new connection to the socket.
+        Accept a new connection to the socket.
         
-        Returns:
-            A 2-tuple containing the new socket and its remote address.
+        Returns a 2-tuple containing the new socket and its remote address.
         """
         try:
             return self._socket.accept()
@@ -302,11 +313,10 @@ class Channel(object):
     
     def _socket_recv(self):
         """
-        Receives data from the socket.
+        Receive data from the socket.
         
-        Returns:
-            A string of data read from the socket. The data is None if
-            reading failed.
+        Returns a string of data read from the socket. The data is None if
+        reading failed.
         """
         try:
             data = self._socket.recv(self._recv_amount)
@@ -324,12 +334,11 @@ class Channel(object):
     
     def _socket_recvfrom(self):
         """
-        Receives data from the socket.
+        Receive data from the socket.
         
-        Returns:
-            A string of data read from the socket and the address of the
-            sender. The data is None if reading failed. The address is
-            None if no data was received.
+        Returns a 2-tuple containing a string of data read from the socket
+        and the address of the sender. The data is None if reading failed.
+        The data and address are None if no data was received.
         """
         try:
             data, addr = self._socket.recvfrom(self._recv_amount)
@@ -348,13 +357,15 @@ class Channel(object):
     
     def _socket_send(self, data):
         """
-        Sends data to the socket.
+        Send data to the socket.
         
-        Args:
-            data - The string of data to send.
+        Returns the number of bytes that were sent to the socket.
         
-        Returns:
-            The number of bytes that were sent to the socket.
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       The string of data to send.
+        =========  ============
         """
         try:
             return self._socket.send(data)
@@ -367,14 +378,16 @@ class Channel(object):
     
     def _socket_sendto(self, data, addr):
         """
-        Sends data to the socket.
+        Send data to a remote socket.
         
-        Args:
-            data - The string of data to send.
-            addr - The remote address to send to.
+        Returns the number of bytes that were sent to the socket.
         
-        Returns:
-            The number of bytes that were sent to the socket.
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       The string of data to send.
+        addr       The remote address to send to.
+        =========  ============
         """
         try:
             return self._socket.sendto(data, addr)
@@ -401,13 +414,18 @@ class Channel(object):
     
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
-        Wraps a callable in a try block. If an exception is raised it is
-        logged and the channel is closed.
+        Safely execute a callable.
         
-        Args:
-            thing_to_call - The callable to wrap.
-            *args - Positional arguments to be passed to the callable.
-            **kwargs - Keyword arguments to be passed to the callable.
+        The callable is wrapped in a try block and executed. If an
+        exception is raised it is logged and the channel is closed.
+        
+        ==============  ============
+        Argument        Description
+        ==============  ============
+        thing_to_call   The callable to execute.
+        *args           The positional arguments to be passed to the callable.
+        **kwargs        The keyword arguments to be passed to the callable.
+        ==============  ============
         """
         try:
             return thing_to_call(*args, **kwargs)
@@ -417,6 +435,11 @@ class Channel(object):
             self.close()
     
     def _get_socket_error(self):
+        """
+        Get the most recent error that occured on the socket.
+        
+        Returns a 2-tuple containing the error code and the error message.
+        """
         err = self._socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         errstr = ""
         
@@ -432,9 +455,7 @@ class Channel(object):
     
     def _update_addr(self):
         """
-        Updates the channel's remote_addr and local_addr attributes.
-        
-        Not implemented in Channel.
+        Update the channel's remote_addr and local_addr attributes.
         """
         raise NotImplementedError
     
@@ -442,10 +463,13 @@ class Channel(object):
     
     def _handle_events(self, events):
         """
-        Handles events raised on the channel.
+        Handle events raised on the channel.
         
-        Args:
-            events - The event integer.
+        =========  ============
+        Argument   Description
+        =========  ============
+        events     The events in the form of an integer.
+        =========  ============
         """
         if self.closed():
             log.warning("Received events for closed %s #%d." %
@@ -489,16 +513,12 @@ class Channel(object):
     
     def _handle_read_event(self):
         """
-        Handles a read event raised on the channel.
-        
-        Not implemented in Channel.
+        Handle a read event raised on the channel.
         """
         raise NotImplementedError
     
     def _handle_write_event(self):
         """
-        Handles a write event raised on the Channel.
-        
-        Not implemented in Channel.
+        Handle a write event raised on the Channel.
         """
         raise NotImplementedError
