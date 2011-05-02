@@ -54,91 +54,33 @@ class TelnetConnection(Connection):
     def __init__(self, server, socket):
         Connection.__init__(self, server, socket)
         
-        self.inbuf = ""
-        
-        self.telnet_iac_sequence = ""
-        self.telnet_sb_sequence = ""
+        self._telnet_recv_buffer = ""
+        self._telnet_iac_sequence = ""
+        self._telnet_sb_sequence = ""
     
     ##### Public Event Handlers ###############################################
     
-    def handle_read(self, data):
+    def on_read(self, data):
         """
-        Reads data from the socket, inspects it for IAC sequences and
-        adds it to the inbuf.
+        Reads incoming data and parses out Telnet command sequences.
         """
         for c in data:
-            self.telnet_read_byte(c)
-    
-    ##### Telnet Methods ######################################################
-    
-    def telnet_read_byte(self, c):
-        """
-        Reads a single character and adds it to the appropriate buffer
-        depending on the current state of the connection.
-        """
-        iac_length = len(self.telnet_iac_sequence)
+            self._telnet_recv_byte(c)
         
-        if iac_length == 0:
-            if c == IAC:
-                # Begin IAC sequence.
-                self.telnet_iac_sequence += c
-            else:
-                # Add to standard inbuf.
-                self.inbuf += c
-                
-        elif iac_length == 1:
-            if c == IAC:
-                # Escaped IAC.
-                self.inbuf += c
-                self.telnet_iac_sequence = ""
-            elif c in (DO, DONT, WILL, WONT):
-                # Option negotiation.
-                self.telnet_iac_sequence += c
-            elif c == SB:
-                # Subnegotiation.
-                self.telnet_iac_sequence += c
-            else:
-                # Telnet command - call method and reset state.
-                self.telnet_iac_command(c)
-                self.telnet_iac_sequence = ""
-                
-        elif iac_length == 2:
-            last_byte = self.telnet_iac_sequence[-1]
-            if last_byte in (DO, DONT, WILL, WONT):
-                # Option negotiation - call method and reset state.
-                self.telnet_iac_option(last_byte, c)
-                self.telnet_iac_sequence = ""
-            elif last_byte == SB:
-                # Subnegotiation - add option character to both IAC and
-                # SB buffers.
-                self.telnet_iac_sequence += c
-                self.telnet_sb_sequence += c
-            else:
-                # TODO This shouldn't happen. Pretend it didn't.
-                self.telnet_iac_sequence = ""
-                
-        elif iac_length == 3:
-            if c == IAC:
-                # Coming to the end of the subnegotiation?
-                self.telnet_iac_sequence += c
-            else:
-                # Continuing the subnegotiation.
-                self.telnet_sb_sequence += c
-                
-        elif iac_length == 4:
-            if c == IAC:
-                # Escaped IAC in the subnegotiation.
-                self.telnet_iac_sequence = self.telnet_iac_sequence[:-1]
-                self.telnet_sb_sequence += c
-            elif c == SE:
-                # Subnegotiation complete - call method and reset state.
-                opt = self.telnet_sb_sequence[0]
-                arg = self.telnet_sb_sequence[1:]
-                self.telnet_iac_subnegotiation(opt, arg)
-                self.telnet_iac_sequence = ""
-                self.telnet_sb_sequence = ""
+        if len(self._telnet_recv_buffer) > 0:
+            self.on_telnet_data(self._telnet_recv_buffer)
+            self._telnet_recv_buffer = ""
     
-    def telnet_iac_command(self, cmd):
+    def on_telnet_message(self, message):
+        """
+        Placeholder. Called when the connection receives a chunk of data.
+        
+        Parameters:
+            data - The received data.
+        """
+        pass
+    
+    def on_telnet_command(self, cmd):
         """
         Placeholder. Called when the connection recieves a Telnet
         command.
@@ -148,7 +90,7 @@ class TelnetConnection(Connection):
         """
         pass
     
-    def telnet_iac_option(self, cmd, opt):
+    def on_telnet_option(self, cmd, opt):
         """
         Placeholder. Called when the connection receives an option
         negotiation sequence.
@@ -159,7 +101,7 @@ class TelnetConnection(Connection):
         """
         pass
     
-    def telnet_iac_subnegotiation(self, opt, arg):
+    def on_telnet_subnegotiation(self, opt, arg):
         """
         Placeholder. Called when the connection receives a
         subnegotiation sequence.
@@ -169,6 +111,76 @@ class TelnetConnection(Connection):
             arg - The string representation of the subnegotiation.
         """
         pass
+    
+    ##### Internal Processing Methods #########################################
+    
+    def _telnet_recv_byte(self, c):
+        """
+        Reads a single character and adds it to the appropriate buffer
+        depending on the current state of the connection.
+        """
+        iac_length = len(self._telnet_iac_sequence)
+        
+        if iac_length == 0:
+            if c == IAC:
+                # Begin IAC sequence.
+                self._telnet_iac_sequence += c
+            else:
+                # Add to standard inbuf.
+                self._telnet_recv_buffer += c
+                
+        elif iac_length == 1:
+            if c == IAC:
+                # Escaped IAC.
+                self._telnet_recv_buffer += c
+                self._telnet_iac_sequence = ""
+            elif c in (DO, DONT, WILL, WONT):
+                # Option negotiation.
+                self._telnet_iac_sequence += c
+            elif c == SB:
+                # Subnegotiation.
+                self._telnet_iac_sequence += c
+            else:
+                # Telnet command - call method and reset state.
+                self.on_telnet_command(c)
+                self._telnet_iac_sequence = ""
+                
+        elif iac_length == 2:
+            last_byte = self._telnet_iac_sequence[-1]
+            if last_byte in (DO, DONT, WILL, WONT):
+                # Option negotiation - call method and reset state.
+                self.on_telnet_option(last_byte, c)
+                self._telnet_iac_sequence = ""
+            elif last_byte == SB:
+                # Subnegotiation - add option character to both IAC and
+                # SB buffers.
+                self._telnet_iac_sequence += c
+                self._telnet_sb_sequence += c
+            else:
+                # TODO This shouldn't happen. Pretend it didn't.
+                self._telnet_iac_sequence = ""
+                
+        elif iac_length == 3:
+            if c == IAC:
+                # Coming to the end of the subnegotiation?
+                self._telnet_iac_sequence += c
+            else:
+                # Continuing the subnegotiation.
+                self._telnet_sb_sequence += c
+                
+        elif iac_length == 4:
+            if c == IAC:
+                # Escaped IAC in the subnegotiation.
+                self._telnet_iac_sequence = self._telnet_iac_sequence[:-1]
+                self._telnet_sb_sequence += c
+            elif c == SE:
+                # Subnegotiation complete - call method and reset state.
+                opt = self._telnet_sb_sequence[0]
+                arg = self._telnet_sb_sequence[1:]
+                self.on_telnet_subnegotiation(opt, arg)
+                self._telnet_iac_sequence = ""
+                self._telnet_sb_sequence = ""
+
 
 ###############################################################################
 # TelnetServer Class
