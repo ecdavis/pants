@@ -67,7 +67,8 @@ class Stream(Channel):
         
         Returns True if the stream is active, False otherwise.
         """
-        return not self.closed() and (self._listening or self._connected or self._connecting)
+        return self._socket is not None and (self._listening or
+                self._connected or self._connecting)
     
     def connected(self):
         """
@@ -177,7 +178,7 @@ class Stream(Channel):
         """
         Close the stream.
         """
-        if self.closed():
+        if self._socket is None:
             return
         
         Engine.instance().remove_channel(self)
@@ -195,7 +196,7 @@ class Stream(Channel):
         """
         Close the stream after writing is finished.
         """
-        if self.closed():
+        if self._socket is None:
             return
         
         if not self._send_buffer:
@@ -222,7 +223,7 @@ class Stream(Channel):
         buffer_data   If True, the data will be buffered and sent later.
         ============  ============
         """
-        if self.closed():
+        if self._socket is None:
             log.warning("Attempted to write to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -396,5 +397,5 @@ class Stream(Channel):
                         (self.__class__.__name__, self.fileno))
                 break
             
-            if self.closed() or not self._connected:
+            if self._socket is None or not self._connected:
                 break

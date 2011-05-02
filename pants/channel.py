@@ -471,7 +471,7 @@ class Channel(object):
         events     The events in the form of an integer.
         =========  ============
         """
-        if self.closed():
+        if self._socket is None:
             log.warning("Received events for closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -479,13 +479,13 @@ class Channel(object):
         if events & Engine.READ:
             self._readable = True # Possible to read.
             self._handle_read_event()
-            if self.closed():
+            if self._socket is None:
                 return
         
         if events & Engine.WRITE:
             self._writable = True # Possible to write.
             self._handle_write_event()
-            if self.closed():
+            if self._socket is None:
                 return
         
         if events & Engine.ERROR:
