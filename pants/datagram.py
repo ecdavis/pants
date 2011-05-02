@@ -57,17 +57,13 @@ class Datagram(Channel):
     def active(self):
         """
         """
-        return self._socket and (self._listening or self._send_buffer)
+        return self._socket is not None and (self._listening or
+                self._send_buffer)
     
     def listening(self):
         """
         """
         return self._listening
-    
-    def closed(self):
-        """
-        """
-        return self._socket is None
     
     ##### Control Methods #####################################################
     

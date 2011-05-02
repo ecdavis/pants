@@ -86,14 +86,6 @@ class Stream(Channel):
         """
         return self._listening
     
-    def closed(self):
-        """
-        Check if the stream is closed.
-        
-        Returns True if the stream is closed, False otherwise.
-        """
-        return self._socket is None
-    
     ##### Control Methods #####################################################
     
     def connect(self, host, port):

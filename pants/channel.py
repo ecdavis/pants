@@ -104,7 +104,7 @@ class Channel(object):
         
         Returns True if the channel is closed, False otherwise.
         """
-        raise NotImplementedError
+        return self._socket is None
     
     ##### Control Methods #####################################################
     
