@@ -56,20 +56,37 @@ class Datagram(Channel):
     
     def active(self):
         """
+        Check if the datagram is active - either sending data or
+        listening.
+        
+        Returns True if the datagram is active, False otherwise.
         """
         return self._socket is not None and (self._listening or
                 self._send_buffer)
     
     def listening(self):
         """
+        Check if the datagram is listening for packets.
+        
+        Returns True if the datagram is listening, False otherwise.
         """
         return self._listening
     
     ##### Control Methods #####################################################
     
-    def listen(self, port=8080, host='', backlog=1024):  
+    def listen(self, port=8080, host=''):  
         """
-        """  
+        Begin listening for packets sent to the datagram.
+        
+        Returns the datagram.
+        
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        port        *Optional.* The port to listen for packets on. By default, is 8080.
+        host        *Optional.* The local host to bind to. By default, is ''.
+        ==========  ============
+        """
         if self._listening:
             # TODO Should this raise an exception?
             log.warning("listen() called on listening %s #%d."
@@ -99,6 +116,7 @@ class Datagram(Channel):
     
     def close(self):
         """
+        Close the datagram.
         """
         if self._socket is None:
             return
@@ -114,6 +132,7 @@ class Datagram(Channel):
     
     def end(self):
         """
+        Close the datagram after writing is finished.
         """    
         if self._socket is None:
             return
@@ -127,11 +146,21 @@ class Datagram(Channel):
     
     def write(self, data, addr=None, buffer_data=False):
         """
+        Overridable wrapper for :meth:`_send`.
         """
         self._send(data, addr, buffer_data)
     
     def _send(self, data, addr, buffer_data):
         """
+        Send data over the datagram.
+        
+        ============  ============
+        Arguments     Description
+        ============  ============
+        data          A string of data to send over the datagram.
+        addr          The remote address to send the data to.
+        buffer_data   If True, the data will be buffered and sent later.
+        ============  ============
         """
         if self._socket is None:
             log.warning("Attempted to write to closed %s #%d." %
@@ -172,6 +201,7 @@ class Datagram(Channel):
     
     def _update_addr(self):
         """
+        Update the datagram's :attr:`local_addr` attribute.
         """
         if self._listening:
             self.local_addr = self._socket.getsockname()
@@ -182,6 +212,7 @@ class Datagram(Channel):
     
     def _handle_read_event(self):
         """
+        Handle a read event raised on the datagram.
         """
         if self._socket is None:
             log.warning("Received read event for closed %s #%d." %
@@ -213,6 +244,7 @@ class Datagram(Channel):
     
     def _handle_write_event(self):
         """
+        Handle a write event raised on the datagram.
         """
         if self._socket is None:
             log.warning("Received write event for closed %s #%d." %
@@ -236,6 +268,10 @@ class Datagram(Channel):
     ##### Internal Processing Methods #########################################
     
     def _process_recv_buffer(self):
+        """
+        Process the :attr:`_recv_buffer`, passing chunks of data to
+        :meth:`on_read`.
+        """
         for addr in self._recv_buffer:
             buf = self._recv_buffer[addr]
             self.remote_addr = addr
@@ -289,6 +325,15 @@ _datagram = None
 
 def sendto(data, host, port):
     """
+    Send a packet to a remote socket.
+    
+    =========  ============
+    Argument   Description
+    =========  ============
+    data       A string of data to be sent.
+    host       The remote host to send the data to.
+    port       The port to send the data on.
+    =========  ============
     """
     global _datagram
     
