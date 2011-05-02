@@ -41,12 +41,6 @@ log = logging.getLogger("pants")
 class Engine(object):
     """
     The singleton engine class.
-    
-    =========  ============
-    Argument   Description
-    =========  ============
-    poller     *Optional.* A polling object to be used internally by the engine to check for socket events.
-    =========  ============
     """
     # Socket events - these correspond to epoll() states.
     NONE = 0x00
@@ -56,7 +50,7 @@ class Engine(object):
     HANGUP = 0x10 | 0x2000
     ALL_EVENTS = READ | WRITE | ERROR | HANGUP
     
-    def __init__(self, poller=None):
+    def __init__(self):
         self.time = time.time()
         
         self._shutdown = False
@@ -64,7 +58,7 @@ class Engine(object):
         
         self._channels = {}
         self._poller = None
-        self._install_poller(poller)
+        self._install_poller()
         
         self._callbacks = []
         self._deferreds = []
@@ -364,13 +358,11 @@ class Engine(object):
     
     ##### Poller Methods ######################################################
     
-    def _install_poller(self, poller=None):
+    def _install_poller(self):
         if self._poller is not None:
             self._destroy_poller()
         
-        if poller is not None:
-            self._poller = poller
-        elif hasattr(select, "epoll"):
+        if hasattr(select, "epoll"):
             self._poller = _EPoll()
         elif hasattr(select, "kqueue"):
             self._poller = _KQueue()
