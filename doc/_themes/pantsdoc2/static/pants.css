@@ -37,7 +37,7 @@ html, body {
 }
 
 body {
-	font-family: Calibri, "Trebuchet MS", sans-serif;
+	font-family: Calibri, "Arial", "Helvetica", sans-serif;
 	color: #222;
 	background: #EEE;
 	background-image: -webkit-gradient(linear, left bottom, left top,
