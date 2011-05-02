@@ -41,6 +41,12 @@ log = logging.getLogger("pants")
 class Engine(object):
     """
     The singleton engine class.
+    
+    =========  ============
+    Argument   Description
+    =========  ============
+    poller     *Optional.* A polling object to be used internally by the engine to check for socket events.
+    =========  ============
     """
     # Socket events - these correspond to epoll() states.
     NONE = 0x00
@@ -66,7 +72,7 @@ class Engine(object):
     @classmethod
     def instance(cls):
         """
-        Returns the global engine object.
+        Return the global engine object.
         """
         if not hasattr(cls, "_instance"):
             cls._instance = cls()
@@ -79,15 +85,17 @@ class Engine(object):
         """
         Start the engine.
         
-        This method blocks until the engine is stopped. It should be
-        called after your asynchronous application has been fully
-        initialised and is ready to start.
+        This method initialises and continuously polls the engine until
+        either :meth:`stop` is called, or an uncaught :obj:`Exception` is
+        raised. :meth:`start` should be called after your asynchronous
+        application has been fully initialised. For applications with a
+        pre-existing main loop, see :meth:`poll`.
         
-        Args:
-            poll_timeout: The timeout to pass to engine.poll().
-        
-        Raises:
-            SystemExit
+        =============  ============
+        Argument       Description
+        =============  ============
+        poll_timeout   *Optional.* The timeout to pass to :meth:`poll`. By default, is 0.02.
+        =============  ============
         """
         if self._shutdown:
             self._shutdown = False
@@ -118,21 +126,26 @@ class Engine(object):
     
     def stop(self):
         """
-        Shut down the engine after the current main loop iteration.
+        Stop the engine.
+        
+        If :meth:`start` has been called, calling :meth:`stop` will
+        cause the engine to cease polling and shut down.
         """
         self._shutdown = True
     
     def poll(self, poll_timeout):
         """
-        Polls the engine.
+        Poll the engine.
         
-        Updates all callbacks, deferreds and cycles. Identifies active
-        sockets, then reads from, writes to and raises exceptions on
-        those sockets.
+        Update timers and perform I/O on all active channels. If your
+        application has a pre-existing main loop, call :meth:`poll` on
+        each iteration of that loop, otherwise, see :meth:`start`.
         
-        Args:
-            timeout: The timeout to be passed to the polling object.
-                Defaults to 0.02.
+        ============= ============
+        Argument      Description
+        ============= ============
+        poll_timeout  The timeout to be passed to the polling object.
+        ============= ============
         """
         # Update time.
         self.time = time.time()
@@ -193,29 +206,38 @@ class Engine(object):
     
     def add_channel(self, channel):
         """
-        Adds a channel to the engine.
+        Add a channel to the engine.
         
-        Args:
-            channel: The channel to add.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be added.
+        =========  ============
         """
         self._channels[channel.fileno] = channel
         self._poller.add(channel.fileno, channel._events)
     
     def modify_channel(self, channel):
         """
-        Modifies a channel's state.
+        Modify the state of a channel.
         
-        Args:
-            channel: The channel to modify.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be modified.
+        =========  ============
         """
         self._poller.modify(channel.fileno, channel._events)
     
     def remove_channel(self, channel):
         """
-        Removes a channel from the engine.
+        Remove a channel from the engine.
         
-        Args:
-            channel: The channel to remove.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be removed.
+        =========  ============
         """
         self._channels.pop(channel.fileno, None)
         
@@ -231,13 +253,19 @@ class Engine(object):
         """
         Schedule a callback.
         
-        Args:
-            func: A callable to be executed when the callback is run.
-            *args: Positional arguments to be passed to the callback.
-            **kwargs: Keyword arguments to be passed to the callback.
+        A callback is a function (or other callable) that is not executed
+        immediately but rather at the beginning of the next iteration of the
+        main engine loop.
         
-        Returns:
-            An object which can be used to cancel the callback.
+        Returns an object which can be used to cancel the callback.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        func       The callable to be executed when the callback is run.
+        *args      The positional arguments to be passed to the callable.
+        **kwargs   The keyword arguments to be passed to the callable.
+        =========  ============
         """
         callback = _Callback(func, *args, **kwargs)
         self._callbacks.append(callback)
@@ -248,13 +276,18 @@ class Engine(object):
         """
         Schedule a loop.
         
-        Args:
-            func: A callable to be executed when the loop is run.
-            *args: Positional arguments to be passed to the loop.
-            **kwargs: Keyword arguments to be passed to the loop.
+        A loop is a callback that is executed and then rescheduled, being
+        run on each iteration of the main engine loop.
         
-        Returns:
-            An object which can be used to cancel the loop.
+        Returns an object which can be used to cancel the loop.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        func       The callable to be executed when the loop is run.
+        *args      The positional arguments to be passed to the callable.
+        **kwargs   The keyword arguments to be passed to the callable.
+        =========  ============
         """
         loop = _Loop(func, *args, **kwargs)
         self._callbacks.append(loop)
@@ -265,14 +298,19 @@ class Engine(object):
         """
         Schedule a deferred.
         
-        Args:
-            func: A callable to be executed when the deferred is run.
-            delay: The delay, in seconds, before the deferred is run.
-            *args: Positional arguments to be passed to the deferred.
-            **kwargs: Keyword arguments to be passed to the deferred.
+        A deferred is a function (or other callable) that is not executed
+        immediately but rather after a certain amount of time.
         
-        Returns:
-            An object which can be used to cancel the deferred.
+        Returns an object which can be used to cancel the deferred.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        func       The callable to be executed when the deferred is run.
+        delay      The delay, in seconds, after which the deferred should be run.
+        *args      The positional arguments to be passed to the callable.
+        **kwargs   The keyword arguments to be passed to the callable.
+        =========  ============
         """
         deferred = _Deferred(func, delay, *args, **kwargs)
         bisect.insort(self._deferreds, deferred)
@@ -283,15 +321,20 @@ class Engine(object):
         """
         Schedule a cycle.
         
-        Args:
-            func: A callable to be executed when the cycle is run.
-            interval: The interval, in seconds, at which the cycle is
-                run.
-            *args: Positional arguments to be passed to the cycle.
-            **kwargs: Keyword arguments to be passed to the cycle.
+        A cycle is a deferred that is executed after a certain amount of
+        time and then rescheduled, effectively being run at regular
+        intervals.
         
-        Returns:
-            An object which can be used to cancel the cycle.
+        Returns an object which can be used to cancel the cycle.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        func       The callable to be executed when the cycle is run.
+        interval   The interval, in seconds, at which the cycle should be run.
+        *args      The positional arguments to be passed to the callable.
+        **kwargs   The keyword arguments to be passed to the callable.
+        =========  ============
         """
         cycle = _Cycle(func, interval, *args, **kwargs)
         bisect.insort(self._deferreds, cycle)
@@ -300,10 +343,13 @@ class Engine(object):
     
     def remove_timer(self, timer):
         """
-        Remove a callback, deferred or cycle from the engine.
+        Remove a timer from the engine.
         
-        Args:
-            obj: The callback, deferred or cycle to remove.
+        =========  ============
+        Argument   Description
+        =========  ============
+        timer      The timer to be removed.
+        =========  ============
         """
         if isinstance(timer, _Deferred):
             try:
@@ -343,11 +389,6 @@ class Engine(object):
 ###############################################################################
 
 class _EPoll(object):
-    """
-    An epoll()-based polling object.
-    
-    epoll() can only be used on Linux 2.6+
-    """
     def __init__(self):
         self._epoll = select.epoll()
     
@@ -375,11 +416,6 @@ class _EPoll(object):
 ###############################################################################
 
 class _KQueue(object):
-    """
-    A kqueue()-based polling object.
-    
-    kqueue() can only be used on BSD.
-    """
     MAX_EVENTS = 1024
     
     def __init__(self):
@@ -433,12 +469,6 @@ class _KQueue(object):
 ###############################################################################
 
 class _Select(object):
-    """
-    A select()-based polling object.
-    
-    select()'s performance is relatively poor. On Windows, it is limited
-    to 512 file descriptors.
-    """
     def __init__(self):
         self._r = set()
         self._w = set()
@@ -481,11 +511,6 @@ class _Select(object):
 ###############################################################################
 
 class _Callback(object):
-    """
-    A callback is a function (or other callable) that is not executed
-    immediately but rather at the beginning of the next iteration of the
-    main engine loop.
-    """
     def __init__(self, func, *args, **kwargs):
         self.func = func
         self.args = args
@@ -499,9 +524,6 @@ class _Callback(object):
                     self.func.__name__)
     
     def cancel(self):
-        """
-        Stop the callback from being executed.
-        """
         Engine.instance().remove(self)
 
 
@@ -521,10 +543,6 @@ class _Loop(_Callback):
 ###############################################################################
 
 class _Deferred(_Callback):
-    """
-    A deferred is a function (or other callable) that is not executed
-    immediately but rather after a certain amount of time.
-    """
     def __init__(self, func, delay, *args, **kwargs):
         _Callback.__init__(self, func, *args, **kwargs)
         
@@ -540,11 +558,6 @@ class _Deferred(_Callback):
 ###############################################################################
 
 class _Cycle(_Deferred):
-    """
-    A cycle is a deferred that is executed after a certain amount of
-    time and then rescheduled, effectively being run at regular
-    intervals.
-    """
     def run(self):
         _Deferred.run(self)
         
