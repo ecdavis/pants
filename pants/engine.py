@@ -478,7 +478,7 @@ class _Select(object):
             self._e.add(fileno)
     
     def modify(self, fileno, events):
-        self.remove(fileno)
+        self.remove(fileno, events)
         self.add(fileno, events)
     
     def remove(self, fileno, events):
