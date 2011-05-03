@@ -358,10 +358,13 @@ class Engine(object):
     
     ##### Poller Methods ######################################################
     
-    def _install_poller(self):
+    def _install_poller(self, poller=None):
         if self._poller is not None:
-            self._destroy_poller()
+            for fileno, channel in self._channels.iteritems():
+                self._poller.remove(fileno, channel._events)
         
+        if poller is not None:
+            self._poller = poller
         if hasattr(select, "epoll"):
             self._poller = _EPoll()
         elif hasattr(select, "kqueue"):
