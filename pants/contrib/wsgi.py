@@ -34,33 +34,54 @@ from web import error
 
 class WSGIConnector(object):
     """
-    Provides an interface for hosting WSGI apps with pants.contrib.http.
+    This class provides a simple interface for hosting WSGI compatible
+    applications with the pants.contrib.http :class:`HTTPServer` by functioning
+    as a valid request handler.
     
-    The WSGIConnector class is a valid request_handler for the HTTPServer
-    provided by http.contrib.http that calls a WSGI application to generate
-    a response.
-    """
+    When called, it constructs a proper environment for the WSGI call, and
+    calls it within a try block to catch errors. A 500 Internal Server Error
+    page is displayed if the WSGI application raises an error.
     
-    def __init__(self, application, debug=False):
-        """
-        Initialize the WSGI connector.
+    ============  ============
+    Argument      Description
+    ============  ============
+    application   The WSGI application that will handle incoming requests.
+    debug         *Optional.* Whether or not to display tracebacks and additional information about a request within the output 500 Internal Server Error pages.
+    ============  ============
+    
+    Example Usage::
         
-        Args:
-            application: The WSGI application that should be called to handle
-                incoming requests.
-            debug: If True, display tracebacks in 500 Internal Server Error
-                pages. Defaults to False.
-        """
+        def application(environ, start_response):
+            status = '200 OK'
+            output = 'Pong!'
+            
+            response_headers = [('Content-type', 'text/plain'),
+                                ('Content-Length', str(len(output)))]
+            start_response(status, response_headers)
+            return [output]
+        
+        from pants.contrib.http import HTTPServer
+        from pants.contrib.wsgi import WSGIConnector
+        from pants import engine
+        
+        HTTPServer(WSGIConnector(application)).listen()
+        engine.start()
+    """
+    def __init__(self, application, debug=False):
         self.app = application
         self.debug = debug
     
     def attach(self, application, route):
         """
-        Attach to a pants.contrib.web.Application instance at the given route.
+        Attach the WSGIConnector to an instance of
+        :class:`pants.contrib.web.Application` at the given route.
         
-        Args:
-            application: The Application to attach to.
-            route: The route for this application to be accessed.
+        ============  ============
+        Argument      Description
+        ============  ============
+        application   The :class:`Application` to attach to.
+        route         The route for access to this WSGIConnector.
+        ============  ============
         """
         route = re.compile("^%s(.*)$" % re.escape(route))
         application._insert_route(
@@ -149,3 +170,64 @@ class WSGIConnector(object):
         request.send_headers(headers)
         request.send(response)
         request.finish()
+
+if __name__ == '__main__':
+    from optparse import OptionParser
+    from http import HTTPServer
+    import logging
+    import sys
+    
+    parser = OptionParser(usage="python -m pants.contrib.wsgi [options] module:callable")
+    parser.add_option("-b", "--bind", dest="bind", default=":80",
+        help="Bind the server to the given interface:port, or UNIX socket.")
+    parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False)
+    
+    options, args = parser.parse_args()
+    
+    # Zeroth, do debug stuff.
+    if options.debug:
+        logging.getLogger('').setLevel(logging.DEBUG)
+    else:
+        logging.getLogger('').setLevel(logging.INFO)
+    
+    # First, determine where to listen.
+    bind = options.bind
+    if ':' in bind:
+        interface, _, port = bind.rpartition(':')
+        try:
+            port = int(port)
+        except ValueError:
+            print 'Invalid port.'
+            sys.exit(1)
+    else:
+        port = bind
+        interface = None
+    
+    if interface is None:
+        print "UNIX sockets aren't supported yet."
+        sys.exit(1)
+    
+    if not args or not ':' in args[0]:
+        print "Must specify a module and callable to host as a WSGI application."
+        sys.exit(1)
+    
+    module, _, call = args[0].partition(':')
+    
+    try:
+        mod = __import__(module)
+    except ImportError:
+        print "Unable to import module %r." % module
+        sys.exit(1)
+    
+    if not hasattr(mod, call):
+        print "No such callable %r in module %r." % (call, module)
+        sys.exit(1)
+    
+    # Start it up.
+    conn = WSGIConnector(getattr(mod, call), options.debug)
+    server = HTTPServer(conn).listen(port, interface)
+    
+    logging.info('Serving %s:%s to: %s' % (module, call, bind))
+    
+    from pants import engine
+    engine.start()
