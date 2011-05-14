@@ -240,8 +240,8 @@ class Channel(object):
         if not result or result == errno.EISCONN:
             return True
         
-        if result in (errno.EINPROGRESS, errno.EALREADY):
-            # TODO Check for EAGAIN, EWOULDBLOCK here?
+        if result in (errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
+            # TODO Check for EAGAIN here?
             self._wait_for_write()
             return False
         

@@ -251,8 +251,8 @@ class Datagram(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        while self._write_buffer:
-            data, addr = self._write_buffer.pop(0)
+        while self._send_buffer:
+            data, addr = self._send_buffer.pop(0)
             while data:
                 sent = self._socket_sendto(data, addr)
                 if sent == 0:
@@ -260,10 +260,11 @@ class Datagram(Channel):
                 data = data[sent:]
             
             if data:
-                self._write_buffer.insert(0, (data, addr))
+                self._send_buffer.insert(0, (data, addr))
                 break
         
-        self._safely_call(self.handle_write)
+        if not self._send_buffer:
+            self._safely_call(self.on_write)
     
     ##### Internal Processing Methods #########################################
     
@@ -272,7 +273,7 @@ class Datagram(Channel):
         Process the :attr:`_recv_buffer`, passing chunks of data to
         :meth:`on_read`.
         """
-        for addr in self._recv_buffer:
+        for addr in self._recv_buffer.keys()[:]:
             buf = self._recv_buffer[addr]
             self.remote_addr = addr
             
