@@ -83,8 +83,8 @@ class Channel(object):
         self.local_addr = (None, None) # TODO Should this be None?
         
         # Socket state
-        self._readable = False # Possible to read from the socket?
-        self._writable = False # Possible to write to the socket?
+        self._wait_for_read_event = True
+        self._wait_for_write_event = True
         
         # I/O attributes
         self._recv_amount = 4096
@@ -253,7 +253,7 @@ class Channel(object):
         
         if result in (errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
             # TODO Check for EAGAIN here?
-            self._wait_for_write()
+            self._wait_for_write_event = True
             return False
         
         try:
@@ -293,7 +293,7 @@ class Channel(object):
             backlog = 5
         
         self._socket.listen(backlog)
-        self._wait_for_read()
+        self._wait_for_read_event = True
     
     def _socket_close(self):
         """
@@ -317,7 +317,7 @@ class Channel(object):
             return self._socket.accept()
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_read()
+                self._wait_for_read_event = True
                 return None, () # sock, addr placeholders.
             else:
                 raise
@@ -333,7 +333,7 @@ class Channel(object):
             data = self._socket.recv(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_read()
+                self._wait_for_read_event = True
                 return ''
             else:
                 raise
@@ -355,7 +355,7 @@ class Channel(object):
             data, addr = self._socket.recvfrom(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_read()
+                self._wait_for_read_event = True
                 return '', None
             else:
                 raise
@@ -382,7 +382,7 @@ class Channel(object):
             return self._socket.send(data)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_write()
+                self._wait_for_write_event = True
                 return 0
             else:
                 raise
@@ -404,24 +404,12 @@ class Channel(object):
             return self._socket.sendto(data, addr)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_write()
+                self._wait_for_write_event = True
                 return 0
             else:
                 raise
     
     ##### Internal Methods ####################################################
-    
-    def _wait_for_read(self):
-        """
-        Force the channel to begin waiting for read events.
-        """
-        self._readable = False
-    
-    def _wait_for_write(self):
-        """
-        Force the channel to being waiting for write events.
-        """
-        self._writable = False
     
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -488,13 +476,13 @@ class Channel(object):
             return
         
         if events & Engine.READ:
-            self._readable = True # Possible to read.
+            self._wait_for_read_event = False
             self._handle_read_event()
             if self._socket is None:
                 return
         
         if events & Engine.WRITE:
-            self._writable = True # Possible to write.
+            self._wait_for_write_event = False
             self._handle_write_event()
             if self._socket is None:
                 return
@@ -514,9 +502,9 @@ class Channel(object):
             return
         
         events = Engine.ERROR | Engine.HANGUP
-        if self._readable == False:
+        if self._wait_for_read_event == True:
             events |= Engine.READ
-        if self._writable == False:
+        if self._wait_for_write_event == True:
             events |= Engine.WRITE
         if events != self._events:
             self._events = events

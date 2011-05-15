@@ -165,10 +165,10 @@ class Datagram(Channel):
         
         if buffer_data or self._send_buffer:
             self._send_buffer.append((data, addr))
-            # NOTE _wait_for_write() is normally called by _socket_send()
-            #      when no more data can be sent. We call it here because
+            # NOTE _wait_for_write_event is normally set by _socket_send()
+            #      when no more data can be sent. We set it here because
             #      _socket_send() will not be called.
-            self._wait_for_write()
+            self._wait_for_write_event = True
             return
         
         try:

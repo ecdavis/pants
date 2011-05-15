@@ -524,7 +524,7 @@ class _DNSStream(Stream):
             return
         
         message = str(self.resolver._messages[self.id][1])
-        self._wait_for_write()
+        self._wait_for_write_event = True
         self.write(message)
     
     def on_read(self, data):
