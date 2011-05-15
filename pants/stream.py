@@ -107,10 +107,12 @@ class Stream(Channel):
         ==========  ============
         """
         if self.active():
-            # TODO Should this raise an exception?
-            log.warning("connect() called on active %s #%d."
+            raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
-            return self
+        
+        if self.closed():
+            raise RuntimeError("connect() called on closed %s."
+                    % self.__class__.__name__)
         
         self._connecting = True
         
@@ -144,10 +146,12 @@ class Stream(Channel):
         ==========  ============
         """
         if self.active():
-            # TODO Should this raise an exception?
-            log.warning("listen() called on active %s #%d."
+            raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
-            return self
+        
+        if self.closed():
+            raise RuntimeError("listen() called on closed %s."
+                    % self.__class__.__name__)
         
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -175,7 +179,7 @@ class Stream(Channel):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self.closed():
             return
         
         self.read_delimiter = None

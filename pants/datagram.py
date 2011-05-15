@@ -88,16 +88,18 @@ class Datagram(Channel):
         host        *Optional.* The local host to bind to. By default, is ''.
         ==========  ============
         """
-        if self._listening:
-            # TODO Should this raise an exception?
-            log.warning("listen() called on listening %s #%d."
+        if self.active():
+            raise RuntimeError("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
-            return self
+        
+        if self.closed():
+            raise RuntimeError("listen() called on closed %s."
+                    % self.__class__.__name__)
         
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except AttributeError, e:
+        except AttributeError:
             pass
         
         try:
@@ -119,7 +121,7 @@ class Datagram(Channel):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self.closed():
             return
         
         self.read_delimiter = None

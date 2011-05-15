@@ -88,6 +88,8 @@ class Channel(object):
         
         # I/O attributes
         self._recv_amount = 4096
+        self._recv_buffer = None
+        self._send_buffer = None
         
         # Events
         self._events = Engine.ALL_EVENTS
