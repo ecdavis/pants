@@ -54,6 +54,9 @@ class Stream(Channel):
         
         Channel.__init__(self, **kwargs)
         
+        # I/O attributes
+        self.read_delimiter = None
+        
         # Internal state
         self._connected = False
         self._connecting = False
@@ -173,28 +176,12 @@ class Stream(Channel):
         if self._socket is None:
             return
         
-        Engine.instance().remove_channel(self)
-        self._socket_close()
+        self.read_delimiter = None
         self._connected = False
         self._connecting = False
         self._listening = False
-        self._recv_buffer = ""
-        self.read_delimiter = None
-        self._send_buffer = ""
-        self._update_addr()
-        self._safely_call(self.on_close)
-    
-    def end(self):
-        """
-        Close the channel after writing is finished.
-        """
-        if self._socket is None:
-            return
         
-        if not self._send_buffer:
-            self.close()
-        else:
-            self.on_write = self.close
+        Channel.close(self)
     
     ##### I/O Methods #########################################################
     

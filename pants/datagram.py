@@ -45,11 +45,12 @@ class Datagram(Channel):
         
         Channel.__init__(self, **kwargs)
         
-        # I/O attributes.
+        # I/O attributes
+        self.read_delimiter = None
         self._recv_buffer = {}
         self._send_buffer = []
         
-        # Internal state.
+        # Internal state
         self._listening = False
     
     ##### Status Methods ######################################################
@@ -121,26 +122,13 @@ class Datagram(Channel):
         if self._socket is None:
             return
         
-        Engine.instance().remove_channel(self)
-        self._socket_close()
-        self._listening = False
-        self._recv_buffer = {}
         self.read_delimiter = None
-        self._send_buffer = []
-        self._update_addr()
-        self._safely_call(self.on_close)
-    
-    def end(self):
-        """
-        Close the channel after writing is finished.
-        """    
-        if self._socket is None:
-            return
+        self._listening = False
         
-        if not self._send_buffer:
-            self.close()
-        else:
-            self.on_write = self.close
+        Channel.close(self)
+        
+        self._recv_buffer = {}
+        self._send_buffer = []
     
     ##### I/O Methods #########################################################
     

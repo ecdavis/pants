@@ -87,7 +87,6 @@ class Channel(object):
         self._writable = False # Possible to write to the socket?
         
         # I/O attributes
-        self.read_delimiter = None
         self._recv_amount = 4096
         self._recv_buffer = ""
         self._send_buffer = ""
@@ -128,13 +127,27 @@ class Channel(object):
         """
         Close the channel.
         """
-        raise NotImplementedError
+        if self._socket is None:
+            return
+        
+        Engine.instance().remove_channel(self)
+        self._socket_close()
+        self._recv_buffer = ""
+        self._send_buffer = ""
+        self._update_addr()
+        self._safely_call(on_close)
     
     def end(self):
         """
         Close the channel after writing is finished.
         """
-        raise NotImplementedError
+        if self._socket is None:
+            return
+        
+        if not self._send_buffer:
+            self.close()
+        else:
+            self.on_write = self.close
     
     ##### I/O Methods #########################################################
     
