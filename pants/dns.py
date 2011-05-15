@@ -524,7 +524,7 @@ class _DNSStream(Stream):
             return
         
         message = str(self.resolver._messages[self.id][1])
-        self._wait_for_write_event = True
+        self._wait_for_write()
         self.write(message)
     
     def on_read(self, data):
@@ -673,7 +673,7 @@ class Resolver(object):
         # Cycle the list.
         self.servers.append(self.servers.pop(0))
         
-        msg = self._messages[id][1]
+        msg = str(self._messages[id][1])
         try:
             self._udp.write(msg, (self.servers[0], DNS_PORT))
         except Exception:
