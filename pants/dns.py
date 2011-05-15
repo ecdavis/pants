@@ -60,7 +60,7 @@ DNS_PORT = 53
  IPSECKEY, RRSIG, NSEC, DNSKEY, DHCID, NSEC3, NSEC3PARAM) = range(1,52)
 
 QTYPES = "A, NS, MD, MF, CNAME, SOA, MB, MG, MR, NULL, WKS, PTR, HINFO, MINFO, MX, TXT, RP, AFSDB, X25, ISDN, RT, NSAP, NSAP_PTR, SIG, KEY, PX, GPOS, AAAA, LOC, NXT, EID, NIMLOC, SRV, ATMA, NAPTR, KX, CERT, A6, DNAME, SINK, OPT, APL, DS, SSHFP, IPSECKEY, RRSIG, NSEC, DNSKEY, DHCID, NSEC3, NSEC3PARAM".split(', ')
- 
+
 # OPCODEs
 OP_QUERY = 0
 OP_IQUERY = 1
@@ -148,12 +148,12 @@ for k,v in RDATA_TYPES.iteritems():
 
 if os.name == 'nt':
     from ctypes import c_int, c_void_p, POINTER, windll, wintypes, \
-                       create_string_buffer, c_char
+                       create_string_buffer, c_char, c_char_p, c_size_t
     
     DWORD = wintypes.DWORD
     LPCWSTR = wintypes.LPCWSTR
     DNS_CONFIG_DNS_SERVER_LIST = 6
-
+    
     DnsQueryConfig = windll.dnsapi.DnsQueryConfig
     DnsQueryConfig.argtypes = [
         c_int,              # __in      DNS_CONFIG_TYPE Config,
@@ -202,6 +202,91 @@ if os.name == 'nt':
         
         out.extend(DEFAULT_SERVERS)
         return out
+    
+    # Additional Functions
+    if not hasattr(socket, 'inet_pton') and hasattr(windll, 'ws2_32') and hasattr(windll.ws2_32, 'inet_pton'):
+        _inet_pton = windll.ws2_32.inet_pton
+        _inet_pton.argtypes = [
+            c_int,              # __in  INT Family,
+            c_char_p,           # __in  PCTSTR pszAddrString,
+            POINTER(c_char),    # __out PVOID pAddrBuf
+            ]
+        
+        def inet_pton(address_family, ip_string):
+            """
+            Convert an IP address from its family-specific string format to a
+            packed, binary format. inet_pton() is useful when a library or
+            network protocol calls for an object of type ``struct in_addr`` or
+            ``struct in6_addr``.
+            
+            ===============  ============
+            Argument         Description
+            ===============  ============
+            address_family   Supported values are ``socket.AF_INET`` and ``socket.AF_INET6``.
+            ip_string        The IP address to pack.
+            ===============  ============
+            """
+            if not address_family in (socket.AF_INET, socket.AF_INET6):
+                raise socket.error(97, os.strerror(97))
+            
+            if address_family == socket.AF_INET:
+                bytes = 5
+            else:
+                bytes = 17
+            
+            buf = create_string_buffer(bytes)
+            
+            result = _inet_pton(address_family, ip_string, buf)
+            if result == 0:
+                raise socket.error("illegal IP address string passed to inet_pton")
+            elif result != 1:
+                raise socket.error("unknown error calling inet_pton")
+            
+            return buf.value
+        
+        socket.inet_pton = inet_pton
+        
+    if not hasattr(socket, 'inet_ntop') and hasattr(windll, 'ws2_32') and hasattr(windll.ws2_32, 'inet_ntop'):
+        _inet_ntop = windll.ws2_32.inet_ntop
+        _inet_ntop.argtypes = [
+            c_int,              # __in  INT Family,
+            POINTER(c_char),    # __in  PVOID pAddr,
+            c_char_p,           # __out PTSTR pStringBuf,
+            c_size_t,           # __in  size_t StringBufSize
+            ]
+        
+        def inet_ntop(address_family, packed_ip):
+            """
+            Convert a packed IP address (a string of some number of characters)
+            to its standard, family-specific string representation (for
+            example, ``'7.10.0.5`` or ``5aef:2b::8``). inet_ntop() is useful
+            when a library or network protocol returns an object of type
+            ``struct in_addr`` or ``struct in6_addr``.
+            
+            ===============  ============
+            Argument         Description
+            ===============  ============
+            address_family   Supported values are ``socket.AF_INET`` and ``socket.AF_INET6``.
+            packed_ip        The IP address to unpack.
+            ===============  ============
+            """
+            if not address_family in (socket.AF_INET, socket.AF_INET6):
+                raise socket.error(97, os.strerror(97))
+            
+            if address_family == socket.AF_INET:
+                bytes = 17
+            else:
+                bytes = 47
+            
+            buf = create_string_buffer(bytes)
+            
+            result = _inet_ntop(address_family, packed_ip, buf, bytes)
+            if not result:
+                raise socket.error("unknown error calling inet_ntop")
+            
+            return buf.value
+        
+        socket.inet_ntop = inet_ntop
     
 else:
     # *nix is way easier. Parse resolve.conf.
