@@ -32,7 +32,7 @@ from pants.stream import Stream
 # Exports
 ###############################################################################
 
-__author__ = "Christopher Davis"
+__authors__ = ["Christopher Davis", "Stendec"]
 __version__ = "0.10.0"
 
 __all__ = [
