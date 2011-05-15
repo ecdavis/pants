@@ -232,7 +232,7 @@ class DNSMessage(object):
     server, simply use str() on it. To read a message from the server into an
     instance of DNSMessage, use DNSMessage.from_string().
     """
-    __slots__ = ('id','qr','opcode','aa','tc','rd','ra','rcode',
+    __slots__ = ('id','qr','opcode','aa','tc','rd','ra','rcode','server',
                 'questions','answers','authrecords','additional')
     
     def __init__(self, id=None, qr=False, opcode=OP_QUERY, aa=False, tc=False,
@@ -246,6 +246,8 @@ class DNSMessage(object):
         self.rd = rd
         self.ra = ra
         self.rcode = rcode
+        
+        self.server = None
         
         self.questions = []
         self.answers = []
@@ -539,6 +541,8 @@ class _DNSStream(Stream):
         except TooShortError:
             return
         
+        m.server = '%s:%d' % self.remote_addr
+        
         if self.id in self.resolver._tcp:
             del self.resolver._tcp[self.id]
         self.close()
@@ -655,9 +659,31 @@ class Resolver(object):
             if self._udp is None:
                 self._init_udp()
             self._udp.write(msg, (self.servers[0], DNS_PORT))
+            
+            pants.engine.defer(self._next_server, 0.5, message.id)
+            
         else:
             tcp = self._tcp[message.id] = _DNSStream(self, message.id)
             tcp.connect(self.servers[0], DNS_PORT)
+    
+    def _next_server(self, id):
+        if not id in self._messages or id in self._tcp:
+            return
+        
+        # Cycle the list.
+        self.servers.append(self.servers.pop(0))
+        
+        msg = self._messages[id][1]
+        try:
+            self._udp.write(msg, (self.servers[0], DNS_PORT))
+        except Exception:
+            try:
+                self._udp.close()
+            except Exception:
+                pass
+            del self._udp
+            self._init_udp()
+            self._udp.write(msg, (self.servers[0], DNS_PORT))
     
     def receive_message(self, data):
         if not isinstance(data, DNSMessage):
@@ -684,6 +710,13 @@ class Resolver(object):
         #    tcp = self._tcp[data.id] = _DNSStream(self, message.id)
         #    tcp.connect(self.servers[0], DNS_PORT)
         #    return
+        
+        if not data.server:
+            if self._udp and self._udp.remote_addr:
+                data.server = '%s:%d' % self._udp.remote_addr
+            else:
+                data.server = '%s:%d' % (self.servers[0], DNS_PORT)
+        
         
         del self._messages[data.id]
         self._safely_call(callback, DNS_OK, data)
@@ -1064,6 +1097,7 @@ if __name__ == '__main__':
         
         print ''
         print 'Query Time: %d msec' % int((end - start) * 1000)
+        print 'Server: %s' % str(data.server)
         print 'Message Size: %d' % len(str(data))
     
     print ''
