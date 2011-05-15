@@ -56,6 +56,8 @@ class Stream(Channel):
         
         # I/O attributes
         self.read_delimiter = None
+        self._recv_buffer = ""
+        self._send_buffer = ""
         
         # Internal state
         self._connected = False
@@ -177,6 +179,8 @@ class Stream(Channel):
             return
         
         self.read_delimiter = None
+        self._recv_buffer = ""
+        self._send_buffer = ""
         self._connected = False
         self._connecting = False
         self._listening = False

@@ -123,12 +123,11 @@ class Datagram(Channel):
             return
         
         self.read_delimiter = None
+        self._recv_buffer = {}
+        self._send_buffer = []
         self._listening = False
         
         Channel.close(self)
-        
-        self._recv_buffer = {}
-        self._send_buffer = []
     
     ##### I/O Methods #########################################################
     

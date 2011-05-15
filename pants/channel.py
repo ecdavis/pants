@@ -88,8 +88,6 @@ class Channel(object):
         
         # I/O attributes
         self._recv_amount = 4096
-        self._recv_buffer = ""
-        self._send_buffer = ""
         
         # Events
         self._events = Engine.ALL_EVENTS
@@ -132,8 +130,6 @@ class Channel(object):
         
         Engine.instance().remove_channel(self)
         self._socket_close()
-        self._recv_buffer = ""
-        self._send_buffer = ""
         self._update_addr()
         self._safely_call(on_close)
     
