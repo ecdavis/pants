@@ -45,8 +45,10 @@ __all__ = ('Application','HTTPException','HTTPTransparentRedirect','abort',
 ###############################################################################
 # Cross Platform Hidden File Detection
 ###############################################################################
+
 def _is_hidden(file, path):
     return file.startswith(u'.')
+
 if os.name == 'nt':
     try:
         import win32api, win32con
@@ -66,7 +68,8 @@ if os.name == 'nt':
 ###############################################################################
 # Logging
 ###############################################################################
-log = logging.getLogger('web')
+
+log = logging.getLogger(__name__)
 
 ###############################################################################
 # Constants
@@ -246,10 +249,25 @@ REGEXES = {
 
 class HTTPException(Exception):
     """
-    This exception will force the webserver to display an error page to the
-    client of your choice.
+    Raising an instance of HTTPException will cause the Application to render
+    an error page out to the client with the given
+    `HTTP status code <http://en.wikipedia.org/wiki/List_of_HTTP_status_codes>`_,
+    message, and any provided headers.
     
-    To invoke this, use the abort() helper.
+    This is, generally, preferable to allowing an exception of a different
+    type to bubble up to the Application, which would result in a
+    ``500 Internal Server Error`` page.
+    
+    The :func:`abort` helper function makes it easy to raise instances of
+    this exception.
+    
+    =========  ============
+    Argument   Description
+    =========  ============
+    status     *Optional.* The `HTTP status code <http://en.wikipedia.org/wiki/List_of_HTTP_status_codes>`_ to generate an error page for. If this isn't specified, a ``404 Not Found`` page will be generated.
+    message    *Optional.* A text message to display on the error page.
+    headers    *Optional.* A dict of extra HTTP headers to return with the rendered page.
+    =========  ============
     """
     def __init__(self, status=404, message=None, headers=None):
         self.status = status
@@ -258,8 +276,8 @@ class HTTPException(Exception):
 
 class HTTPTransparentRedirect(Exception):
     """
-    This exception will redirect the current request to the given URI in a way
-    that's transparent to the client.
+    Raising an instance of HTTPTransparentRedirect will cause the Application
+    to silently redirect a request to a new URI.
     """
     def __init__(self, uri):
         self.uri = uri
@@ -270,15 +288,12 @@ class HTTPTransparentRedirect(Exception):
 
 class Application(object):
     """
-    An application is a HTTP server with routing logic, allowing you to easilly
-    use more than one request handler.
+    The Application class builds upon :class:`pants.contrib.http.HTTPServer`,
+    adding support for request routing, additional error handling, and a
+    degree of convenience that makes writing dynamic pages easier.
     
-    More than that, it makes it easy to send responses to the client by just
-    returning values from your functions, rather than messing around with the
-    write and finish functions of the request object.
-    
-    Instances of this class are callable and can be used as an HTTPServer's
-    request handler. Example:
+    Instances of Application are callable, and may be used as a HTTPServer's
+    request handler. For example::
         
         from pants.contrib.http import HTTPServer
         from pants.contrib.web import Application
@@ -288,24 +303,20 @@ class Application(object):
         
         @app.route('/')
         def hello_world():
-            return 'Hiya!'
+            return "Hiya, Everyone!"
         
         HTTPServer(app).listen()
         engine.start()
+    
+    =========  ============
+    Argument   Description
+    =========  ============
+    debug      *Optional.* If this is set to True, automatically generated ``500 Internal Server Error`` response pages will include information about the failed request, including a traceback of the exception that caused the page to be generated.
+    =========  ============
     """
     current_app = None
     
     def __init__(self, debug=False):
-        """
-        Initialize an Application instance.
-        
-        Args:
-            debug: If debug is set to True, HTTP responses will include
-                tracebacks when errors are encountered running routes. If it's
-                False, then generic pages will be displayed and tracebacks
-                will merely be logged. Defaults to False.
-        """
-        
         # Internal Stuff
         self._routes    = {}
         self._names     = {}
@@ -313,51 +324,69 @@ class Application(object):
         # External Stuff
         self.debug = debug
     
-    def run(self, port=80, host=''):
+    def run(self, port=None, host='', ssl_options=None):
         """
-        For testing, setup pants and go nuts. Example:
+        This function exists for convenience, and when called creates an
+        :class:`pants.contrib.http.HTTPServer` instance with its request
+        handler set to this application instance, calls
+        :func:`pants.contrib.http.HTTPServer.listen` on that HTTPServer, and
+        finally, starts the Pants engine to process requests.
+        
+        Example::
             
             from pants.contrib.web import *
             app = Application()
             
-            @app.route("/")
-            def hello():
-                return "Hello, world!"
+            @app.route('/')
+            def hello_world():
+                return "Hiya, Everyone!"
             
             app.run()
         
-        Args:
-            port: The port to listen on. Defaults to 80.
-            host: The host to listen on. Optional.
+        ============  ============
+        Argument      Description
+        ============  ============
+        port          *Optional.* The port to listen on. If this isn't specified, it will be either 80 or 443, depending on whether or not SSL options for the server have been provided.
+        host          *Optional.* The host interface to listen on. If this isn't specified, listen on all interfaces.
+        ssl_options   *Optional.* A dict of SSL options for the server. See :class:`pants.contrib.ssl.SSLServer` for more information.
+        ============  ============
         """
         from pants import engine
-        HTTPServer(self).listen(port, host)
+        HTTPServer(self, ssl_options=ssl_options).listen(port, host)
         engine.start()
     
     ##### Route Management Methods ############################################
     
     def basic_route(self, rule, name=None, methods=['GET','HEAD']):
         """
-        This method is a decorator that registers a route without holding your
-        hand about it.
+        The basic_route decorator registers a route with the Application without
+        holding your hand over it.
         
-        It functions almost the same as the route decorator, but doesn't wrap
-        your function to handle arguments for it. Instead, you'll have to deal
-        with the request object and the regex match yourself.
+        It functions almost the same as the :func:`Application.route` decorator,
+        but doesn't wrap the provided function with any argument handling code.
+        Instead, you're provided with the request object and the the regex
+        match object.
         
-        Example Usage:
+        Example Usage::
             
-            @app.basic_route("/char/<char>/")
+            @app.basic_route("/char/<char>")
             def my_route(request):
                 char, = request.match.groups()
                 return 'The character is %s!' % char
         
-        That's essentially equivilent to:
+        That is, essentially, equivilent to:
             
             @app.route("/char/<char>/")
             def my_route(char):
                 return 'The character is %s!' % char
         
+        =========  ============
+        Argument   Description
+        =========  ============
+        rule       The route rule to match for a request to go to the decorated function. See :func:`Application.route` for more information.
+        name       *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
+        methods    *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
+        =========  ============
         """
         def decorator(func):
             regex, arguments, names, namegen = _route_to_regex(rule)
@@ -372,51 +401,74 @@ class Application(object):
     
     def route(self, rule, name=None, methods=['GET','HEAD'], auto404=False):
         """
-        This method is a decorator that's used to register a new request handler
-        for a given URI rule. Example:
+        The route decorator is used to register a new request handler with the
+        Application instance. Example::
             
             @app.route("/")
-            def index():
-                return "Hello, World!"
+            def hello_world():
+                return "Hiya, Everyone!"
         
-        Variable parts in the route can be specified with inequality signs (for
-        example: <variable_name>). By default, a variable part accepts any
-        characters except a slash (/) and returns a string. However, you can
-        specify a specific type to be returned by using <type:name>.
-        
-        Converters are simply callables that accept a string and return
-        something. Built-in types, such as int and float, work well for this.
-        So, for example, in:
+        Variables may be specified in the route *rule* by wrapping them with
+        inequality signs (for example: ``<variable_name>``). By default, a
+        variable part accepts any character except a slash (``/``) and returns
+        a string value. However, you may specify a specific type to be returned
+        by using the format ``<type:name>``, where type is the name of a
+        callable in the pants.contrib.web namespace that accepts a single
+        string as its argument, and returns a value. Built-in types, such as
+        int and float, work well for this. Example::
             
             @app.route("/user/<int:id>/")
             def user(id):
                 # Code Here
         
-        The id is automatically converted to a number for you, and the view
-        function is never even called if id isn't a valid number.
+        The ``id`` is automatically converted into an integer for you, and as
+        an added bonus, your function is never even called if the provided
+        value for ``id`` isn't a valid number.
         
-        View functions are easy to write, and are expected to return either a
-        single value (a string or unicode value), or a tuple to the form of:
-        body, status, headers. Status is an integer HTTP status code, and
-        headers are a dictionary of optional HTTP headers to send with the
-        response. You may also specify a status code and no headers.
+        Request handlers are easy to write and can send their output to the
+        client simply by returning a value, such as a string::
+            
+            @app.route("/")
+            def hello_world():
+                return "Hiya, Everyone!"
         
-        The following example returns a page with the 404 status code:
+        The previous code would result in a `200 OK`` response, with a
+        ``Content-Type`` header of ``text/plain``, and a ``Content-Length``
+        header of ``15``. With, of course, the body ``Hiya, Everyone!``.
+        
+        If the returned string begins with ``<!DOCTYPE`` or ``<html``, it will
+        be assumed that the response is of ``Content-Type: text/html``.
+        
+        If a unicode object is returned, rather than a simple string, it will
+        be automatically encoded and an encoding argument will be added to the
+        ``Content-Type`` header.
+        
+        If a non-string object is returned, it will be converted to a string
+        via ``str()`` before any content headers are set. The exception to this
+        is that, if the object has a ``__html__`` method, that method will be
+        called rather than ``str()``, and the ``Content-Type`` will be
+        automatically assumed to be ``text/html``, regardless of the actual
+        content of the string.
+        
+        A tuple of ``(body, status)`` or ``(body, status, headers)`` may be
+        returned, rather than simply a body, to set the HTTP status code of
+        the result and additional response headers. If provided, ``status``
+        must be an integer, and ``headers`` must be a dict.
+        
+        The following example returns a page with the status code ``404 Not Found``::
             
             @app.route("/nowhere")
             def nowhere():
-                return 'This does not exist.', 404
+                return "This does not exist.", 404
         
-        Args:
-            rule: The URI rule to trigger this route. It's internally
-                converted to regex for fast processing.
-            name: A name to use for this route. If not specified, the name of
-                the decorated function is used. Optional.
-            methods: The HTTP methods valid for this route. Defaults to GET
-                and HEAD.
-            auto404: If this is True, all arguments to the view will be checked
-                for truthiness, and if any fail, a 404 page will be displayed
-                rather than your view function.
+        =========  ============
+        Argument   Description
+        =========  ============
+        rule       The route rule to be matched for the decorated function to be used for handling a request.
+        name       *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
+        methods    *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
+        auto404    *Optional.* If this is set to True, all response handler arguments will be checked for truthiness (True, non-empty strings, etc.) and, if any fail, a ``404 Not Found`` page will be rendered automatically.
+        =========  ============
         """
         if callable(name):
             self._add_route(rule, name, None, methods, auto404)
@@ -457,9 +509,9 @@ class Application(object):
     
     def __call__(self, request):
         """
-        This function is responsible for determining what view to call, via
-        regex matching of the uri, then calling that view, and processing the
-        result into a suitable HTTP response.
+        This function is called when a new request is received, and calls both
+        :func:`Application.handle_request` and :func:`Application.handle_output`
+        to process the request.
         """
         Application.current_app = self
         self.request = request

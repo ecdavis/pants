@@ -20,7 +20,10 @@
 # Imports
 ###############################################################################
 
+import base64
 import Cookie
+import hashlib
+import hmac
 import logging
 import mimetypes
 import os
@@ -34,11 +37,12 @@ if os.name == 'nt':
 else:
     from time import time
 
+from time import time as curtime
+
 from pants import callback, Connection, Server, __version__ as pants_version
+from pants.engine import Engine
 from pants.stream import Stream
-
-
-#from pants.contrib.ssl import SSLServer
+from pants.contrib.ssl import SSLServer
 
 ###############################################################################
 # Logging
@@ -256,7 +260,6 @@ class HTTPClient(object):
             return
         
         self._processing = True
-        from pants.engine import Engine
         Engine.instance().start()
     
     ##### Public Event Handlers ###############################################
@@ -326,11 +329,13 @@ class HTTPClient(object):
                 self._stream = None
             if self._processing:
                 self._processing = False
-                from pants.engine import Engine
                 Engine.instance().stop()
             return
         
         request = self._requests[0]
+        
+        request.append(
+            Engine.instance().defer(self._request_timeout, request[5], request))
         
         port = request[2].port
         if not port:
@@ -403,6 +408,13 @@ class HTTPClient(object):
         Call the response handler.
         """
         request = self._requests.pop(0)
+        try:
+            request[-1].cancel()
+            left = request[-1].end - Engine.instance().time
+        except Exception:
+            left = request[5]
+            pass
+        
         response = self.current_response
         
         close_after = response.headers.get('Connection', '') == 'close'
@@ -432,10 +444,13 @@ class HTTPClient(object):
             del new_headers['Host']
             
             new_req = self._add_request(request[0], new_url, new_headers,
-                                        request[4], request[5], False)
+                                        request[4], left, False)
             new_req[6] = request[6]
             new_req[7] = request[7]
             new_req[9] = request[9] + 1
+            
+            new_req.append(
+                Engine.instance().defer(self._request_timeout, left, new_req))
             
             self._requests.insert(0, new_req)
             self.current_response = None
@@ -468,9 +483,9 @@ class HTTPClient(object):
         
         # Call the handler function.
         try:
-            func(response)
+            func(0, response)
         except Exception:
-            log.exception('Error handling HTTP response.')
+            log.exception('Error in HTTP response handler.')
         
         # Process the next request.
         self.current_response = None
@@ -481,6 +496,22 @@ class HTTPClient(object):
                 return
         
         self._process_request()
+    
+    def _request_timeout(self, request):
+        if not request in self._requests:
+            return
+        
+        self._requests.remove(request)
+        
+        if callable(request[6]):
+            func = request[6]
+        else:
+            func = self.on_response
+        
+        try:
+            func(1, None)
+        except Exception:
+            log.exception('Error in HTTP response handler.')
     
     def _read_body(self, data):
         """ 
@@ -664,8 +695,8 @@ class ClientHelper(object):
         finally:
             self.parent._helper = None
     
-    def _collect(self, response):
-        self._responses.append(response)
+    def _collect(self, status, response):
+        self._responses.append((status, response))
     
     def fetch(self):
         for req in self.requests:
@@ -872,8 +903,8 @@ class HTTPConnection(Connection):
             
             protocol = 'http'
             
-            #if self.is_secure():
-            #    protocol = 'https'
+            if self.is_secure():
+                protocol = 'https'
             
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
@@ -1084,6 +1115,64 @@ class HTTPRequest(object):
             return time() - self._start
         return self._finish - self._start
     
+    ##### Secure Cookies ######################################################
+    
+    def set_secure_cookie(self, name, value, expires=30*86400, **kwargs):
+        """
+        Set a timestamp on a cookie and sign it, ensuring that it can't be
+        altered by the client. To use this, the :class:`HTTPServer` *must* have
+        a ``cookie_secret`` set.
+        
+        Cookies set with this function may be read with
+        :func:`HTTPServer.get_secure_cookie`.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        name       The name of the cookie to set.
+        value      The value of the cookie.
+        expires    *Optional.* How long, in seconds, the cookie should last before expiring. By default, this is 30 days.
+        =========  ============
+        
+        Additional arguments, such as ``path`` and ``httponly`` may be set by
+        providing them as keyword arguments.
+        """
+        ts = str(int(curtime()))
+        v = base64.b64encode(str(value))
+        signature = generate_signature(
+                        self.connection.server.cookie_secret, expires, ts, v)
+        
+        value = "%s|%d|%s|%s" % (value, expires, ts, signature)
+        
+        self.cookies[name] = value
+        m = self.cookies[name]
+        
+        if kwargs:
+            for k,v in kwargs.iteritems():
+                m[k] = v
+        m['expires'] = expires
+    
+    def get_secure_cookie(self, name):
+        """
+        Return the signed cookie with the key ``name``, if it exists and has a
+        valid signature. Otherwise, return None.
+        """
+        try:
+            value, expires, ts, signature = self.cookies[name].value.split('|')
+            expires = int(expires)
+            ts = int(ts)
+        except AttributeError, ValueError:
+            print 'boo'
+            return None
+        
+        v = base64.b64encode(str(value))
+        sig = generate_signature(self.connection.server.cookie_secret, expires, ts, v)
+        
+        if signature != sig or ts < curtime() - expires or ts > curtime() + expires:
+            return None
+        
+        return value
+    
     ##### I/O Methods #########################################################
     
     def finish(self):
@@ -1116,6 +1205,8 @@ class HTTPRequest(object):
         keys are specified, only the cookies with the specified keys will be
         transmitted. Otherwise, all cookies will be written to the client.
         
+        This function is usually called automatically by send_headers.
+        
         ============  ============
         Argument      Description
         ============  ============
@@ -1124,21 +1215,24 @@ class HTTPRequest(object):
         ============  ============
         """
         if keys is None:
-            out = self.cookie.output()
+            out = self.cookies.output()
         else:
             out = []
             for k in keys:
-                if not k in self.cookie:
+                if not k in self.cookies:
                     continue
-                out.append(self.cookie[k].output())
+                out.append(self.cookies[k].output())
             out = CRLF.join(out)
+        
+        if not out.endswith(CRLF):
+            out += CRLF
         
         if end_headers:
             self.connection._send('%s%s' % (out, CRLF), False)
         else:
             self.connection._send(out, False)
     
-    def send_headers(self, headers, end_headers=True):
+    def send_headers(self, headers, end_headers=True, cookies=True):
         """
         Write a dictionary of HTTP headers to the client.
         
@@ -1147,6 +1241,7 @@ class HTTPRequest(object):
         ============  ============
         headers       A dictionary of HTTP headers.
         end_headers   *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response. By default, is True.
+        cookies       *Optional.* If this is set to True, HTTP cookies will be sent along with the headers.
         ============  ============
         """
         out = []
@@ -1158,6 +1253,9 @@ class HTTPRequest(object):
                     append('%s: %s' % (key, v))
             else:
                 append('%s: %s' % (key, val))
+        
+        if cookies and hasattr(self, '_cookies'):
+            self.send_cookies(end_headers=False)
         
         if end_headers:
             append(CRLF)
@@ -1211,7 +1309,7 @@ class HTTPRequest(object):
 # HTTPServer Class
 ###############################################################################
 
-class HTTPServer(Server): # TODO: SSLServer):
+class HTTPServer(SSLServer):
     """
     An `HTTP <http://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol>`_ server,
     extending the default Server class.
@@ -1257,18 +1355,32 @@ class HTTPServer(Server): # TODO: SSLServer):
     max_request       *Optional.* The maximum allowed length, in bytes, of an HTTP request body. By default, this is 10 MiB.
     keep_alive        *Optional.* Whether or not multiple requests are allowed over a single connection. By default, this is True.
     ssl_options       *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
+    cookie_secret     *Optional.* A string to use when signing secure cookies.
     ================  ============
     """
     ConnectionClass = HTTPConnection
     
     def __init__(self, request_handler, max_request=10485760, keep_alive=True,
-                    ssl_options=None):
-        Server.__init__(self) #TODO: , ssl_options=ssl_options)
+                    ssl_options=None, cookie_secret=None):
+        SSLServer.__init__(self, ssl_options=ssl_options)
         
         # Storage
         self.request_handler    = request_handler
         self.max_request        = max_request
         self.keep_alive         = keep_alive
+        
+        self._cookie_secret     = cookie_secret
+    
+    @property
+    def cookie_secret(self):
+        if self._cookie_secret is None:
+            self._cookie_secret = os.urandom(30)
+        
+        return self._cookie_secret
+    
+    @cookie_secret.setter
+    def cookie_secret(self, val):
+        self._cookie_secret = val
     
     def listen(self, port=None, host='', backlog=1024):
         """
@@ -1288,11 +1400,17 @@ class HTTPServer(Server): # TODO: SSLServer):
             else:
                 port = 80
         
-        Server.listen(self, port, host, backlog) # TODO: SSL
+        SSLServer.listen(self, port, host, backlog)
     
 ###############################################################################
 # Support Functions
 ###############################################################################
+
+def generate_signature(key, *parts):
+    hash = hmac.new(key, digestmod=hashlib.sha1)
+    for p in parts:
+        hash.update(str(p))
+    return hash.hexdigest()
 
 def content_type(filename):
     return mimetypes.guess_type(filename)[0] or 'application/octet-stream'
