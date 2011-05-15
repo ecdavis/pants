@@ -617,7 +617,7 @@ class Resolver(object):
                 if port == start:
                     raise Exception("Can't listen on any port.")
     
-    def sendMessage(self, message, callback=None, timeout=10, media=None):
+    def send_message(self, message, callback=None, timeout=10, media=None):
         """
         Send an instance of DNSMessage to a DNS server, and call the provided
         callback when a response is received, or if the action times out.
@@ -755,7 +755,7 @@ class Resolver(object):
             self._safely_call(callback, status, cname, ttl, rdata)
         
         # Send it, so we get an ID.
-        self.sendMessage(m, handle_response)
+        self.send_message(m, handle_response)
     
 resolver = Resolver()
 
@@ -764,6 +764,7 @@ resolver = Resolver()
 ###############################################################################
 
 query = resolver.query
+send_message = resolver.send_message
 
 def gethostbyaddr(ip_address, callback, timeout=10):
     """
@@ -932,3 +933,137 @@ class Synchroniser(object):
         return doer
 
 sync = synchronous = Synchroniser(globals())
+
+if __name__ == '__main__':
+    import sys
+    from optparse import OptionParser
+    
+    parser = OptionParser()
+    parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False,
+                help="Show extra messages.")
+    
+    options, args = parser.parse_args()
+    
+    if options.debug:
+        logging.getLogger('').setLevel(logging.DEBUG)
+        logging.info('...')
+    
+    if sys.platform == 'win32':
+        timer = time.clock
+    else:
+        timer = time.time
+    
+    args = list(args)
+    while args:
+        host = args.pop(0)
+        if args:
+            qtype = args.pop(0)
+        else:
+            qtype = 'A'
+        
+        qtype = qtype.upper()
+        if qtype in QTYPES:
+            qtype = QTYPES.index(qtype) + 1
+        else:
+            try:
+                qtype = int(qtype)
+            except ValueError:
+                print 'Invalid QTYPE, %r.' % qtype
+                sys.exit(1)
+        
+        # Build a Message
+        m = DNSMessage()
+        m.questions.append((host, qtype, IN))
+        
+        print ''
+        
+        # Query it.
+        start = timer()
+        status, data = sync.send_message(m)
+        end = timer()
+        
+        if status != DNS_OK:
+            if status == DNS_TIMEOUT:
+                print 'No response. Error: TIMEOUT (%d)' % status
+            else:
+                print 'No response. Error: UNKNOWN (%d)' % status
+            continue
+        
+        if not data:
+            print "Empty response, but OK status? Something's wrong."
+            continue
+        
+        print 'Received response.'
+        
+        opcode = 'UNKNOWN (%d)' % data.opcode
+        if data.opcode == OP_QUERY:
+            opcode = 'QUERY'
+        elif data.opcode == OP_IQUERY:
+            opcode = 'IQUERY'
+        elif data.opcode == OP_STATUS:
+            opcode = 'STATUS'
+        
+        rcode = data.rcode
+        if rcode == 0:
+            rcode = 'OK'
+        elif rcode == 1:
+            rcode = 'Format Error'
+        elif rcode == 2:
+            rcode = 'Server Failure'
+        elif rcode == 3:
+            rcode = 'Name Error'
+        elif rcode == 4:
+            rcode = 'Not Implemented'
+        elif rcode == 5:
+            rcode = 'Refused'
+        else:
+            rcode = 'Unknown (%d)' % rcode
+        
+        flags = []
+        if data.qr: flags.append('qr')
+        if data.aa: flags.append('aa')
+        if data.tc: flags.append('tc')
+        if data.rd: flags.append('rd')
+        if data.ra: flags.append('ra')
+        
+        print 'opcode: %s; rcode: %s; id: %d; flags: %s' % (opcode, rcode, data.id, ' '.join(flags))
+        print 'queries: %d; answers: %d; authorities: %d; additional: %d' % (len(data.questions), len(data.answers), len(data.authrecords), len(data.additional))
+        
+        print ''
+        print 'Question Section'
+        for name, qtype, qclass in data.questions:
+            if qtype < len(QTYPES):
+                qtype = QTYPES[qtype-1]
+            else:
+                qtype = str(qtype)
+            
+            if qclass == IN:
+                qclass = 'IN'
+            else:
+                qclass = str(qclass)
+            
+            print ' %-31s %-5s %s' % (name, qclass, qtype)
+        
+        for lbl,lst in (('Answer', data.answers), ('Authority', data.authrecords), ('Additional', data.additional)):
+            if not lst:
+                continue
+            print ''
+            print '%s Section' % lbl
+            for name, atype, aclass, ttl, rdata in lst:
+                if atype < len(QTYPES):
+                    atype = QTYPES[atype-1]
+                else:
+                    atype = str(atype)
+                
+                if aclass == IN:
+                    aclass = 'IN'
+                else:
+                    aclass = str(aclass)
+                
+                print ' %-22s %-8d %-5s %-8s %s' % (name, ttl, aclass, atype, ' '.join(str(x) for x in rdata))
+        
+        print ''
+        print 'Query Time: %d msec' % int((end - start) * 1000)
+        print 'Message Size: %d' % len(str(data))
+    
+    print ''
