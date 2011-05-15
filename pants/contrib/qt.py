@@ -22,7 +22,7 @@
 
 import functools
 
-from pants.engine import _Poller, Engine
+from pants.engine import Engine
 
 try:
     from PySide.QtCore import QCoreApplication, QSocketNotifier, QTimer
@@ -33,7 +33,7 @@ except ImportError:
 # _Qt Class
 ###############################################################################
 
-class _Qt(_Poller):
+class _Qt(object):
     """
     A QSocketNotifier-based polling object.
 

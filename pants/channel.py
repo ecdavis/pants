@@ -63,7 +63,7 @@ class Channel(object):
     Keyword Argument   Description
     =================  ============
     family             *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
-    type               *Optional.* A supported socket type. By default, is :const:`SOCK_STREAM`.
+    type               *Optional.* A supported socket type. By default, is :const:`socket.SOCK_STREAM`.
     socket             *Optional.* A pre-existing socket to wrap.
     =================  ============
     """
