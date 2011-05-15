@@ -387,7 +387,7 @@ class Channel(object):
             else:
                 raise
     
-    def _socket_sendto(self, data, addr):
+    def _socket_sendto(self, data, addr, flags=0):
         """
         Send data to a remote socket.
         
@@ -398,10 +398,11 @@ class Channel(object):
         =========  ============
         data       The string of data to send.
         addr       The remote address to send to.
+        flags      *Optional.* Flags to pass to the sendto call.
         =========  ============
         """
         try:
-            return self._socket.sendto(data, addr)
+            return self._socket.sendto(data, flags, addr)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True
