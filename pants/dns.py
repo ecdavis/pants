@@ -974,12 +974,20 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False,
                 help="Show extra messages.")
+    parser.add_option("-l", "--list-servers", dest="list", action="store_true", default=False,
+                help="List the discovered DNS servers.")
     
     options, args = parser.parse_args()
     
     if options.debug:
         logging.getLogger('').setLevel(logging.DEBUG)
         logging.info('...')
+    
+    if options.list:
+        print ''
+        print 'Available DNS Servers'
+        for i in list_dns_servers():
+            print ' %s' % i
     
     if sys.platform == 'win32':
         timer = time.clock
