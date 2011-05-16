@@ -170,8 +170,8 @@ class Stream(Channel):
             self.close()
             return self
         
-        self._update_addr()
         self._listening = True
+        self._update_addr()
         
         return self
     
@@ -188,6 +188,7 @@ class Stream(Channel):
         self._connected = False
         self._connecting = False
         self._listening = False
+        self._update_addr()
         
         Channel.close(self)
     
@@ -345,9 +346,9 @@ class Stream(Channel):
         if err != 0:
             raise socket.error(err, errstr)
         
-        self._update_addr()
         self._connected = True
         self._connecting = False
+        self._update_addr()
         self._safely_call(self.on_connect)
     
     ##### Internal Processing Methods #########################################    
