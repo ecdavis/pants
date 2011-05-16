@@ -39,6 +39,7 @@ else:
 
 from time import time as curtime
 
+from datetime import datetime
 from pants import callback, Connection, Server, __version__ as pants_version
 from pants.engine import Engine
 from pants.stream import Stream
@@ -53,6 +54,9 @@ log = logging.getLogger('http')
 ###############################################################################
 # Constants
 ###############################################################################
+
+SERVER      = 'HTTPants (pants/%s)' % pants_version
+SERVER_URL  = 'http://www.pantsweb.org/'
 
 USER_AGENT = "HTTPants/%s" % pants_version
 
@@ -1025,9 +1029,24 @@ class HTTPRequest(object):
         self.connection = connection
         self.headers    = headers or {}
         self.method     = method
-        self.protocol   = protocol
         self.uri        = uri
         self.version    = http_version
+        
+        # X-Headers
+        if connection.server.xheaders:
+            remote_ip = self.headers.get('X-Real-IP')
+            if remote_ip is None:
+                remote_ip = self.headers.get('X-Forwarded-For')
+                if remote_ip is None:
+                    remote_ip = connection.remote_addr[0]
+                else:
+                    remote_ip = remote_ip.split(',')[0].strip()
+            
+            self.remote_ip = remote_ip
+            self.protocol = self.headers.get('X-Forwarded-Proto', protocol)
+        else:
+            self.remote_ip  = connection.remote_addr[0]
+            self.protocol   = protocol
         
         # Calculated Variables
         self.host       = self.headers.get('Host', '127.0.0.1')
@@ -1050,7 +1069,8 @@ class HTTPRequest(object):
             self.__class__.__name__, attr, self.headers)
     
     def __html__(self):
-        attr = ('version','method','protocol','host','uri','path','time')
+        attr = ('version','method','remote_ip','protocol','host','uri','path',
+                'time')
         attr = u'\n    '.join(u'%-8s = %r' % (k,getattr(self,k)) for k in attr)
         
         out = u'<pre>%s(\n    %s\n\n' % (self.__class__.__name__, attr)
@@ -1254,6 +1274,12 @@ class HTTPRequest(object):
             else:
                 append('%s: %s' % (key, val))
         
+        if not 'Date' in headers and self.version == 'HTTP/1.1':
+            append('Date: %s' % _date(datetime.utcnow()))
+        
+        if not 'Server' in headers:
+            append('Server: %s' % SERVER)
+        
         if cookies and hasattr(self, '_cookies'):
             self.send_cookies(end_headers=False)
         
@@ -1356,18 +1382,20 @@ class HTTPServer(SSLServer):
     keep_alive        *Optional.* Whether or not multiple requests are allowed over a single connection. By default, this is True.
     ssl_options       *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
     cookie_secret     *Optional.* A string to use when signing secure cookies.
+    xheaders          *Optional.* Whether or not to use X-Forwarded-For and X-Forwared-Proto headers. This is disabled by default.
     ================  ============
     """
     ConnectionClass = HTTPConnection
     
     def __init__(self, request_handler, max_request=10485760, keep_alive=True,
-                    ssl_options=None, cookie_secret=None):
+                    ssl_options=None, cookie_secret=None, xheaders=False):
         SSLServer.__init__(self, ssl_options=ssl_options)
         
         # Storage
         self.request_handler    = request_handler
         self.max_request        = max_request
         self.keep_alive         = keep_alive
+        self.xheaders           = xheaders
         
         self._cookie_secret     = cookie_secret
     
@@ -1555,3 +1583,6 @@ def read_headers(data, target=None):
         target[key] = val
     
     return target
+
+def _date(dt):
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")

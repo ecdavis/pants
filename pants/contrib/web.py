@@ -31,7 +31,7 @@ import urllib
 
 from datetime import datetime, timedelta
 from pants import __version__ as pants_version
-from http import CRLF, HTTP, HTTPServer, HTTPRequest
+from http import CRLF, HTTP, HTTPServer, HTTPRequest, SERVER, SERVER_URL, _date
 
 try:
     import simplejson as json
@@ -74,9 +74,6 @@ log = logging.getLogger(__name__)
 ###############################################################################
 # Constants
 ###############################################################################
-
-SERVER      = 'HTTPants (pants/%s)' % pants_version
-SERVER_URL  = 'http://www.pantsweb.org/'
 
 HAIKUS = {
     400: u'Something you entered<br>'
@@ -1160,9 +1157,6 @@ def _decode(text):
             continue
     else:
         return text.decode('utf-8','ignore')
-
-def _date(dt):
-    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
 def _parse_date(text):
     return datetime(*time.strptime(text, "%a, %d %b %Y %H:%M:%S GMT")[:6])
