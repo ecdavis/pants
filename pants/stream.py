@@ -188,7 +188,6 @@ class Stream(Channel):
         self._connected = False
         self._connecting = False
         self._listening = False
-        self._update_addr()
         
         Channel.close(self)
     
