@@ -133,7 +133,7 @@ class Channel(object):
         Engine.instance().remove_channel(self)
         self._socket_close()
         self._update_addr()
-        self._safely_call(on_close)
+        self._safely_call(self.on_close)
     
     def end(self):
         """
