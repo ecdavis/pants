@@ -44,7 +44,7 @@ Here's an absurdly simple example - Hello World::
     Server(Hello).listen(4000)
     engine.start()
 
-What about an absurdly fast web server? Got you covered::
+Want an absurdly fast web server? Got you covered::
     
     from pants.contrib.web import Application, HTTPServer
     from pants import engine
