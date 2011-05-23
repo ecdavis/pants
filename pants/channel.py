@@ -79,8 +79,6 @@ class Channel(object):
         self._socket = None
         self.fileno = None
         self._socket_set(sock)
-        self.remote_addr = (None, None) # TODO Should this be None?
-        self.local_addr = (None, None) # TODO Should this be None?
         
         # Socket state
         self._wait_for_read_event = True
@@ -132,7 +130,6 @@ class Channel(object):
         
         Engine.instance().remove_channel(self)
         self._socket_close()
-        self._update_addr()
         self._safely_call(self.on_close)
     
     def end(self):
@@ -452,12 +449,6 @@ class Channel(object):
                     errstr = errno.errorcode[err]
         
         return err, errstr
-    
-    def _update_addr(self):
-        """
-        Update the channel's remote_addr and local_addr attributes.
-        """
-        raise NotImplementedError
     
     ##### Internal Event Handler Methods ######################################
     

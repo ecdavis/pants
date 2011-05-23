@@ -45,6 +45,10 @@ class Datagram(Channel):
         
         Channel.__init__(self, **kwargs)
         
+        # Socket
+        self.remote_addr = (None, None)
+        self.local_addr = (None, None)
+        
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = {}
@@ -128,6 +132,7 @@ class Datagram(Channel):
         self._recv_buffer = {}
         self._send_buffer = []
         self._listening = False
+        self._update_addr()
         
         Channel.close(self)
     
