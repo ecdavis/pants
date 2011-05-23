@@ -40,7 +40,12 @@ log = logging.getLogger("pants")
 
 class Engine(object):
     """
-    The singleton engine class.
+    The asynchronous engine that powers a Pants application.
+    
+    The engine is a singleton object responsible for updating all
+    :class:`~pants.channel.Channel` objects and timers in your
+    application. Once started it will run until it is manually stopped,
+    interrupted or a fatal error occurs.
     """
     # Socket events - these correspond to epoll() states.
     NONE = 0x00
@@ -80,15 +85,16 @@ class Engine(object):
         Start the engine.
         
         This method initialises and continuously polls the engine until
-        either :meth:`stop` is called, or an uncaught :obj:`Exception` is
-        raised. :meth:`start` should be called after your asynchronous
-        application has been fully initialised. For applications with a
-        pre-existing main loop, see :meth:`poll`.
+        either :meth:`~pants.engine.Engine.stop` is called, or an uncaught
+        :obj:`Exception` is raised. :meth:`~pants.engine.Engine.start`
+        should be called after your asynchronous application has been fully
+        initialised. For applications with a pre-existing main loop, see
+        :meth:`~pants.engine.Engine.poll`.
         
         =============  ============
         Argument       Description
         =============  ============
-        poll_timeout   *Optional.* The timeout to pass to :meth:`poll`. By default, is 0.02.
+        poll_timeout   *Optional.* The timeout to pass to :meth:`~pants.engine.Engine.poll`. By default, is 0.02.
         =============  ============
         """
         if self._shutdown:
@@ -122,8 +128,9 @@ class Engine(object):
         """
         Stop the engine.
         
-        If :meth:`start` has been called, calling :meth:`stop` will
-        cause the engine to cease polling and shut down.
+        If :meth:`~pants.engine.Engine.start` has been called, calling
+        :meth:`~pants.engine.Engine.stop` will cause the engine to cease
+        polling and shut down.
         """
         self._shutdown = True
     
@@ -132,8 +139,9 @@ class Engine(object):
         Poll the engine.
         
         Update timers and perform I/O on all active channels. If your
-        application has a pre-existing main loop, call :meth:`poll` on
-        each iteration of that loop, otherwise, see :meth:`start`.
+        application has a pre-existing main loop, call
+        :meth:`~pants.engine.Engine.poll` on each iteration of that loop,
+        otherwise, see :meth:`~pants.engine.Engine.start`.
         
         ============= ============
         Argument      Description
