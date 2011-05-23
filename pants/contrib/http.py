@@ -374,21 +374,18 @@ class HTTPClient(object):
             return
         
         # If we got here, we're connected, and to the right server. Do stuff.
-        self._send('%s %s HTTP/1.1%s' % (request[0], request[8], CRLF))
+        self.write('%s %s HTTP/1.1%s' % (request[0], request[8], CRLF))
         for k, v in request[3].iteritems():
-            self._send('%s: %s%s' % (k, v, CRLF))
+            self.write('%s: %s%s' % (k, v, CRLF))
         
         if request[4]:
-            self._send('%s%s' % (CRLF, request[4]))
+            self.write('%s%s' % (CRLF, request[4]))
         else:
-            self._send(CRLF)
+            self.write(CRLF)
         
         # Now, wait for a response.
         self._stream.on_read = self._read_headers
         self._stream.read_delimiter = DOUBLE_CRLF
-    
-    def _send(self, data):
-        self._stream._send(data, False)
     
     ##### Internal Event Handlers #############################################
     
@@ -926,7 +923,7 @@ class HTTPConnection(Connection):
                         code='413 Request Entity Too Large')
                 
                 if headers.get('Expect','').lower() == '100-continue':
-                    self._send("%s 100 (Continue)%s" % (
+                    self.write("%s 100 (Continue)%s" % (
                         http_version, DOUBLE_CRLF), False)
                 
                 # Await a request body.
@@ -940,18 +937,18 @@ class HTTPConnection(Connection):
         except BadRequest, e:
             log.info('Bad request from %r: %s',
                 self.remote_addr, e)
-            self._send('HTTP/1.1 %s%s' % (e.code, CRLF), False)
+            self.write('HTTP/1.1 %s%s' % (e.code, CRLF), False)
             if e.body:
-                self._send('Content-Type: text/html%s' % CRLF, False)
-                self._send('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF), False)
-                self._send(e.body, False)
+                self.write('Content-Type: text/html%s' % CRLF, False)
+                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF), False)
+                self.write(e.body, False)
             else:
-                self._send(CRLF, False)
+                self.write(CRLF, False)
             self.end()
         
         except Exception:
             log.exception('Error handling HTTP request.')
-            self._send('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF, False)
+            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF, False)
             self.end()
     
     def _read_request_body(self, data):
@@ -983,18 +980,18 @@ class HTTPConnection(Connection):
         except BadRequest, e:
             log.info('Bad request from %r: %s',
                 self.remote_addr, e)
-            self._send('HTTP/1.1 %s%s' % (e.code, CRLF), False)
+            self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
             if e.body:
-                self._send('Content-Type: text/html%s' % CRLF, False)
-                self._send('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF), False)
-                self._send(e.body, False)
+                self.write('Content-Type: text/html%s' % CRLF)
+                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF))
+                self.write(e.body)
             else:
-                self._send(CRLF, False)
+                self.write(CRLF)
             self.end()
         
         except Exception:
             log.exception('Error handling HTTP request.')
-            self._send('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF, False)
+            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
             self.end()
 
 ###############################################################################
@@ -1248,9 +1245,9 @@ class HTTPRequest(object):
             out += CRLF
         
         if end_headers:
-            self.connection._send('%s%s' % (out, CRLF), False)
+            self.connection.write('%s%s' % (out, CRLF))
         else:
-            self.connection._send(out, False)
+            self.connection.write(out)
     
     def send_headers(self, headers, end_headers=True, cookies=True):
         """
@@ -1288,7 +1285,7 @@ class HTTPRequest(object):
         else:
             append('')
         
-        self.connection._send(CRLF.join(out), False)
+        self.connection.write(CRLF.join(out))
     
     def send_status(self, code=200):
         """
@@ -1309,11 +1306,11 @@ class HTTPRequest(object):
         """
         try:
             HTTP[code]
-            self.connection._send('%s %d %s%s' % (
-                self.version, code, HTTP[code], CRLF), False)
+            self.connection.write('%s %d %s%s' % (
+                self.version, code, HTTP[code], CRLF))
         except KeyError:
-            self.connection._send('%s %s%s' % (
-                self.version, code, CRLF), False)
+            self.connection.write('%s %s%s' % (
+                self.version, code, CRLF))
     
     write = send
     

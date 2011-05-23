@@ -148,13 +148,7 @@ class Channel(object):
     
     def write(self):
         """
-        Overridable wrapper for :meth:`_send()`.
-        """
-        raise NotImplementedError
-    
-    def _send(self):
-        """
-        Send data over the channel.
+        Write data to the channel.
         """
         raise NotImplementedError
     

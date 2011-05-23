@@ -200,19 +200,13 @@ class Stream(Channel):
     
     def write(self, data, buffer_data=False):
         """
-        Overridable wrapper for :meth:`_send`.
-        """
-        self._send(data, buffer_data)
-    
-    def _send(self, data, buffer_data):
-        """
-        Send data over the channel.
+        Write data to the channel.
         
         ============  ============
         Arguments     Description
         ============  ============
-        data          A string of data to send over the channel.
-        buffer_data   If True, the data will be buffered and sent later.
+        data          A string of data to write to the channel.
+        buffer_data   If True, the data will be buffered and written later.
         ============  ============
         """
         if self._socket is None:
