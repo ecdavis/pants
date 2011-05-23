@@ -924,7 +924,7 @@ class HTTPConnection(Connection):
                 
                 if headers.get('Expect','').lower() == '100-continue':
                     self.write("%s 100 (Continue)%s" % (
-                        http_version, DOUBLE_CRLF), False)
+                        http_version, DOUBLE_CRLF))
                 
                 # Await a request body.
                 self.on_read = self._read_request_body
@@ -937,18 +937,18 @@ class HTTPConnection(Connection):
         except BadRequest, e:
             log.info('Bad request from %r: %s',
                 self.remote_addr, e)
-            self.write('HTTP/1.1 %s%s' % (e.code, CRLF), False)
+            self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
             if e.body:
-                self.write('Content-Type: text/html%s' % CRLF, False)
-                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF), False)
-                self.write(e.body, False)
+                self.write('Content-Type: text/html%s' % CRLF)
+                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF))
+                self.write(e.body)
             else:
-                self.write(CRLF, False)
+                self.write(CRLF)
             self.end()
         
         except Exception:
             log.exception('Error handling HTTP request.')
-            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF, False)
+            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
             self.end()
     
     def _read_request_body(self, data):
@@ -1214,7 +1214,7 @@ class HTTPRequest(object):
         data       A string of data to be sent to the client.
         =========  ============
         """
-        self.connection._send(data, False)
+        self.connection.write(data)
     
     def send_cookies(self, keys=None, end_headers=False):
         """
