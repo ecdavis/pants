@@ -37,7 +37,7 @@ Here's an absurdly simple example - Hello World::
     from pants import Connection, engine, Server
     
     class Hello(Connection):
-        def handle_connect(self):
+        def on_connect(self):
             self.write("Hello, World!\r\n")
             self.close()
     
