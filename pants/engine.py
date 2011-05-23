@@ -265,8 +265,8 @@ class Engine(object):
         Argument   Description
         =========  ============
         func       The callable to be executed when the callback is run.
-        *args      The positional arguments to be passed to the callable.
-        **kwargs   The keyword arguments to be passed to the callable.
+        args       The positional arguments to be passed to the callable.
+        kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
         callback = _Callback(func, *args, **kwargs)
@@ -287,8 +287,8 @@ class Engine(object):
         Argument   Description
         =========  ============
         func       The callable to be executed when the loop is run.
-        *args      The positional arguments to be passed to the callable.
-        **kwargs   The keyword arguments to be passed to the callable.
+        args       The positional arguments to be passed to the callable.
+        kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
         loop = _Loop(func, *args, **kwargs)
@@ -310,8 +310,8 @@ class Engine(object):
         =========  ============
         func       The callable to be executed when the deferred is run.
         delay      The delay, in seconds, after which the deferred should be run.
-        *args      The positional arguments to be passed to the callable.
-        **kwargs   The keyword arguments to be passed to the callable.
+        args       The positional arguments to be passed to the callable.
+        kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
         deferred = _Deferred(func, delay, *args, **kwargs)
@@ -334,8 +334,8 @@ class Engine(object):
         =========  ============
         func       The callable to be executed when the cycle is run.
         interval   The interval, in seconds, at which the cycle should be run.
-        *args      The positional arguments to be passed to the callable.
-        **kwargs   The keyword arguments to be passed to the callable.
+        args       The positional arguments to be passed to the callable.
+        kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
         cycle = _Cycle(func, interval, *args, **kwargs)
