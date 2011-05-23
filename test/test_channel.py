@@ -627,8 +627,3 @@ def test_socket_sendto_when_socket_error_is_raised():
         assert False, "socket.error should be raised."
     except socket.error as e:
         assert e[0] == IMPOSSIBLE_ERROR
-
-if __name__ == "__main__":
-    test_socket_sendto()
-    test_socket_sendto_when_sendto_blocks()
-    test_socket_sendto_when_socket_error_is_raised()
