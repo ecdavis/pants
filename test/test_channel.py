@@ -403,10 +403,10 @@ def test_socket_connect_when_uncaught_socket_error_is_raised():
 def test_socket_listen():
     chan = MockChannel()
     
-    chan._readable = True
+    chan._wait_for_read_event = False
     chan._socket_listen(1024)
     
-    assert not chan._readable
+    assert chan._wait_for_read_event
 
 # TODO Should we test the backlog adjustment here?
 
@@ -481,7 +481,7 @@ def test_socket_accept_when_accept_blocks():
     
     assert sock.accept_called
     assert ret == (None, ())
-    assert not chan._readable
+    assert chan._wait_for_read_event
 
 def test_socket_accept_when_socket_error_is_raised():
     sock = MockSocket(IMPOSSIBLE_ERROR)
@@ -515,7 +515,7 @@ def test_socket_recv_when_recv_blocks():
     ret = chan._socket_recv()
     
     assert ret == ''
-    assert not chan._readable
+    assert chan._wait_for_read_event
 
 def test_socket_recv_when_socket_error_is_raised():
     sock = MockSocket(IMPOSSIBLE_ERROR)
@@ -549,7 +549,7 @@ def test_socket_recvfrom_when_recvfrom_blocks():
     ret = chan._socket_recvfrom()
     
     assert ret == ('', None)
-    assert not chan._readable
+    assert chan._wait_for_read_event
 
 def test_socket_recvfrom_when_socket_error_is_raised():
     sock = MockSocket(IMPOSSIBLE_ERROR)
@@ -582,7 +582,7 @@ def test_socket_send_when_send_blocks():
     ret = chan._socket_send(EXAMPLE_STRING)
     
     assert ret == 0
-    assert not chan._writable
+    assert chan._wait_for_write_event
 
 def test_socket_send_when_socket_error_is_raised():
     sock = MockSocket(IMPOSSIBLE_ERROR)
@@ -627,3 +627,8 @@ def test_socket_sendto_when_socket_error_is_raised():
         assert False, "socket.error should be raised."
     except socket.error as e:
         assert e[0] == IMPOSSIBLE_ERROR
+
+if __name__ == "__main__":
+    test_socket_sendto()
+    test_socket_sendto_when_sendto_blocks()
+    test_socket_sendto_when_socket_error_is_raised()
