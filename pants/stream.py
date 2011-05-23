@@ -49,8 +49,9 @@ class Stream(Channel):
     ==========  ============
     """
     def __init__(self, **kwargs):
-        if "type" not in kwargs:
-            kwargs["type"] = socket.SOCK_STREAM
+        if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
+            raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
+                    % self.__class__.__name__)
         
         Channel.__init__(self, **kwargs)
         

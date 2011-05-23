@@ -40,8 +40,9 @@ log = logging.getLogger("pants")
 
 class Datagram(Channel):
     def __init__(self, **kwargs):
-        if "type" not in kwargs:
-            kwargs["type"] = socket.SOCK_DGRAM
+        if kwargs.setdefault("type", socket.SOCK_DGRAM) != socket.SOCK_DGRAM:
+            raise TypeError("Cannot create a %s with a type other than SOCK_DGRAM."
+                    % self.__class__.__name__)
         
         Channel.__init__(self, **kwargs)
         
