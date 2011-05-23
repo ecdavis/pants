@@ -44,19 +44,16 @@ Here's an absurdly simple example - Hello World::
     Server(Hello).listen(4000)
     engine.start()
 
-Hello Web
-=========
-
-Pants does HTTP too, as demonstrated by another Hello World::
-	
-	from pants.contrib.web import Application, HTTPServer
-	from pants import engine
-	
-	app = Application()
-	
-	@app.route('/')
-	def hello():
-		return "Hello, World!"
-	
-	HTTPServer(app).listen(80)
-	engine.start()
+What about an awesome, fast web server? Got you covered::
+    
+    from pants.contrib.web import Application, HTTPServer
+    from pants import engine
+    
+    app = Application()
+    
+    @app.route('/')
+    def hello():
+        return "Hello, World!"
+    
+    HTTPServer(app).listen(80)
+    engine.start()
