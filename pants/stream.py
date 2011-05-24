@@ -280,10 +280,13 @@ class Stream(Channel):
                 self.close()
                 return
             
-            if not data:
+            if data is None:
+                self.close()
+                return
+            elif len(data) == 0:
                 break
-            
-            self._recv_buffer += data
+            else:
+                self._recv_buffer += data
         
         self._process_recv_buffer()
     

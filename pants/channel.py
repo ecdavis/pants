@@ -324,7 +324,7 @@ class Channel(object):
         Receive data from the socket.
         
         Returns a string of data read from the socket. The data is None if
-        reading failed.
+        the socket has been closed.
         """
         try:
             data = self._socket.recv(self._recv_amount)
@@ -332,6 +332,8 @@ class Channel(object):
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_read_event = True
                 return ''
+            elif err[0] == errno.ECONNRESET:
+                return None
             else:
                 raise
         
