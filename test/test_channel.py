@@ -144,7 +144,7 @@ class MockSocket(object):
         else:
             self._raise_exc()
     
-    def sendto(self, data, addr):
+    def sendto(self, data, flags, addr):
         self.sendto_called = True
         self.sendto_addr = addr
         self.send_buffer += data
@@ -616,7 +616,7 @@ def test_socket_sendto_when_sendto_blocks():
     ret = chan._socket_sendto(EXAMPLE_STRING, EXAMPLE_ADDRESS)
     
     assert ret == 0
-    assert not chan._writable
+    assert chan._wait_for_write_event
 
 def test_socket_sendto_when_socket_error_is_raised():
     sock = MockSocket(IMPOSSIBLE_ERROR)
