@@ -36,7 +36,7 @@ If you choose to use Pants' event loop, you will need to start the
 :obj:`~pants.engine.Engine` with the :meth:`~pants.engine.Engine.start`
 method. This will cause the :obj:`~pants.engine.Engine` to call
 :meth:`~pants.engine.Engine.poll` continuously until it is stopped
-either by an uncaught :obj:`Exception` or the
+either by an uncaught :exc:`Exception` or the
 :meth:`~pants.engine.Engine.stop` method.
 
 The :meth:`~pants.engine.Engine.start` method blocks the process until
