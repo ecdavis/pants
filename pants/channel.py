@@ -414,7 +414,7 @@ class Channel(object):
         Safely execute a callable.
         
         The callable is wrapped in a try block and executed. If an
-        exception is raised it is logged and the channel is closed.
+        exception is raised it is logged.
         
         ==============  ============
         Argument        Description
@@ -429,7 +429,7 @@ class Channel(object):
         except Exception:
             log.exception("Exception raised on %s #%d." %
                     (self.__class__.__name__, self.fileno))
-            self.close()
+            # TODO Close the channel here?
     
     def _get_socket_error(self):
         """
@@ -488,7 +488,7 @@ class Channel(object):
             return
         
         if events & Engine.HANGUP:
-            log.debug("%s #%d hung up." %
+            log.debug("Hang up on %s #%d." %
                     (self.__class__.__name__, self.fileno))
             self.close()
             return

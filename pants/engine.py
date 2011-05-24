@@ -194,6 +194,9 @@ class Engine(object):
             except (IOError, OSError), err:
                 if err[0] == errno.EPIPE:
                     # EPIPE: Broken pipe.
+                    log.debug("Broken pipe on %s #%d." %
+                            (self._channels[fileno].__class__.__name___, fileno))
+                    # TODO Close channel here?
                     self._channels[fileno].close()
                 else:
                     log.exception("Error while handling I/O events on %s #%d." %
