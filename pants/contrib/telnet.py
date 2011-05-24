@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# Copyright 2011 Chris Davis
+# Copyright 2011 Chris Davis, Stendec
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ WILL = chr(251) # Will Perform
 SB   = chr(250) # Subnegotiation Begin
 SE   = chr(240) # Subnegotiation End
 
-
 ###############################################################################
 # TelnetConnection Class
 ###############################################################################
@@ -54,133 +53,164 @@ class TelnetConnection(Connection):
     def __init__(self, server, socket):
         Connection.__init__(self, server, socket)
         
-        self._telnet_recv_buffer = ""
-        self._telnet_iac_sequence = ""
-        self._telnet_sb_sequence = ""
+        # Initialize Stuff
+        self._telnet_data = ""
     
     ##### Public Event Handlers ###############################################
     
-    def on_read(self, data):
+    def on_command(self, command):
         """
-        Reads incoming data and parses out Telnet command sequences.
-        """
-        for c in data:
-            self._telnet_recv_byte(c)
+        Placeholder. Called when the connection receives a telnet command,
+        such as AYT (Are You There).
         
-        if len(self._telnet_recv_buffer) > 0:
-            self.on_telnet_data(self._telnet_recv_buffer)
-            self._telnet_recv_buffer = ""
-    
-    def on_telnet_data(self, data):
-        """
-        Placeholder. Called when the connection receives a chunk of data.
-        
-        Parameters:
-            data - The received data.
+        =========  ============
+        Argument   Description
+        =========  ============
+        command    The byte representing the telnet command.
+        =========  ============
         """
         pass
     
-    def on_telnet_command(self, cmd):
+    def on_option(self, command, option):
         """
-        Placeholder. Called when the connection recieves a Telnet
-        command.
+        Placeholder. Called when the connection receives a telnet option
+        negotiation sequence, such as IAC WILL ECHO.
         
-        Parameters
-            cmd - The character representation of the Telnet command.
+        =========  ============
+        Argument   Description
+        =========  ============
+        command    The byte representing the telnet command.
+        option     The byte representing the telnet option being negotiated.
+        =========  ============
         """
         pass
     
-    def on_telnet_option(self, cmd, opt):
+    def on_subnegotiation(self, option, data):
         """
-        Placeholder. Called when the connection receives an option
-        negotiation sequence.
+        Placeholder. Called when the connection receives a subnegotiation
+        sequence.
         
-        Parameters:
-            cmd - The character representation of the Telnet command.
-            opt - The character representation of the Telnet option.
-        """
-        pass
-    
-    def on_telnet_subnegotiation(self, opt, arg):
-        """
-        Placeholder. Called when the connection receives a
-        subnegotiation sequence.
-        
-        Parameters:
-            opt - The character representation of the Telnet option.
-            arg - The string representation of the subnegotiation.
+        =========  ============
+        Argument   Description
+        =========  ============
+        option     The byte representing the telnet option for which subnegotiation data has been received.
+        data       The received data.
+        =========  ============
         """
         pass
     
     ##### Internal Processing Methods #########################################
     
-    def _telnet_recv_byte(self, c):
-        """
-        Reads a single character and adds it to the appropriate buffer
-        depending on the current state of the connection.
-        """
-        iac_length = len(self._telnet_iac_sequence)
+    ##### Internal Telnet State Processing ####################################
+    
+    def _on_telnet_data(self, data):
+        self._telnet_data += data
         
-        if iac_length == 0:
-            if c == IAC:
-                # Begin IAC sequence.
-                self._telnet_iac_sequence += c
+        while self._telnet_data:
+            delimiter = self.read_delimiter
+            
+            if delimiter is None:
+                data = self._telnet_data
+                self._telnet_data = ''
+                self._safely_call(self.on_read, data)
+            
+            elif isinstance(delimiter, (int,long)):
+                if len(self._telnet_data) < delimiter:
+                    break
+                data = self._telnet_data[:delimiter]
+                self._telnet_data = self._telnet_data[delimiter:]
+                self._safely_call(self.on_read, data)
+            
+            elif isinstance(delimiter, basestring):
+                mark = self._telnet_data.find(delimiter)
+                if mark == -1:
+                    break
+                data = self._telnet_data[:mark]
+                self._telnet_data = self._telnet_data[mark+len(delimiter):]
+                self._safely_call(self.on_read, data)
+            
             else:
-                # Add to standard inbuf.
-                self._telnet_recv_buffer += c
+                log.warning("Invalid read_delmiter on %s #%d." %
+                        (self.__class__.__name__, self.fileno))
+                break
+            
+            if self._socket is None or not self._connected:
+                break
+    
+    def _on_telnet_iac(self, data):
+        if len(data) < 2:
+            return False
+        
+        elif data[1] == IAC:
+            # It's an escaped IAC byte. Send it to the data buffer.
+            self._on_telnet_data(IAC)
+            return data[2:]
+        
+        elif data[1] in '\xFB\xFC\xFD\xFE':
+            if len(data) < 3:
+                return False
+            
+            self._safely_call(self.on_option, data[1], data[2])
+            return data[3:]
+        
+        elif data[1] == SB:
+            seq = ''
+            code = data[2:]
+            data = data[3:]
+            if not data:
+                return False
+            
+            while data:
+                loc = data.find(IAC)
+                if loc == -1:
+                    return False
                 
-        elif iac_length == 1:
-            if c == IAC:
-                # Escaped IAC.
-                self._telnet_recv_buffer += c
-                self._telnet_iac_sequence = ""
-            elif c in (DO, DONT, WILL, WONT):
-                # Option negotiation.
-                self._telnet_iac_sequence += c
-            elif c == SB:
-                # Subnegotiation.
-                self._telnet_iac_sequence += c
-            else:
-                # Telnet command - call method and reset state.
-                self.on_telnet_command(c)
-                self._telnet_iac_sequence = ""
+                seq += data[:loc]
                 
-        elif iac_length == 2:
-            last_byte = self._telnet_iac_sequence[-1]
-            if last_byte in (DO, DONT, WILL, WONT):
-                # Option negotiation - call method and reset state.
-                self.on_telnet_option(last_byte, c)
-                self._telnet_iac_sequence = ""
-            elif last_byte == SB:
-                # Subnegotiation - add option character to both IAC and
-                # SB buffers.
-                self._telnet_iac_sequence += c
-                self._telnet_sb_sequence += c
-            else:
-                # TODO This shouldn't happen. Pretend it didn't.
-                self._telnet_iac_sequence = ""
+                if data[loc+1] == SE:
+                    # Match
+                    data = data[loc+2:]
+                    break
                 
-        elif iac_length == 3:
-            if c == IAC:
-                # Coming to the end of the subnegotiation?
-                self._telnet_iac_sequence += c
-            else:
-                # Continuing the subnegotiation.
-                self._telnet_sb_sequence += c
+                elif data[loc+1] == IAC:
+                    # Escaped
+                    seq += IAC
+                    data = data[loc+2:]
+                    continue
                 
-        elif iac_length == 4:
-            if c == IAC:
-                # Escaped IAC in the subnegotiation.
-                self._telnet_iac_sequence = self._telnet_iac_sequence[:-1]
-                self._telnet_sb_sequence += c
-            elif c == SE:
-                # Subnegotiation complete - call method and reset state.
-                opt = self._telnet_sb_sequence[0]
-                arg = self._telnet_sb_sequence[1:]
-                self.on_telnet_subnegotiation(opt, arg)
-                self._telnet_iac_sequence = ""
-                self._telnet_sb_sequence = ""
-
+                # Unknown. Skip it.
+                data = data[loc+1:]
+                if not data:
+                    return False
+            
+            self._safely_call(self.on_subnegotiation, code, seq)
+        
+        # Still here? It must just be a command then. Send it on.
+        self._safely_call(self.on_command, data[1])
+        return data[2:]
+    
+    def _process_recv_buffer(self):
+        """
+        Completely replace the standard recv buffer processing with a custom
+        function for optimal telnet performance.
+        """
+        while self._recv_buffer:
+            loc = self._recv_buffer.find(IAC)
+            
+            if loc == -1:
+                self._on_telnet_data(self._recv_buffer)
+                self._recv_buffer = ''
+                break
+            
+            elif loc > 0:
+                self._on_telnet_data(self._recv_buffer[:loc])
+                self._recv_buffer = self._recv_buffer[loc:]
+            
+            out = self._on_telnet_iac(self._recv_buffer)
+            if out is False:
+                break
+            
+            self._recv_buffer = out
 
 ###############################################################################
 # TelnetServer Class

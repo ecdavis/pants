@@ -23,7 +23,7 @@
 import logging
 import re
 
-from pants.channel import Channel as _Channel
+from pants.stream import Stream
 
 ###############################################################################
 # Logging
@@ -50,7 +50,7 @@ CODECS  = ('utf-8','iso-8859-1','cp1252')
 # BaseIRC Class
 ###############################################################################
 
-class BaseIRC(_Channel):
+class BaseIRC(Stream):
     """
     The IRC protocol, implemented over a Pants Channel.
     
@@ -63,7 +63,7 @@ class BaseIRC(_Channel):
     """
     
     def __init__(self, socket=None, encoding='utf-8'):
-        _Channel.__init__(self, socket)
+        Stream.__init__(self, socket=socket)
         
         # Set our prefix to an empty string. This is prepended to all sent
         # commands, and useful for servers.
@@ -72,12 +72,6 @@ class BaseIRC(_Channel):
         
         # Read lines at once.
         self.read_delimiter = '\n'
-    
-    ##### Properties ##########################################################
-    
-    @property
-    def connected(self):
-        return self._connected
     
     ##### Public Event Handlers ###############################################
     
@@ -185,13 +179,13 @@ class BaseIRC(_Channel):
             out = '%s %s' % (self.prefix, out)
         
         # Send it.
-        log.debug('\x1B[0;32m>> %s\x1B[0m' % out)
+        log.debug('\x1B[0;32m>> %s\x1B[0m' % out.rstrip())
         
-        self.send(out.encode(self.encoding))
+        self.write(out.encode(self.encoding))
     
     ##### Internal Event Handlers #############################################
     
-    def handle_command(self, command, args, nick, user, host):
+    def on_command(self, command, args, nick, user, host):
         """
         Placeholder.
         
@@ -206,7 +200,7 @@ class BaseIRC(_Channel):
         else:
             self.irc_command(command, args, nick, user, host)
     
-    def handle_connect(self):
+    def on_connect(self):
         """
         Placeholder.
         
@@ -215,7 +209,7 @@ class BaseIRC(_Channel):
         """
         self.irc_connect()
     
-    def handle_close(self):
+    def on_close(self):
         """
         Placeholder.
         
@@ -224,7 +218,7 @@ class BaseIRC(_Channel):
         """
         self.irc_close()
     
-    def handle_read(self, data):
+    def on_read(self, data):
         """
         Read the available data, parse the command, and call an event for it.
         """
@@ -262,7 +256,7 @@ class BaseIRC(_Channel):
             return
         
         # Handle the command.
-        self.handle_command(command, args, nick, user, host)
+        self.on_command(command, args, nick, user, host)
     
 ###############################################################################
 # IRCClient Class & Channel Class
@@ -391,7 +385,7 @@ class IRCClient(BaseIRC):
         if port:
             self._port = port
         
-        self._socket_connect(self._server, self._port)
+        Stream.connect(self, self._server, self._port)
     
     ##### I/O Methods #########################################################
     
@@ -621,7 +615,7 @@ class IRCClient(BaseIRC):
             while name[0] in '@+':
                 name = name[1:]
             if name in self._channels[chan].users:
-                self._channels[chan].remove(name)
+                self._channels[chan].users.remove(name)
         
         if len(args) < 2:
             args.append('')
@@ -663,7 +657,7 @@ class IRCClient(BaseIRC):
     
     ##### Internal Event Handlers #############################################
     
-    def handle_connect(self):
+    def on_connect(self):
         """
         We're connected, so send the login stuff.
         """
@@ -682,7 +676,7 @@ class IRCClient(BaseIRC):
         # And now, we wait. Don't raise irc_connect until we get a message
         # letting us know our connection was accepted.
     
-    def handle_close(self):
+    def on_close(self):
         """
         We've been disconnected.
         """
