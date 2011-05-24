@@ -40,12 +40,12 @@ log = logging.getLogger("pants")
 
 class Stream(Channel):
     """
-    A TCP stream channel class.
+    A streaming, connection-based :class:`~pants.channel.Channel`.
     
     ==========  ============
     Arguments   Description
     ==========  ============
-    kwargs      Keyword arguments to be passed through to :obj:`Channel`
+    kwargs      Keyword arguments to be passed through to :class:`~pants.channel.Channel`
     ==========  ============
     """
     def __init__(self, **kwargs):
@@ -247,8 +247,8 @@ class Stream(Channel):
     
     def _update_addr(self):
         """
-        Update the channel's attr:`remote_addr` and attr:`local_addr`
-        attributes.
+        Update the stream's attr:`~pants.stream.Stream.remote_addr` and
+        attr:`~pants.stream.Stream.local_addr` attributes.
         """
         if self._connected:
             self.remote_addr = self._socket.getpeername()
@@ -354,8 +354,8 @@ class Stream(Channel):
     
     def _process_recv_buffer(self):
         """
-        Process the :attr:`_recv_buffer`, passing chunks of data to
-        :meth:`on_read`.
+        Process the :attr:`~pants.stream.Stream._recv_buffer`, passing
+        chunks of data to :meth:`~pants.stream.Stream.on_read`.
         """
         while self._recv_buffer:
             delimiter = self.read_delimiter
