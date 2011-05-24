@@ -55,7 +55,7 @@ class Channel(object):
     
     Channel is intended to be subclassed rather than instantiated directly.
     As such, many of its public methods (and some of its private methods)
-    will raise a :obj:`NotImplementedError` if they are called. Subclasses
+    will raise a :exc:`NotImplementedError` if they are called. Subclasses
     should override these methods and ensure that their behaviour conforms
     to the specification in this class.
     
@@ -110,6 +110,8 @@ class Channel(object):
         Connect the channel to a remote socket.
         
         Returns the channel.
+        
+        Not implemented in :class:`~pants.channel.Channel`.
         """
         raise NotImplementedError
     
@@ -118,6 +120,8 @@ class Channel(object):
         Begin listening for connections made to the channel.
         
         Returns the channel.
+        
+        Not implemented in :class:`~pants.channel.Channel`.
         """
         raise NotImplementedError
     
@@ -149,6 +153,8 @@ class Channel(object):
     def write(self):
         """
         Write data to the channel.
+        
+        Not implemented in :class:`~pants.channel.Channel`.
         """
         raise NotImplementedError
     
@@ -499,11 +505,15 @@ class Channel(object):
     def _handle_read_event(self):
         """
         Handle a read event raised on the channel.
+        
+        Not implemented in :class:`~pants.channel.Channel`.
         """
         raise NotImplementedError
     
     def _handle_write_event(self):
         """
-        Handle a write event raised on the Channel.
+        Handle a write event raised on the channel.
+        
+        Not implemented in :class:`~pants.channel.Channel`.
         """
         raise NotImplementedError
