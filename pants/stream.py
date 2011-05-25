@@ -167,13 +167,9 @@ class Stream(Channel):
         try:
             self._socket_bind((host, port))
             self._socket_listen(backlog)
-        except socket.error, err:    
-            # TODO Raise exception here?
-            log.exception("Exception raised in listen() on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            # TODO Close this Stream here?
+        except socket.error, err:
             self.close()
-            return self
+            raise
         
         self._listening = True
         self._update_addr()
