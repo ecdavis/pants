@@ -123,13 +123,9 @@ class Stream(Channel):
         
         try:
             connected = self._socket_connect((host, port))
-        except socket.error, err:    
-            # TODO Raise exception here?
-            log.exception("Exception raised in connect() on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            # TODO Close this Stream here?
+        except socket.error, err:
             self.close()
-            return self
+            raise
         
         if connected:
             self._handle_connect_event()
