@@ -887,6 +887,10 @@ class Resolver(object):
             else:
                 data.server = '%s:%d' % (self.servers[0], DNS_PORT)
         
+        try:
+            df_timeout.cancel()
+        except Exception:
+            pass
         
         del self._messages[data.id]
         self._safely_call(callback, DNS_OK, data)
@@ -943,7 +947,9 @@ class Resolver(object):
         # Make the function for handling our response.
         def handle_response(status, data):
             cname = None
-            ttl = None
+            # TTL is 30 by default, so answers with no records we want will be
+            # repeated, but not too often.
+            ttl = 30
             
             if not data:
                 self._safely_call(callback, status, None, None, None)
@@ -973,7 +979,7 @@ class Resolver(object):
                 status = data.rcode
             
             self._safely_call(callback, status, cname, ttl, rdata)
-        
+            
         # Send it, so we get an ID.
         self.send_message(m, handle_response)
     
