@@ -45,8 +45,23 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
     _sendfile = _libc.sendfile
     
     if sys.platform == "linux2":
+        _sendfile.argtypes = [
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t
+                ]
+        
         def sendfile(file, channel, offset, bytes):
-            raise NotImplementedError
+            _offset = ctypes.c_uint64(offset)
+            
+            result = _sendfile(file.fileno(), channel.fileno, _offset, bytes)
+            
+            if result == -1:
+                e = ctypes.get_errno()
+                raise socket.error(e, os.strerror(e))
+            
+            return result
     
     elif sys.platform == "darwin":
         _sendfile.argtypes = [
@@ -55,7 +70,8 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
                 ctypes.c_uint64,
                 ctypes.POINTER(ctypes.c_uint64),
                 ctypes.c_voidp,
-                ctypes.c_int]
+                ctypes.c_int
+                ]
         
         def sendfile(file, channel, offset, bytes):
             _bytes = ctypes.c_uint64(bytes)
@@ -69,7 +85,27 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
             return _bytes.value
     
     elif sys.platform in ("freebsd", "dragonfly"):
+        _sendfile.argtypes = [
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_uint64,
+                ctypes.c_uint64,
+                ctypes.c_voidp,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_int
+                ]
+        
         def sendfile(file, channel, offset, bytes):
+            _bytes = ctypes.c_uint64()
+            
+            result = _sendfile(file.fileno(), channel.fileno, offset, bytes, None, _bytes, 0)
+            
+            if result == -1:
+                e = ctypes.get_errno()
+                raise socket.error(e, os.strerror(e))
+            
+            return _bytes.value
+            
             raise NotImplementedError
 
 else:
