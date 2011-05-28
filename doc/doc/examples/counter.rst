@@ -14,12 +14,13 @@ has been requested::
         
         count += 1
         
-        request.write(
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: %d\r\n" % len(str(count))
-            "\r\n"
-            str(count)
-            )
+        request.send_status(200)
+        request.send_headers({
+            'Content-Length': len(str(count)),
+            'Content-Type': 'text/plain'
+            })
+        
+        request.write(str(count))
         request.finish()
     
     HTTPServer(request_handler).listen()

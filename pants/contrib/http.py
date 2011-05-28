@@ -132,14 +132,14 @@ class HTTPClient(object):
     HTTPClient, assigning it directly, or supplying a suitable callable as the
     first argument when creating an instance of HTTPClient.
     
-    =================  ============
-    Argument           Description
-    =================  ============
-    response_handler   *Optional.* A callable that will handle any received responses.
-    max_redirects      *Optional.* The number of times to follow a redirect issued by the server. By default, this is 5.
-    keep_alive         *Optional.* Whether or not a single connection will be reused for multiple requests. By default, this is True.
-    unicode            *Optional.* Whether or not to attempt to convert the response body to unicode using the provided Content-Type header's encoding information. By default, this is True.
-    =================  ============
+    =================  ========  ============
+    Argument           Default   Description
+    =================  ========  ============
+    response_handler   None      *Optional.* A callable that will handle any received responses.
+    max_redirects      5         *Optional.* The number of times to follow a redirect issued by the server.
+    keep_alive         True      *Optional.* Whether or not a single connection will be reused for multiple requests.
+    unicode            True      *Optional.* Whether or not to attempt to convert the response body to unicode using the provided Content-Type header's encoding information.
+    =================  ========  ============
     """
     def __init__(self, response_handler=None, max_redirects=5, keep_alive=True,
                 unicode=True):
@@ -170,17 +170,17 @@ class HTTPClient(object):
             
             client.get('http://www.google.com/search', q='test')
         
-        Is equivilent to::
+        Is equivalent to::
             
             client.get('http://www.google.com/search?q=test')
         
-        =========  ============
-        Argument   Description
-        =========  ============
-        url        The URL to request.
-        timeout    *Optional.* The time, in seconds, to wait for a response before erroring. By default, this is 30.
-        headers    *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
-        =========  ============
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        url                  The URL to request.
+        timeout    30        *Optional.* The time, in seconds, to wait for a response before erroring.
+        headers    None      *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
+        =========  ========  ============
         """
         helper = self._helper
         if helper is None:
@@ -210,14 +210,14 @@ class HTTPClient(object):
         """
         Perform an HTTP POST request for the specified URL.
         
-        =========  ============
-        Argument   Description
-        =========  ============
-        url        The URL to request.
-        timeout    *Optional.* The time, in seconds, to wait for a response before erroring. By default, this is 30.
-        headers    *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
-        files      *Optional.* A dictionary of files to send with the request. If this is provided, the dictionary keys should be equivilent to HTML form field names, and the values should be tuples of ``(filename, data)``.
-        =========  ============
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        url                  The URL to request.
+        timeout    30        *Optional.* The time, in seconds, to wait for a response before erroring.
+        headers    None      *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
+        files      None      *Optional.* A dictionary of files to send with the request. If this is provided, the dictionary keys should be equivalent to HTML form field names, and the values should be tuples of ``(filename, data)``.
+        =========  ========  ============
         
         Any additional keyword arguments will be sent in the request body as
         POST variables.
@@ -700,6 +700,12 @@ class ClientHelper(object):
         self._responses.append((status, response))
     
     def fetch(self):
+        """
+        Perform all the pending requests and return them. If there is more than
+        one outstanding request, the results will be returned as a list of
+        :class:`HTTPResponse` instances. Otherwise, a single HTTPResponse
+        instance will be returned.
+        """
         for req in self.requests:
             req[6] = self._collect
         
@@ -1016,7 +1022,7 @@ class HTTPRequest(object):
     uri            The path part of the URI requested.
     http_version   The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
     headers        *Optional.* A dictionary of HTTP headers received with this request.
-    protocol       *Optional.* Either the string ``http` or ``https``, depending on the security of the connection this request was received upon.
+    protocol       *Optional.* Either the string ``http`` or ``https``, depending on the security of the connection this request was received upon.
     =============  ============
     """
     
@@ -1224,12 +1230,12 @@ class HTTPRequest(object):
         
         This function is usually called automatically by send_headers.
         
-        ============  ============
-        Argument      Description
-        ============  ============
-        keys          *Optional.* A list of cookie names to send.
-        end_headers   *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response.
-        ============  ============
+        ============  ========  ============
+        Argument      Default   Description
+        ============  ========  ============
+        keys          None      *Optional.* A list of cookie names to send.
+        end_headers   False     *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response.
+        ============  ========  ============
         """
         if keys is None:
             out = self.cookies.output()
@@ -1253,13 +1259,13 @@ class HTTPRequest(object):
         """
         Write a dictionary of HTTP headers to the client.
         
-        ============  ============
-        Argument      Description
-        ============  ============
-        headers       A dictionary of HTTP headers.
-        end_headers   *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response. By default, is True.
-        cookies       *Optional.* If this is set to True, HTTP cookies will be sent along with the headers.
-        ============  ============
+        ============  ========  ============
+        Argument      Default   Description
+        ============  ========  ============
+        headers                 A dictionary of HTTP headers.
+        end_headers   True      *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response.
+        cookies       True      *Optional.* If this is set to True, HTTP cookies will be sent along with the headers.
+        ============  ========  ============
         """
         out = []
         append = out.append
@@ -1298,11 +1304,11 @@ class HTTPRequest(object):
         ``HTTP/1.1 404 Not Found`` being sent to the client, assuming of course
         that the request used HTTP protocol version ``HTTP/1.1``.
         
-        =========  ============
-        Argument   Description
-        =========  ============
-        code       *Optional.* The HTTP status code to send to the client. By default, is 200.
-        =========  ============
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        code       200       *Optional.* The HTTP status code to send to the client.
+        =========  ========  ============
         """
         try:
             HTTP[code]
@@ -1371,16 +1377,16 @@ class HTTPServer(SSLServer):
         
         engine.start()
     
-    ================  ============
-    Argument          Description
-    ================  ============
-    request_handler   A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
-    max_request       *Optional.* The maximum allowed length, in bytes, of an HTTP request body. By default, this is 10 MiB.
-    keep_alive        *Optional.* Whether or not multiple requests are allowed over a single connection. By default, this is True.
-    ssl_options       *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
-    cookie_secret     *Optional.* A string to use when signing secure cookies.
-    xheaders          *Optional.* Whether or not to use X-Forwarded-For and X-Forwared-Proto headers. This is disabled by default.
-    ================  ============
+    ================  ========  ============
+    Argument          Default   Description
+    ================  ========  ============
+    request_handler             A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
+    max_request       10 MiB    *Optional.* The maximum allowed length, in bytes, of an HTTP request body.
+    keep_alive        True      *Optional.* Whether or not multiple requests are allowed over a single connection.
+    ssl_options       None      *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
+    cookie_secret     None      *Optional.* A string to use when signing secure cookies.
+    xheaders          False     *Optional.* Whether or not to use X-Forwarded-For and X-Forwared-Proto headers.
+    ================  ========  ============
     """
     ConnectionClass = HTTPConnection
     

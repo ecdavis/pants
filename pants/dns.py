@@ -45,10 +45,13 @@ log = logging.getLogger(__name__)
 ###############################################################################
 
 # Return Values
+DNS_TIMEOUT = -1
 DNS_OK = 0
-DNS_TIMEOUT = 1
-DNS_NAMEERROR = 2
-DNS_BADRESPONSE = 3
+DNS_FORMATERROR = 1
+DNS_SERVERFAILURE = 2
+DNS_NAMEERROR = 3
+DNS_NOTIMPLEMENTED = 4
+DNS_REFUSED = 5
 
 # DNS Listening Port
 DNS_PORT = 53
@@ -65,14 +68,6 @@ QTYPES = "A, NS, MD, MF, CNAME, SOA, MB, MG, MR, NULL, WKS, PTR, HINFO, MINFO, M
 OP_QUERY = 0
 OP_IQUERY = 1
 OP_STATUS = 2
-
-# RCODEs
-RC_NoError = 0
-RC_FormatError = 1
-RC_ServerFailure = 2
-RC_NameError = 3
-RC_NotImplemented = 4
-RC_Refused = 5
 
 # Query Classes
 IN = 1
@@ -141,9 +136,9 @@ for k,v in RDATA_TYPES.iteritems():
             keys.append(fn)
     
     RDATA_TUPLES[k] = collections.namedtuple(nm, keys)
-    
+
 ###############################################################################
-# OS-Specific DNS Server Listing Code
+# OS-Specific DNS Server Listing and hosts Code
 ###############################################################################
 
 if os.name == 'nt':
@@ -288,6 +283,8 @@ if os.name == 'nt':
         
         socket.inet_ntop = inet_ntop
     
+    host_path = os.path.join(os.path.expandvars("%SystemRoot%"), "system32", "drivers", "etc", "hosts")
+    
 else:
     # *nix is way easier. Parse resolve.conf.
     def list_dns_servers():
@@ -302,6 +299,68 @@ else:
         
         out.extend(DEFAULT_SERVERS)
         return out
+    
+    host_path = "/etc/hosts"
+
+###############################################################################
+# Hosts
+###############################################################################
+
+hosts = {A: {}, AAAA: {}}
+host_m = None
+host_time = None
+
+def load_hosts():
+    global host_m
+    global host_time
+    
+    host_time = time.time()
+    
+    try:
+        stat = os.stat(host_path)
+        if hosts and host_m is not None:
+            if host_m == (stat.st_mtime, stat.st_size):
+                return
+        
+        hosts[A].clear()
+        hosts[AAAA].clear()
+        
+        with open(host_path, 'r') as f:
+            for l in f.readlines():
+                l = l.strip().split(None, 1)
+                if len(l) < 2 or l[0].startswith('#') or not all(l):
+                    continue
+                ip = l[0].strip()
+                host = [x.strip() for x in l[1].split()]
+                
+                try:
+                    socket.inet_aton(ip)
+                    
+                    for h in host:
+                        hosts[A][h] = ip
+                    
+                except socket.error:
+                    if hasattr(socket, 'inet_pton'):
+                        try:
+                            socket.inet_pton(socket.AF_INET6, ip)
+                            
+                            for h in host:
+                                hosts[AAAA][h] = ip
+                        
+                        except socket.error:
+                            continue
+        
+        host_m = (stat.st_mtime, stat.st_size)
+    except (OSError, ValueError):
+        pass
+    
+    if not 'localhost' in hosts[A]:
+        hosts[A]['localhost'] = '127.0.0.1'
+    
+    if not 'localhost' in hosts[AAAA]:
+        hosts[AAAA]['localhost'] = '::1'
+
+load_hosts()
 
 ###############################################################################
 # DNSMessage Class
@@ -321,7 +380,7 @@ class DNSMessage(object):
                 'questions','answers','authrecords','additional')
     
     def __init__(self, id=None, qr=False, opcode=OP_QUERY, aa=False, tc=False,
-                    rd=True, ra=True, rcode=RC_NoError):
+                    rd=True, ra=True, rcode=DNS_OK):
         
         self.id = id
         self.qr = qr
@@ -340,9 +399,20 @@ class DNSMessage(object):
         self.additional = []
     
     def __str__(self):
-        return self.toString()
+        return self.to_string()
     
-    def toString(self, limit=None):
+    def to_string(self, limit=None):
+        """
+        Render the DNSMessage as a string of bytes that can be sent to a DNS
+        server. If a *limit* is specified and the length of the string exceeds
+        that limit, the truncated byte will automatically be set to True.
+        
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        limit      None      *Optional.* The maximum size of the message to generate, in bytes.
+        =========  ========  ============
+        """
         out = ""
         
         ## Body
@@ -389,6 +459,12 @@ class DNSMessage(object):
         """
         Create a DNSMessage instance containing the provided data in a usable
         format.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       The data to parse into a DNSMessage instance.
+        =========  ============
         """
         if len(data) < 12:
             raise TooShortError
@@ -587,7 +663,7 @@ def readRDATA(data, full_data, qtype):
     return tup(*values)
 
 ###############################################################################
-# Resolver Class
+# _DNSStream Class
 ###############################################################################
 
 class _DNSStream(Stream):
@@ -634,6 +710,10 @@ class _DNSStream(Stream):
         
         self.resolver.receive_message(m)
 
+###############################################################################
+# Resolver Class
+###############################################################################
+
 class Resolver(object):
     """
     The Resolver class generates DNS messages, sends them to remote servers,
@@ -643,7 +723,7 @@ class Resolver(object):
     =========  ============
     Argument   Description
     =========  ============
-    servers    *Optional.* A list of DNS servers to query. If a list isn't provided, Pants will attempt to retreive a list of servers from the OS, falling back to a list of default servers if none are available.
+    servers    *Optional.* A list of DNS servers to query. If a list isn't provided, Pants will attempt to retrieve a list of servers from the OS, falling back to a list of default servers if none are available.
     =========  ============
     """
     def __init__(self, servers=None):
@@ -711,13 +791,14 @@ class Resolver(object):
         Send an instance of DNSMessage to a DNS server, and call the provided
         callback when a response is received, or if the action times out.
         
-        =========  ============
-        Argument   Description
-        =========  ============
-        message    The :class:`DNSMessage` to send to the server.
-        callback   *Optional.* The function to call once the response has been received or the attempt has timed out.
-        timeout    *Optional.* How long, in seconds, to wait before timing out.
-        =========  ============
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        message              The :class:`DNSMessage` instance to send to the server.
+        callback   None      *Optional.* The function to call once the response has been received or the attempt has timed out.
+        timeout    10        *Optional.* How long, in seconds, to wait before timing out.
+        media      None      *Optional.* Whether to use UDP or TCP. UDP is used by default.
+        =========  ========  ============
         """
         while message.id is None or message.id in self._messages:
             self._last_id += 1
@@ -743,10 +824,14 @@ class Resolver(object):
         if media == 'udp':
             if self._udp is None:
                 self._init_udp()
-            self._udp.write(msg, (self.servers[0], DNS_PORT))
+            try:
+                self._udp.write(msg, (self.servers[0], DNS_PORT))
+            except Exception:
+                # Pants gummed up. Try again.
+                self._next_server(message.id)
             
             pants.engine.defer(self._next_server, 0.5, message.id)
-            
+        
         else:
             tcp = self._tcp[message.id] = _DNSStream(self, message.id)
             tcp.connect(self.servers[0], DNS_PORT)
@@ -806,7 +891,7 @@ class Resolver(object):
         del self._messages[data.id]
         self._safely_call(callback, DNS_OK, data)
     
-    def query(self, name, qtype=A, qclass=IN, callback=None, timeout=10, allow_cache=True):
+    def query(self, name, qtype=A, qclass=IN, callback=None, timeout=10, allow_cache=True, allow_hosts=True):
         """
         Make a DNS request of the given QTYPE for the given name.
         
@@ -819,10 +904,24 @@ class Resolver(object):
         callback      None      *Optional.* The function to call when a response for the query has been received, or when the request has timed out.
         timeout       10        *Optional.* The time, in seconds, to wait before timing out.
         allow_cache   True      *Optional.* Whether or not to use the cache. If you expect to be performing thousands of requests, you may want to disable the cache to avoid excess memory usage.
+        allow_hosts   True      *Optional.* Whether or not to use any records gathered from the OS hosts file.
         ============  ========  ============
         """
-        if allow_cache and name in self._cache and (qtype,qclass) in self._cache[name]:
+        if allow_hosts:
+            if host_time + 30 < time.time():
+                load_hosts()
             
+            cname = None
+            if name in self._cache and CNAME in self._cache[name]:
+                cname = self._cache[name][CNAME]
+            
+            if qtype == A and name in hosts[A]:
+                self._safely_call(callback, DNS_OK, cname, None, (hosts[A][name], ))
+            
+            elif qtype == AAAA and name in hosts[AAAA]:
+                self._safely_call(callback, DNS_OK, cname, None, (hosts[AAAA][name], ))
+        
+        if allow_cache and name in self._cache and (qtype,qclass) in self._cache[name]:
             cname = None
             if CNAME in self._cache[name]:
                 cname = self._cache[name][CNAME]
@@ -870,6 +969,9 @@ class Resolver(object):
                         self._cache[name][CNAME] = cname
                     self._cache[name][(qtype, qclass)] = time.time() + ttl, ttl, rdata
             
+            if data.rcode != DNS_OK:
+                status = data.rcode
+            
             self._safely_call(callback, status, cname, ttl, rdata)
         
         # Send it, so we get an ID.
@@ -891,13 +993,13 @@ def gethostbyaddr(ip_address, callback, timeout=10):
     be passed to callback. If the attempt fails, the callback will be called
     with None instead.
     
-    ===========  ============
-    Argument     Description
-    ===========  ============
-    ip_address   The IP address to look up information on.
-    callback     The function to call when a result is available.
-    timeout      *Optional.* How long, in seconds, to wait before timing out.
-    ===========  ============
+    ===========  ========  ============
+    Argument     Default   Description
+    ===========  ========  ============
+    ip_address             The IP address to look up information on.
+    callback               The function to call when a result is available.
+    timeout      10        *Optional.* How long, in seconds, to wait before timing out.
+    ===========  ========  ============
     """
     is_ipv6 = False
     if hasattr(socket, 'inet_pton'):
@@ -950,13 +1052,13 @@ def gethostbyname(hostname, callback, timeout=10):
     will be passed to callback. If the underlying query fails, the callback
     will be called with None instead.
     
-    =========  ============
-    Argument   Description
-    =========  ============
-    hostname   The hostname to look up information on.
-    callback   The function to call when a result is available.
-    timeout    *Optional.* How long, in seconds, to wait before timing out.
-    =========  ============
+    =========  ========  ============
+    Argument   Default   Description
+    =========  ========  ============
+    hostname             The hostname to look up information on.
+    callback             The function to call when a result is available.
+    timeout    10        *Optional.* How long, in seconds, to wait before timing out.
+    =========  ========  ============
     """
     def handle_response(status, cname, ttl, rdata):
         if status != DNS_OK or not rdata:
@@ -979,13 +1081,13 @@ def gethostbyname_ex(hostname, callback, timeout=10):
     available, it will be passed to callback. If the underlying query fails,
     the callback will be called with None instead.
     
-    =========  ============
-    Argument   Description
-    =========  ============
-    hostname   The hostname to look up information on.
-    callback   The function to call when a result is available.
-    timeout    *Optional.* How long, in seconds, to wait before timing out.
-    =========  ============
+    =========  ========  ============
+    Argument   Default   Description
+    =========  ========  ============
+    hostname             The hostname to look up information on.
+    callback             The function to call when a result is available.
+    timeout    10        *Optional.* How long, in seconds, to wait before timing out.
+    =========  ========  ============
     """
     def handle_response(status, cname, ttl, rdata):
         if status != DNS_OK or not rdata:
@@ -1051,146 +1153,3 @@ class Synchroniser(object):
         return doer
 
 sync = synchronous = Synchroniser(globals())
-
-if __name__ == '__main__':
-    import sys
-    from optparse import OptionParser
-    
-    parser = OptionParser()
-    parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False,
-                help="Show extra messages.")
-    parser.add_option("-l", "--list-servers", dest="list", action="store_true", default=False,
-                help="List the discovered DNS servers.")
-    
-    options, args = parser.parse_args()
-    
-    if options.debug:
-        logging.getLogger('').setLevel(logging.DEBUG)
-        logging.info('...')
-    
-    if options.list:
-        print ''
-        print 'Available DNS Servers'
-        for i in list_dns_servers():
-            print ' %s' % i
-    
-    if sys.platform == 'win32':
-        timer = time.clock
-    else:
-        timer = time.time
-    
-    args = list(args)
-    while args:
-        host = args.pop(0)
-        if args:
-            qtype = args.pop(0)
-        else:
-            qtype = 'A'
-        
-        qtype = qtype.upper()
-        if qtype in QTYPES:
-            qtype = QTYPES.index(qtype) + 1
-        else:
-            try:
-                qtype = int(qtype)
-            except ValueError:
-                print 'Invalid QTYPE, %r.' % qtype
-                sys.exit(1)
-        
-        # Build a Message
-        m = DNSMessage()
-        m.questions.append((host, qtype, IN))
-        
-        print ''
-        
-        # Query it.
-        start = timer()
-        status, data = sync.send_message(m)
-        end = timer()
-        
-        if status != DNS_OK:
-            if status == DNS_TIMEOUT:
-                print 'No response. Error: TIMEOUT (%d)' % status
-            else:
-                print 'No response. Error: UNKNOWN (%d)' % status
-            continue
-        
-        if not data:
-            print "Empty response, but OK status? Something's wrong."
-            continue
-        
-        print 'Received response.'
-        
-        opcode = 'UNKNOWN (%d)' % data.opcode
-        if data.opcode == OP_QUERY:
-            opcode = 'QUERY'
-        elif data.opcode == OP_IQUERY:
-            opcode = 'IQUERY'
-        elif data.opcode == OP_STATUS:
-            opcode = 'STATUS'
-        
-        rcode = data.rcode
-        if rcode == 0:
-            rcode = 'OK'
-        elif rcode == 1:
-            rcode = 'Format Error'
-        elif rcode == 2:
-            rcode = 'Server Failure'
-        elif rcode == 3:
-            rcode = 'Name Error'
-        elif rcode == 4:
-            rcode = 'Not Implemented'
-        elif rcode == 5:
-            rcode = 'Refused'
-        else:
-            rcode = 'Unknown (%d)' % rcode
-        
-        flags = []
-        if data.qr: flags.append('qr')
-        if data.aa: flags.append('aa')
-        if data.tc: flags.append('tc')
-        if data.rd: flags.append('rd')
-        if data.ra: flags.append('ra')
-        
-        print 'opcode: %s; rcode: %s; id: %d; flags: %s' % (opcode, rcode, data.id, ' '.join(flags))
-        print 'queries: %d; answers: %d; authorities: %d; additional: %d' % (len(data.questions), len(data.answers), len(data.authrecords), len(data.additional))
-        
-        print ''
-        print 'Question Section'
-        for name, qtype, qclass in data.questions:
-            if qtype < len(QTYPES):
-                qtype = QTYPES[qtype-1]
-            else:
-                qtype = str(qtype)
-            
-            if qclass == IN:
-                qclass = 'IN'
-            else:
-                qclass = str(qclass)
-            
-            print ' %-31s %-5s %s' % (name, qclass, qtype)
-        
-        for lbl,lst in (('Answer', data.answers), ('Authority', data.authrecords), ('Additional', data.additional)):
-            if not lst:
-                continue
-            print ''
-            print '%s Section' % lbl
-            for name, atype, aclass, ttl, rdata in lst:
-                if atype < len(QTYPES):
-                    atype = QTYPES[atype-1]
-                else:
-                    atype = str(atype)
-                
-                if aclass == IN:
-                    aclass = 'IN'
-                else:
-                    aclass = str(aclass)
-                
-                print ' %-22s %-8d %-5s %-8s %s' % (name, ttl, aclass, atype, ' '.join(str(x) for x in rdata))
-        
-        print ''
-        print 'Query Time: %d msec' % int((end - start) * 1000)
-        print 'Server: %s' % str(data.server)
-        print 'Message Size: %d' % len(str(data))
-    
-    print ''
