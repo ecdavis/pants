@@ -195,15 +195,6 @@ a.audio { background-image: url("data:image/png;base64,%s"); }
 a.video { background-image: url("data:image/png;base64,%s"); }
 
 .thingy { background-color: #FFF; background-position: center; color: #000;
-	background-image: url("data:image/png;base64,%s"),
-        -webkit-gradient(
-            linear, left bottom, left top,
-            color-stop(0, rgb(239, 239, 239)),
-            color-stop(0.5, rgb(255,255,255))
-        );
-    background-image: url("data:image/png;base64,%s"),
-        -moz-linear-gradient( center bottom, #efefef 0%%, #fff 50%%);
-    
 	border: 5px #ddd solid;
 	-moz-border-radius: 25px;
 	border-radius: 25px;
