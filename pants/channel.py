@@ -47,6 +47,20 @@ SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
 
 ###############################################################################
+# Functions
+###############################################################################
+
+def strerror(err):
+    errstr = "Unknown error %d." % err
+    try:
+        errstr = os.strerror(err)
+    except (NameError, OverflowError, ValueError):
+        errstr = errno.errorcode[err]
+    
+    return errstr
+
+
+###############################################################################
 # Channel Class
 ###############################################################################
 
@@ -275,15 +289,7 @@ class Channel(object):
             self._wait_for_write_event = True
             return False
         
-        try:
-            errstr = os.strerror(result)
-        except ValueError:
-            if result in errno.errorcode:
-                errstr = errno.errorcode[result]
-            else:
-                errstr = "Unknown error %d." % result
-        
-        raise socket.error(result, errstr)
+        raise socket.error(result, strerror(result))
     
     def _socket_bind(self, addr):
         """
@@ -484,12 +490,7 @@ class Channel(object):
         errstr = ""
         
         if err != 0:
-            errstr = "Unknown error %d" % err
-            try:
-                errstr = os.strerror(err)
-            except (NameError, OverflowError, ValueError):
-                if err in errno.errorcode:
-                    errstr = errno.errorcode[err]
+            errstr = strerror(err)
         
         return err, errstr
     
