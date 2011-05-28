@@ -29,7 +29,7 @@ import sys
 # Constants
 ###############################################################################
 
-SENDFILE_PLATFORMS = ("linux2", "darwine", "freebsd", "dragonfly")
+SENDFILE_PLATFORMS = ("linux2", "darwin", "freebsd", "dragonfly")
 SENDFILE_AMOUNT = 2 ** 16
 
 
