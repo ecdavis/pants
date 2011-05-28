@@ -416,8 +416,8 @@ class Channel(object):
         Argument   Description
         =========  ============
         sfile      The file to send.
-        offset     
-        nbytes     
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
         =========  ============
         """
         try:

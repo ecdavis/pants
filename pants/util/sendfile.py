@@ -48,6 +48,18 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
         
 if _sendfile is None:
     def sendfile(sfile, channel, offset, nbytes):
+        """
+        Fallback implementation of sendfile().
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        sfile      The file to send.
+        channel    The channel to write to.
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        =========  ============
+        """
         if nbytes == 0:
             to_read = SENDFILE_AMOUNT
         else:
@@ -70,6 +82,18 @@ elif sys.platform == "linux2":
             )
     
     def sendfile(sfile, channel, offset, nbytes):
+        """
+        Linux 2.x implementation of sendfile().
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        sfile      The file to send.
+        channel    The channel to write to.
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        =========  ============
+        """
         _offset = ctypes.c_uint64(offset)
         
         result = _sendfile(sfile.fileno(), channel.fileno, _offset, nbytes)
@@ -91,6 +115,18 @@ elif sys.platform == "darwin":
             )
     
     def sendfile(sfile, channel, offset, nbytes):
+        """
+        Darwin implementation of sendfile().
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        sfile      The file to send.
+        channel    The channel to write to.
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        =========  ============
+        """
         _nbytes = ctypes.c_uint64(nbytes)
         
         result = _sendfile(sfile.fileno(), channel.fileno, offset, _nbytes,
@@ -114,6 +150,18 @@ elif sys.platform in ("freebsd", "dragonfly"):
             )
     
     def sendfile(sfile, channel, offset, nbytes):
+        """
+        FreeBSD/Dragonfly implementation of sendfile().
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        sfile      The file to send.
+        channel    The channel to write to.
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        =========  ============
+        """
         _nbytes = ctypes.c_uint64()
         
         result = _sendfile(sfile.fileno(), channel.fileno, offset, nbytes,
