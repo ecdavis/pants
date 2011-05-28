@@ -88,6 +88,7 @@ class Channel(object):
         self._recv_amount = 4096
         self._recv_buffer = None
         self._send_buffer = None
+        self._sendfile_amount = 2 ** 16
         
         # Events
         self._events = Engine.ALL_EVENTS
@@ -408,6 +409,27 @@ class Channel(object):
                 return 0
             else:
                 raise
+    
+    def _socket_sendfile(self, file, offset, bytes):
+        """
+        =========  ============
+        Argument   Description
+        =========  ============
+        file       The file to send.
+        offset     
+        bytes      
+        =========  ============
+        """
+        if bytes is None:
+            to_read = self._sendfile_amount
+        else:
+            to_read = min(bytes, self._sendfile_amount)
+        file.seek(offset)
+        data = file.read(to_read)
+        if len(data) == 0:
+            return 0
+        
+        return self._socket_send(data)
     
     ##### Internal Methods ####################################################
     
