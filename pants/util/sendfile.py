@@ -47,14 +47,14 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
         _sendfile = _libc.sendfile
         
 if _sendfile is None:
-    def sendfile(file, channel, offset, bytes):
-        if bytes == 0:
+    def sendfile(sfile, channel, offset, nbytes):
+        if nbytes == 0:
             to_read = SENDFILE_AMOUNT
         else:
-            to_read = min(bytes, SENDFILE_AMOUNT)
+            to_read = min(nbytes, SENDFILE_AMOUNT)
         
-        file.seek(offset)
-        data = file.read(to_read)
+        sfile.seek(offset)
+        data = sfile.read(to_read)
         
         if len(data) == 0:
             return 0
@@ -69,10 +69,10 @@ elif sys.platform == "linux2":
             ctypes.c_size_t # len
             )
     
-    def sendfile(file, channel, offset, bytes):
+    def sendfile(sfile, channel, offset, nbytes):
         _offset = ctypes.c_uint64(offset)
         
-        result = _sendfile(file.fileno(), channel.fileno, _offset, bytes)
+        result = _sendfile(sfile.fileno(), channel.fileno, _offset, nbytes)
         
         if result == -1:
             e = ctypes.get_errno()
@@ -90,16 +90,17 @@ elif sys.platform == "darwin":
             ctypes.c_int # flags
             )
     
-    def sendfile(file, channel, offset, bytes):
-        _bytes = ctypes.c_uint64(bytes)
+    def sendfile(sfile, channel, offset, nbytes):
+        _nbytes = ctypes.c_uint64(nbytes)
         
-        result = _sendfile(file.fileno(), channel.fileno, offset, _bytes, None, 0)
+        result = _sendfile(sfile.fileno(), channel.fileno, offset, _nbytes,
+                           None, 0)
         
         if result == -1:
             e = ctypes.get_errno()
             raise socket.error(e, os.strerror(e))
         
-        return _bytes.value
+        return _nbytes.value
 
 elif sys.platform in ("freebsd", "dragonfly"):
     _sendfile.argtypes = (
@@ -112,13 +113,14 @@ elif sys.platform in ("freebsd", "dragonfly"):
             ctypes.c_int # flags
             )
     
-    def sendfile(file, channel, offset, bytes):
-        _bytes = ctypes.c_uint64()
+    def sendfile(sfile, channel, offset, nbytes):
+        _nbytes = ctypes.c_uint64()
         
-        result = _sendfile(file.fileno(), channel.fileno, offset, bytes, None, _bytes, 0)
+        result = _sendfile(sfile.fileno(), channel.fileno, offset, nbytes,
+                           None, _nbytes, 0)
         
         if result == -1:
             e = ctypes.get_errno()
             raise socket.error(e, os.strerror(e))
         
-        return _bytes.value
+        return _nbytes.value

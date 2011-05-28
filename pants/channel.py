@@ -410,18 +410,18 @@ class Channel(object):
             else:
                 raise
     
-    def _socket_sendfile(self, file, offset, bytes):
+    def _socket_sendfile(self, sfile, offset, nbytes):
         """
         =========  ============
         Argument   Description
         =========  ============
-        file       The file to send.
+        sfile      The file to send.
         offset     
-        bytes      
+        nbytes     
         =========  ============
         """
         try:
-            return sendfile(file, self, offset, bytes)
+            return sendfile(sfile, self, offset, nbytes)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True

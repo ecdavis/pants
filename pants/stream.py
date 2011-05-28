@@ -216,15 +216,15 @@ class Stream(Channel):
         if not buffer_data:
             self._process_send_buffer()
     
-    def write_file(self, file, bytes=0, offset=0, buffer_data=False):
+    def write_file(self, sfile, nbytes=0, offset=0, buffer_data=False):
         """
         Write a file to the channel.
         
         ============  ============
         Arguments     Description
         ============  ============
-        file          A file object to write to the channel.
-        bytes         The number of bytes of the file to write. If 0, all bytes will be written.
+        sfile         A file object to write to the channel.
+        nbytes        The number of bytes of the file to write. If 0, all bytes will be written.
         offset        The number of bytes to offset writing by.
         buffer_data   If True, the file will be buffered and written later.
         ============  ============
@@ -239,7 +239,7 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        self._send_buffer.append((file, offset, bytes))
+        self._send_buffer.append((sfile, offset, nbytes))
         if not buffer_data:
             self._process_send_buffer()
     
