@@ -25,6 +25,7 @@ import os
 import socket
 
 from pants.engine import Engine
+from pants.util.sendfile import sendfile
 
 
 ###############################################################################
@@ -88,7 +89,6 @@ class Channel(object):
         self._recv_amount = 4096
         self._recv_buffer = None
         self._send_buffer = None
-        self._sendfile_amount = 2 ** 16
         
         # Events
         self._events = Engine.ALL_EVENTS
@@ -420,16 +420,14 @@ class Channel(object):
         bytes      
         =========  ============
         """
-        if bytes is None:
-            to_read = self._sendfile_amount
-        else:
-            to_read = min(bytes, self._sendfile_amount)
-        file.seek(offset)
-        data = file.read(to_read)
-        if len(data) == 0:
-            return 0
-        
-        return self._socket_send(data)
+        try:
+            return sendfile(file, self, offset, bytes)
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                self._wait_for_write_event = True
+                return 0
+            else:
+                raise
     
     ##### Internal Methods ####################################################
     

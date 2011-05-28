@@ -961,7 +961,7 @@ class FileServer(object):
         if range[1] != last:
             length = 1 + (range[1] - range[0])
         else:
-            length = None
+            length = 0
         
         def on_write():
             del request.connection.handle_write_file
