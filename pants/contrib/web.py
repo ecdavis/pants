@@ -1023,18 +1023,17 @@ class FileServer(object):
         if f is None:
             f = open(full_path, 'rb')
         
-        f.seek(range[0])
         if range[1] != last:
             length = 1 + (range[1] - range[0])
         else:
-            length = None
+            length = 0
         
         def on_write():
             del request.connection.handle_write_file
             request.finish()
         
         request.connection.handle_write_file = on_write
-        request.connection.write_file(f, length)
+        request.connection.write_file(f, bytes=length, offset=range[0])
         
     def list_directory(self, request, path):
         """

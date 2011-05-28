@@ -25,6 +25,7 @@ import os
 import socket
 
 from pants.engine import Engine
+from pants.util.sendfile import sendfile
 
 
 ###############################################################################
@@ -402,6 +403,25 @@ class Channel(object):
         """
         try:
             return self._socket.sendto(data, flags, addr)
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                self._wait_for_write_event = True
+                return 0
+            else:
+                raise
+    
+    def _socket_sendfile(self, file, offset, bytes):
+        """
+        =========  ============
+        Argument   Description
+        =========  ============
+        file       The file to send.
+        offset     
+        bytes      
+        =========  ============
+        """
+        try:
+            return sendfile(file, self, offset, bytes)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True

@@ -62,7 +62,7 @@ class Stream(Channel):
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = ""
-        self._send_buffer = ""
+        self._send_buffer = []
         
         # Internal state
         self._connected = False
@@ -181,7 +181,7 @@ class Stream(Channel):
         
         self.read_delimiter = None
         self._recv_buffer = ""
-        self._send_buffer = ""
+        self._send_buffer = []
         self._connected = False
         self._connecting = False
         self._listening = False
@@ -212,28 +212,36 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if buffer_data or self._send_buffer:
-            self._send_buffer += data
-            # NOTE _wait_for_write_event is normally set by _socket_send()
-            #      when no more data can be sent. We set it here because
-            #      _socket_send() will not be called.
-            self._wait_for_write_event = True
-            return
+        self._send_buffer.append((data, 0, len(data)))
+        if not buffer_data:
+            self._process_send_buffer()
+    
+    def write_file(self, file, bytes=0, offset=0, buffer_data=False):
+        """
+        Write a file to the channel.
         
-        try:
-            bytes_sent = self._socket_send(data)
-        except socket.error, err:
-            # TODO Raise an exception here?
-            log.exception("Exception raised in write() on %s #%d." %
+        ============  ============
+        Arguments     Description
+        ============  ============
+        file          A file object to write to the channel.
+        bytes         The number of bytes of the file to write. If 0, all bytes will be written.
+        offset        The number of bytes to offset writing by.
+        buffer_data   If True, the file will be buffered and written later.
+        ============  ============
+        """
+        if self._socket is None:
+            log.warning("Attempted to write file to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
-            # TODO Close this Stream here?
-            self.close()
             return
         
-        if len(data[bytes_sent:]) > 0:
-            self._send_buffer += data[bytes_sent:]
-        else:
-            self._safely_call(self.on_write)
+        if not self._connected:
+            log.warning("Attempted to write file to disconnected %s #%d." %
+                    (self.__class__.__name__, self.fileno))
+            return
+        
+        self._send_buffer.append((file, offset, bytes))
+        if not buffer_data:
+            self._process_send_buffer()
     
     ##### Internal Methods ####################################################
     
@@ -297,18 +305,7 @@ class Stream(Channel):
         if not self._send_buffer:
             return
         
-        try:
-            bytes_sent = self._socket_send(self._send_buffer)
-        except socket.error, err:
-            log.exception("Exception raised by send() on %s #%s." %
-                    (self.__class__.__name__, self.fileno))
-            # TODO Close this Stream here?
-            self.close()
-            return
-        self._send_buffer = self._send_buffer[bytes_sent:]
-        
-        if not self._send_buffer:
-            self._safely_call(self.on_write)
+        self._process_send_buffer()
     
     def _handle_accept_event(self):
         """
@@ -382,3 +379,42 @@ class Stream(Channel):
             
             if self._socket is None or not self._connected:
                 break
+    
+    def _process_send_buffer(self):
+        """
+        Process the :attr:`~pants.stream.Stream._send_buffer`, passing
+        outgoing data to :meth:`~pants.channel.Channel._socket_send` or
+        :meth:`~pants.channel.Channel._socket_sendfile` and calling
+        :meth:`~pants.stream.Stream.on_write` when sending has finished.
+        """
+        while self._send_buffer:
+            data, offset, bytes = self._send_buffer.pop(0)
+            
+            sending_a_string = isinstance(data, basestring)
+            
+            try:
+                if sending_a_string:
+                    bytes_sent = self._socket_send(data)
+                else:
+                    bytes_sent = self._socket_sendfile(data, offset, bytes)
+            except socket.error, err:
+                log.exception("Exception raised by send() on %s #%s." %
+                        (self.__class__.__name__, self.fileno))
+                # TODO Close this Stream here?
+                self.close()
+                return
+            
+            if sending_a_string:
+                if len(data) > bytes_sent:
+                    self._send_buffer.insert(0, (data[bytes_sent:], offset, bytes))
+            else:
+                if bytes == 0:
+                    self._send_buffer.insert(0, (data, offset+bytes_sent, bytes))
+                elif (bytes-offset) > bytes_sent:
+                    self._send_buffer.insert(0, (data, offset+bytes_sent, bytes-bytes_sent))
+            
+            if bytes_sent == 0:
+                break
+        
+        if not self._send_buffer:
+            self._safely_call(self.on_write)
