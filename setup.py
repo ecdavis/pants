@@ -10,7 +10,7 @@ setup(
     author_email="chris@wtfrak.com",
     url="http://pantsweb.org/",
     download_url="https://github.com/ecdavis/Pants/zipball/pants-0.10.0",
-    packages=["pants", "pants.contrib"],
+    packages=["pants", "pants.contrib", "pants.util"],
     classifiers=[
         "Programming Language :: Python :: 2.6",
         "License :: OSI Approved :: Apache Software License",
