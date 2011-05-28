@@ -381,7 +381,7 @@ class Channel(object):
         try:
             data, addr = self._socket.recvfrom(self._recv_amount)
         except socket.error, err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET):
                 self._wait_for_read_event = True
                 return '', None
             else:
