@@ -201,7 +201,7 @@ a.video { background-image: url("data:image/png;base64,%s"); }
 	padding: 50px;
 	margin: 0 50px;
 }""" % (IMAGES['folder'], IMAGES['document'], IMAGES['image'], IMAGES['zip'],
-    IMAGES['audio'], IMAGES['video'], IMAGES['pants'], IMAGES['pants'])
+    IMAGES['audio'], IMAGES['video'])
 PAGE_CSS = PAGE_CSS.replace('%','%%%%')
 
 PAGE = u"""<!DOCTYPE html>
