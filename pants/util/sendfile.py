@@ -105,8 +105,6 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
                 raise socket.error(e, os.strerror(e))
             
             return _bytes.value
-            
-            raise NotImplementedError
 
 else:
     def sendfile(file, channel, offset, bytes):
