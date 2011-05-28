@@ -38,19 +38,22 @@ SENDFILE_AMOUNT = 2 ** 16
 ###############################################################################
 
 if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
-    import ctypes
-    import ctypes.util
+    try:
+        import ctypes
+        import ctypes.util
+    except MemoryError:
+        raise ImportError
     
     _libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
     _sendfile = _libc.sendfile
     
     if sys.platform == "linux2":
-        _sendfile.argtypes = [
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypes.POINTER(ctypes.c_uint64),
-                ctypes.c_size_t
-                ]
+        _sendfile.argtypes = (
+                ctypes.c_int, # file
+                ctypes.c_int, # socket
+                ctypes.POINTER(ctypes.c_uint64), # offset
+                ctypes.c_size_t # len
+                )
         
         def sendfile(file, channel, offset, bytes):
             _offset = ctypes.c_uint64(offset)
@@ -64,14 +67,14 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
             return result
     
     elif sys.platform == "darwin":
-        _sendfile.argtypes = [
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypes.c_uint64,
-                ctypes.POINTER(ctypes.c_uint64),
-                ctypes.c_voidp,
-                ctypes.c_int
-                ]
+        _sendfile.argtypes = (
+                ctypes.c_int, # file
+                ctypes.c_int, # socket
+                ctypes.c_uint64, # offset
+                ctypes.POINTER(ctypes.c_uint64), # len
+                ctypes.c_voidp, # header/trailer
+                ctypes.c_int # flags
+                )
         
         def sendfile(file, channel, offset, bytes):
             _bytes = ctypes.c_uint64(bytes)
@@ -85,15 +88,15 @@ if sys.version_info >= (2,6) and sys.platform in SENDFILE_PLATFORMS:
             return _bytes.value
     
     elif sys.platform in ("freebsd", "dragonfly"):
-        _sendfile.argtypes = [
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypes.c_uint64,
-                ctypes.c_uint64,
-                ctypes.c_voidp,
-                ctypes.POINTER(ctypes.c_uint64),
-                ctypes.c_int
-                ]
+        _sendfile.argtypes = (
+                ctypes.c_int, # file
+                ctypes.c_int, # socket
+                ctypes.c_uint64, # offset
+                ctypes.c_uint64, # len
+                ctypes.c_voidp, # header/trailer
+                ctypes.POINTER(ctypes.c_uint64), # bytes sent
+                ctypes.c_int # flags
+                )
         
         def sendfile(file, channel, offset, bytes):
             _bytes = ctypes.c_uint64()
