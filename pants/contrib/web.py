@@ -835,7 +835,7 @@ class FileServer(object):
                 bl = re.compile(bl)
             self.blacklist.append(bl)
     
-    def attach(self, app, route='/static/'):
+    def attach(self, app, route='/static/', domain=None):
         """
         Attach this fileserver to an application, bypassing the usual route
         decorator to ensure things are done right.
@@ -845,7 +845,7 @@ class FileServer(object):
             route: The path to listen on. Defaults to '/static/'.
         """
         route = re.compile("^%s(.*)$" % re.escape(route))
-        app._insert_route(route, self, "FileServer", ['HEAD','GET'], None, None)
+        app._insert_route(route, self, domain, "FileServer", ['HEAD','GET'], None, None)
     
     def check_blacklist(self, path):
         """
