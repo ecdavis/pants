@@ -186,6 +186,27 @@ class Channel(object):
         """
         pass
     
+    def on_connect_error(self, err, errstr):
+        """
+        Placeholder. Called when the channel has failed to connect to a
+        remote socket.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        err        The error number that was raised.
+        errstr     The error message.
+        =========  ============
+        """
+        pass
+    
+    def on_listen(self):
+        """
+        Placeholder. Called when the channel begins listening for new
+        connections.
+        """
+        pass
+    
     def on_accept(self, sock, addr):
         """
         Placeholder. Called after the channel has accepted a new

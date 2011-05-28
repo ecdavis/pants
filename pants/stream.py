@@ -169,6 +169,7 @@ class Stream(Channel):
         
         self._listening = True
         self._update_addr()
+        self._safely_call(self.on_listen)
         
         return self
     
@@ -333,14 +334,14 @@ class Stream(Channel):
         """
         Handle a connect event raised on the channel.
         """
-        err, srrstr = self._get_socket_error()
-        if err != 0:
-            raise socket.error(err, errstr)
-        
-        self._connected = True
         self._connecting = False
         self._update_addr()
-        self._safely_call(self.on_connect)
+        err, srrstr = self._get_socket_error()
+        if err == 0:
+            self._connected = True
+            self._safely_call(self.on_connect)
+        else:
+            self._safely_call(self.on_connect_error, (err, errstr))
     
     ##### Internal Processing Methods #########################################    
     
