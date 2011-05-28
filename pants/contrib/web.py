@@ -138,7 +138,7 @@ IMAGES['icon'] = base64.b64decode(IMAGES['icon'])
 
 PAGE_CSS = u"""html, body { margin: 0; padding: 0; min-height: 100%%; }
 body {
-	font-family: Calibri,"Trebuchet MS",sans-serif;
+	font-family: Calibri,"Arial","Helvetica",sans-serif;
 	background: #EEE;
 	background-image: -webkit-gradient( linear, left bottom, left top,
 		color-stop(0, #ccc), color-stop(0.5, #eee) );
@@ -177,11 +177,11 @@ table.dir td.noborder { border-color: transparent !important; }
 table.dir th { border-bottom: 1px solid #ccc; }
 
 .footer,.faint { color: #aaa; }
-.footer .debug { font-size: 11px; font-family: Consolas,monospace; }
+.footer .debug { font-size: 0.9em; font-family: Consolas,monospace; }
 .haiku { margin-top: 20px; }
 .haiku + p { color: #777; }
-.spacer { padding-top: 50px; }
-.column { max-width: 1000px; min-width: 600px; margin: 0px auto; }
+.spacer { padding-top: 60px; }
+.column { max-width: 960px; min-width: 600px; margin: 0px auto; }
 .footer { padding-top: 10px; }
 
 a.icon { padding-left: 23px; background-position: left; }
