@@ -21,6 +21,7 @@
 ###############################################################################
 
 import base64
+import inspect
 import logging
 import mimetypes
 import os
@@ -305,20 +306,24 @@ class Application(object):
         HTTPServer(app).listen()
         engine.start()
     
-    =========  ============
-    Argument   Description
-    =========  ============
-    debug      *Optional.* If this is set to True, automatically generated ``500 Internal Server Error`` response pages will include information about the failed request, including a traceback of the exception that caused the page to be generated.
-    =========  ============
+    ===============  ============
+    Argument         Description
+    ===============  ============
+    default_domain   *Optional.* The default domain to search for a route for if the request's Host does not exist.
+    debug            *Optional.* If this is set to True, automatically generated ``500 Internal Server Error`` response pages will include information about the failed request, including a traceback of the exception that caused the page to be generated.
+    ===============  ============
     """
     current_app = None
     
-    def __init__(self, debug=False):
+    def __init__(self, default_domain=None, debug=False):
         # Internal Stuff
         self._routes    = {}
         self._names     = {}
         
+        self._routes[None] = {}
+        
         # External Stuff
+        self.default_domain = None
         self.debug = debug
     
     def run(self, port=None, host='', ssl_options=None):
@@ -386,13 +391,19 @@ class Application(object):
         =========  ============
         """
         def decorator(func):
+            if rule[0] != '/':
+                domain, _, rule = rule.partition('/')
+                rule = '/' + rule
+            else:
+                domain = None
+            
             regex, arguments, names, namegen = _route_to_regex(rule)
             _regex = re.compile(regex)
             
             if name is None:
                 name = "%s.%s" % (func.__module__, func.__name__)
             
-            self._insert_route(_regex, func, name, methods, names,namegen)
+            self._insert_route(_regex, func, domain, name, methods, names, namegen)
             return func
         return decorator
     
@@ -595,7 +606,22 @@ class Application(object):
     def handle_request(self, request):
         path = request.path
         
-        for route in self._routes:
+        # Domain Matching
+        if len(self._routes) == 1:
+            domain = None
+        else:
+            if request.host in self._routes:
+                domain = request.host
+            else:
+                domain = '.' + request.host.partition('.')[2]
+                if not domain in self._routes and ':' in request.host:
+                    domain = request.host.rpartition(':')[0]
+                    if not domain in self._routes:
+                        domain = '.' + domain.partition('.')[2]
+                if not domain in self._routes:
+                    domain = self.default_domain
+        
+        for route in self._routes[domain]:
             match = route.match(path)
             if match is None:
                 continue
@@ -604,7 +630,7 @@ class Application(object):
             request.route = route
             request.match = match
             
-            func, name, methods = self._routes[route][:3]
+            func, name, methods = self._routes[domain][route][:3]
             if request.method not in methods:
                 return error(
                     'The method %s is not allowed for %r.' % (
@@ -630,7 +656,7 @@ class Application(object):
             # No matching routes.
             if not path.endswith('/'):
                 p = '%s/' % path
-                for route in self._routes:
+                for route in self._routes[domain]:
                     if route.match(p):
                         if request.query:
                             return redirect('%s?%s' % (p,request.query))
@@ -641,10 +667,12 @@ class Application(object):
     
     ##### Internal Methods and Event Handlers #################################
     
-    def _insert_route(self, route, handler, name, methods, nms, namegen):
+    def _insert_route(self, route, handler, domain, name, methods, nms, namegen):
         if isinstance(route, basestring):
             route = re.compile(route)
-        self._routes[route] = (handler, name, methods, nms, namegen)
+        if not domain in self._routes:
+            self._routes[domain] = {}
+        self._routes[domain][route] = (handler, name, methods, nms, namegen)
         self._names[name] = route
     
     def _add_route(self, route, view, name=None, methods=['GET','HEAD'],
@@ -664,45 +692,82 @@ class Application(object):
             raise Exception('View must be callable.')
         
         # Parse the route.
+        if route[0] != '/':
+            domain, _, route = route.partition('/')
+            route = '/' + route
+        else:
+            domain = None
+        
         regex, arguments, names, namegen = _route_to_regex(route)
         _regex = re.compile(regex)
         
         if not arguments:
             arguments = False
         
-        def view_runner(request):
-            request.__viewmodule__ = view.__module__
-            match = request.match
-            try:
+        try:
+            args = inspect.getargspec(view).args
+        except TypeError:
+            args = inspect.getargspec(view.__call__).args[1:]
+        
+        if len(args) == 1 and args[0] == 'request':
+            def view_runner(request):
+                request.__viewmodule__ = view.__module__
+                match = request.match
                 try:
-                    view.func_globals['request'] = request
-                except AttributeError:
-                    view.__call__.func_globals['request'] = request
-                if arguments is False:
-                    return view()
-                
-                out = []
-                for val,type in zip(match.groups(), arguments):
-                    if type is not None:
-                        try:
-                            val = type(val)
-                        except Exception:
-                            return error('Unable to parse data %r.' % val, 400)
-                    out.append(val)
-                
-                if auto404 is True:
-                    all_or_404(*out)
-                
-                return view(*out)
-            finally:
+                    if arguments is False:
+                        return view(request)
+                    
+                    out = []
+                    for val,type in zip(match.groups(), arguments):
+                        if type is not None:
+                            try:
+                                val = type(val)
+                            except Exception:
+                                return error('Unable to parse data %r.' % val, 400)
+                        out.append(val)
+                    
+                    if auto404 is True:
+                        all_or_404(*out)
+                    
+                    request.arguments = out
+                    return view(request)
+                finally:
+                    request.arguments = None
+        
+        else:
+            def view_runner(request):
+                request.__viewmodule__ = view.__module__
+                match = request.match
                 try:
-                    view.func_globals['request'] = None
-                except AttributeError:
-                    view.__call__.func_globals['request'] = None
+                    try:
+                        view.func_globals['request'] = request
+                    except AttributeError:
+                        view.__call__.func_globals['request'] = request
+                    if arguments is False:
+                        return view()
+                    
+                    out = []
+                    for val,type in zip(match.groups(), arguments):
+                        if type is not None:
+                            try:
+                                val = type(val)
+                            except Exception:
+                                return error('Unable to parse data %r.' % val, 400)
+                        out.append(val)
+                    
+                    if auto404 is True:
+                        all_or_404(*out)
+                    
+                    return view(*out)
+                finally:
+                    try:
+                        view.func_globals['request'] = None
+                    except AttributeError:
+                        view.__call__.func_globals['request'] = None
         
         view_runner.__name__ = name
-        self._insert_route(_regex, view_runner, "%s.%s" %(view.__module__,name),
-            methods, names, namegen)
+        self._insert_route(_regex, view_runner, domain,
+            "%s.%s" %(view.__module__,name), methods, names, namegen)
 
 ###############################################################################
 # FileServer Class

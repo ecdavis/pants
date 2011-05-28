@@ -95,14 +95,13 @@ class WSGIConnector(object):
         # Make sure this plays nice with Web.
         request.auto_finish = False
         
-        response = []
-        status = '200 OK'
-        headers = {}
-        
         def start_response(status, head):
-            status = status
-            headers.update(head)
-            return response.append
+            request.send_status(status)
+            if isinstance(head, list):
+                head = dict(head)
+            request.send_headers(head)
+            
+            return request.write
         
         # Build an environment for the WSGI application.
         environ = {
@@ -113,6 +112,8 @@ class WSGIConnector(object):
             'SERVER_NAME'       : request.headers.get('Host','127.0.0.1'),
             'SERVER_PORT'       : request.connection.server.local_addr[1],
             'SERVER_PROTOCOL'   : request.version,
+            'REMOTE_ADDR'       : request.remote_ip,
+            'GATEWAY_INTERFACE' : 'WSGI/1.0',
             'wsgi.version'      : (1,0),
             'wsgi.url_scheme'   : request.protocol,
             'wsgi.input'        : cStringIO.StringIO(request.body),
@@ -121,6 +122,11 @@ class WSGIConnector(object):
             'wsgi.multiprocess' : False,
             'wsgi.run_once'     : False
         }
+        
+        if hasattr(request, 'arguments'):
+            environ['wsgiorg.routing_args'] = (request.arguments, {})
+        elif hasattr(request, 'match'):
+            environ['wsgiorg.routing_args'] = (request.match.groups(), {})
         
         if 'Content-Type' in request.headers:
             environ['CONTENT_TYPE'] = request.headers['Content-Type']
@@ -149,26 +155,26 @@ class WSGIConnector(object):
                 body, status, headers = error(resp, 500, request=request,
                     debug=True)
             
-            status = '500 Internal Server Error'
-            response = [body]
-            result = []
+            request.send_status(500)
+            
+            if not 'Content-Length' in headers:
+                headers['Content-Length'] = len(body)
+            
+            request.send_headers(headers)
+            request.write(body)
+            request.finish()
+            return
         
         # Finish up anything in result.
-        try:
-            response.extend(result)
-        finally:
-            if hasattr(result, 'close'):
-                result.close()
-            del result
+        if result:
+            try:
+                for thing in result:
+                    request.write(thing)
+            finally:
+                if hasattr(result, 'close'):
+                    result.close()
+                del result
         
-        # Write the response.
-        response = ''.join(response)
-        if not 'Content-Length' in headers:
-            headers['Content-Length'] = len(response)
-        
-        request.send_status(status)
-        request.send_headers(headers)
-        request.send(response)
         request.finish()
 
 if __name__ == '__main__':
