@@ -94,6 +94,11 @@ elif sys.platform == "linux2":
         nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
         =========  ============
         """
+        # TODO Linux doesn't support an argument of 0 for nbytes. Implement
+        #      a better solution.
+        if nbytes == 0:
+            nbytes = SENDFILE_AMOUNT
+        
         _offset = ctypes.c_uint64(offset)
         
         result = _sendfile(channel.fileno, sfile.fileno(), _offset, nbytes)
