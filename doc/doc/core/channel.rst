@@ -5,7 +5,7 @@ The :class:`~pants.channel.Channel` class is Pants' non-blocking
 :obj:`~socket.socket` wrapper. It can be used to create new
 :obj:`~socket.socket` objects or to wrap existing ones.
 :class:`~pants.channel.Channel` wraps most :mod:`socket` methods,
-handling common errors and sanitising return values.It is tightly
+handling common errors and sanitising return values. It is tightly
 integrated with the :obj:`~pants.engine.Engine` and ensures that all
 :class:`~pants.channel.Channel` objects are added to and removed from the
 :obj:`~pants.engine.Engine` when required.
