@@ -75,8 +75,8 @@ if _sendfile is None:
 
 elif sys.platform == "linux2":
     _sendfile.argtypes = (
-            ctypes.c_int, # file
             ctypes.c_int, # socket
+            ctypes.c_int, # file
             ctypes.POINTER(ctypes.c_uint64), # offset
             ctypes.c_size_t # len
             )
@@ -96,7 +96,7 @@ elif sys.platform == "linux2":
         """
         _offset = ctypes.c_uint64(offset)
         
-        result = _sendfile(sfile.fileno(), channel.fileno, _offset, nbytes)
+        result = _sendfile(channel.fileno, sfile.fileno(), _offset, nbytes)
         
         if result == -1:
             e = ctypes.get_errno()
