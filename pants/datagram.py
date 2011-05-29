@@ -56,6 +56,7 @@ class Datagram(Channel):
         self._send_buffer = []
         
         # Internal state
+        self._active = False
         self._listening = False
     
     ##### Status Methods ######################################################
@@ -67,8 +68,7 @@ class Datagram(Channel):
         
         Returns True if the channel is active, False otherwise.
         """
-        return self._socket is not None and (self._listening or
-                self._send_buffer)
+        return self._active
     
     def listening(self):
         """
@@ -93,11 +93,11 @@ class Datagram(Channel):
         host        *Optional.* The local host to bind to. By default, is ''.
         ==========  ============
         """
-        if self.active():
+        if self._active:
             raise RuntimeError("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
-        if self.closed():
+        if self._socket is None:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
         
@@ -113,8 +113,9 @@ class Datagram(Channel):
             self.close()
             raise
         
-        self._update_addr()
+        self._active = True
         self._listening = True
+        self._update_addr()
         
         return self
     
@@ -122,12 +123,13 @@ class Datagram(Channel):
         """
         Close the channel.
         """
-        if self.closed():
+        if self._socket is None:
             return
         
         self.read_delimiter = None
         self._recv_buffer = {}
         self._send_buffer = []
+        self._active = False
         self._listening = False
         self._update_addr()
         
@@ -159,28 +161,10 @@ class Datagram(Channel):
                         (self.__class__.__name__, self.fileno))
                 return
         
-        if buffer_data or self._send_buffer:
-            self._send_buffer.append((data, addr))
-            # NOTE _wait_for_write_event is normally set by _socket_send()
-            #      when no more data can be sent. We set it here because
-            #      _socket_send() will not be called.
-            self._wait_for_write_event = True
-            return
-        
-        try:
-            bytes_sent = self._socket_sendto(data, addr)
-        except socket.error, err:
-            # TODO Raise an exception here?
-            log.exception("Exception raised in write() on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            # TODO Close this Datagram here?
-            self.close()
-            return
-        
-        if len(data[bytes_sent:]) > 0:
-            self._send_buffer.append((data[bytes_sent:], addr))
-        else:
-            self._safely_call(self.on_write)
+        self._active = True
+        self._send_buffer.append((data, addr))
+        if not buffer_data:
+            self._process_send_buffer()
     
     ##### Private Methods #####################################################
     
@@ -205,7 +189,6 @@ class Datagram(Channel):
             return
         
         if not self._listening:
-            # TODO ???
             log.warning("Received read event for non-listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -236,20 +219,7 @@ class Datagram(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        while self._send_buffer:
-            data, addr = self._send_buffer.pop(0)
-            while data:
-                sent = self._socket_sendto(data, addr)
-                if sent == 0:
-                    break
-                data = data[sent:]
-            
-            if data:
-                self._send_buffer.insert(0, (data, addr))
-                break
-        
-        if not self._send_buffer:
-            self._safely_call(self.on_write)
+        self._process_send_buffer()
     
     ##### Internal Processing Methods #########################################
     
@@ -289,7 +259,7 @@ class Datagram(Channel):
                             (self.__class__.__name__, self.fileno))
                     break
                 
-                if not self.active():
+                if not self._active:
                     break
             
             self.remote_addr = (None, None)
@@ -299,8 +269,26 @@ class Datagram(Channel):
             else:
                 del self._recv_buffer[addr]
             
-            if not self.active():
+            if not self._active:
                 break
+    
+    def _process_send_buffer(self):
+        while self._send_buffer:
+            data, addr = self._send_buffer.pop(0)
+            
+            while data:
+                bytes_sent = self._socket_sendto(data, addr)
+                if bytes_sent == 0:
+                    break
+                data = data[bytes_sent:]
+            
+            if data:
+                self._send_buffer.insert(0, (data, addr))
+                break
+        
+        if not self._send_buffer:
+            self._active = False
+            self._safely_call(self.on_write)
 
 
 ###############################################################################

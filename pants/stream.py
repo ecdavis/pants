@@ -65,6 +65,7 @@ class Stream(Channel):
         self._send_buffer = []
         
         # Internal state
+        self._active = False
         self._connected = False
         self._connecting = False
         self._listening = False
@@ -77,16 +78,23 @@ class Stream(Channel):
         
         Returns True if the channel is active, False otherwise.
         """
-        return self._socket is not None and (self._listening or
-                self._connected or self._connecting)
+        return self._active
     
     def connected(self):
         """
-        Check if the channel is connected or connecting to a remote socket.
+        Check if the channel is connected to a remote socket.
         
         Returns True if the channel is connected, False otherwise.
         """
-        return self._connected or self._connecting
+        return self._connected
+    
+    def connecting(self):
+        """
+        Check if the channel is connecting to a remote socket.
+        
+        Returns True if the channel is connecting, False otherwise.
+        """
+        return self._connecting
     
     def listening(self):
         """
@@ -111,14 +119,15 @@ class Stream(Channel):
         port        The port to connect on.
         ==========  ============
         """
-        if self.active():
+        if self._active:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
-        if self.closed():
+        if self._socket is None:
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
         
+        self._active = True
         self._connecting = True
         
         try:
@@ -146,11 +155,11 @@ class Stream(Channel):
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
-        if self.active():
+        if self._active:
             raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
-        if self.closed():
+        if self._socket is None:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
         
@@ -167,6 +176,7 @@ class Stream(Channel):
             self.close()
             raise
         
+        self._active = True
         self._listening = True
         self._update_addr()
         self._safely_call(self.on_listen)
@@ -177,12 +187,13 @@ class Stream(Channel):
         """
         Close the channel.
         """
-        if self.closed():
+        if self._socket is None:
             return
         
         self.read_delimiter = None
         self._recv_buffer = ""
         self._send_buffer = []
+        self._active = False
         self._connected = False
         self._connecting = False
         self._listening = False
@@ -338,9 +349,11 @@ class Stream(Channel):
         self._update_addr()
         err, srrstr = self._get_socket_error()
         if err == 0:
+            self._active = True
             self._connected = True
             self._safely_call(self.on_connect)
         else:
+            self._active = False
             self._safely_call(self.on_connect_error, (err, errstr))
     
     ##### Internal Processing Methods #########################################    
