@@ -343,7 +343,7 @@ class Channel(object):
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_read_event = True
-                return None, () # sock, addr placeholders.
+                return None, None
             else:
                 raise
     
