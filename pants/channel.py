@@ -74,13 +74,13 @@ class Channel(object):
     should override these methods and ensure that their behaviour conforms
     to the specification in this class.
     
-    =================  ============
-    Keyword Argument   Description
-    =================  ============
-    family             *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
-    type               *Optional.* A supported socket type. By default, is :const:`socket.SOCK_STREAM`.
-    socket             *Optional.* A pre-existing socket to wrap.
-    =================  ============
+    ==================  ============
+    Keyword Arguments   Description
+    ==================  ============
+    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
+    type                *Optional.* A supported socket type. By default, is :const:`socket.SOCK_STREAM`.
+    socket              *Optional.* A pre-existing socket to wrap.
+    ==================  ============
     """
     def __init__(self, **kwargs):
         # Keyword arguments
@@ -91,8 +91,8 @@ class Channel(object):
             sock = socket.socket(sock_family, sock_type)
         
         # Socket
-        self._socket = None
         self.fileno = None
+        self._socket = None
         self._socket_set(sock)
         
         # Socket state
@@ -274,8 +274,7 @@ class Channel(object):
         if not result or result == errno.EISCONN:
             return True
         
-        if result in (errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
-            # TODO Check for EAGAIN here?
+        if result in (errno.EAGAIN, errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
             self._wait_for_write_event = True
             return False
         
@@ -318,9 +317,9 @@ class Channel(object):
             self._socket.close()
         except (AttributeError, socket.error):
             return
-        finally:
-            self._socket = None
+        finally:    
             self.fileno = None
+            self._socket = None
     
     def _socket_accept(self):
         """
@@ -377,7 +376,6 @@ class Channel(object):
             else:
                 raise
         
-        # TODO Is this section necessary?
         if not data:
             return None, None
         else:
@@ -468,7 +466,6 @@ class Channel(object):
         except Exception:
             log.exception("Exception raised on %s #%d." %
                     (self.__class__.__name__, self.fileno))
-            # TODO Close the channel here?
     
     def _get_socket_error(self):
         """
