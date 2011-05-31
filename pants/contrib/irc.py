@@ -307,7 +307,7 @@ class IRCClient(BaseIRC):
     
     @nick.setter
     def nick(self, val):
-        if not self.active:
+        if not self.connected:
             self._nick = val
         else:
             self.send_command("NICK", val)
@@ -318,7 +318,7 @@ class IRCClient(BaseIRC):
     
     @port.setter
     def port(self, val):
-        if self.active:
+        if self.connected or self.connecting:
             raise IOError('Cannot change while connected to server.')
         self._port = val
     
@@ -328,7 +328,7 @@ class IRCClient(BaseIRC):
     
     @realname.setter
     def realname(self, val):
-        if self.active:
+        if self.connected or self.connecting:
             raise IOError('Cannot change while connected to server.')
         self._realname = val
     
@@ -338,7 +338,7 @@ class IRCClient(BaseIRC):
     
     @server.setter
     def server(self, val):
-        if self.active:
+        if self.connected or self.connecting:
             raise IOError('Cannot change while connected to server.')
         self._server = val
     
@@ -348,7 +348,7 @@ class IRCClient(BaseIRC):
     
     @user.setter
     def user(self, val):
-        if self.active:
+        if self.connected or self.connecting:
             raise IOError('Cannot change while connected to server.')
         self._user = val
     
@@ -375,15 +375,12 @@ class IRCClient(BaseIRC):
             server: The server to connect to.
             port: The port to connect to.
         """
-        if self.active:
-            log.warning("IRCClient.connect() called on active client %d.",
-                self.fileno)
-            return
+        if not self.connected and not self.connecting:
+            if server:
+                self._server = server
+            if port:
+                self._port = port
         
-        if server:
-            self._server = server
-        if port:
-            self._port = port
         
         Stream.connect(self, self._server, self._port)
     

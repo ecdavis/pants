@@ -64,8 +64,7 @@ class Stream(Channel):
         self._recv_buffer = ""
         self._send_buffer = []
         
-        # Internal state
-        self.active = False
+        # Channel state
         self.connected = False
         self.connecting = False
         self.listening = False
@@ -85,7 +84,7 @@ class Stream(Channel):
         port        The port to connect on.
         ==========  ============
         """
-        if self.active:
+        if self.connected or self.listening or self.connecting:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
@@ -93,7 +92,6 @@ class Stream(Channel):
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
         
-        self.active = True
         self.connecting = True
         
         try:
@@ -121,7 +119,7 @@ class Stream(Channel):
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
-        if self.active:
+        if self.connected or self.listening or self.connecting:
             raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
@@ -142,7 +140,6 @@ class Stream(Channel):
             self.close()
             raise
         
-        self.active = True
         self.listening = True
         self._update_addr()
         self._safely_call(self.on_listen)
@@ -159,10 +156,11 @@ class Stream(Channel):
         self.read_delimiter = None
         self._recv_buffer = ""
         self._send_buffer = []
-        self.active = False
+        
         self.connected = False
         self.connecting = False
         self.listening = False
+        
         self._update_addr()
         
         Channel.close(self)
@@ -315,11 +313,9 @@ class Stream(Channel):
         self._update_addr()
         err, srrstr = self._get_socket_error()
         if err == 0:
-            self.active = True
             self.connected = True
             self._safely_call(self.on_connect)
         else:
-            self.active = False
             self._safely_call(self.on_connect_error, (err, errstr))
     
     ##### Internal Processing Methods #########################################    

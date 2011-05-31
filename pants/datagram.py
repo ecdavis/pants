@@ -55,8 +55,7 @@ class Datagram(Channel):
         self._recv_buffer = {}
         self._send_buffer = []
         
-        # Internal state
-        self.active = False
+        # Channel state
         self.listening = False
     
     ##### Control Methods #####################################################
@@ -74,8 +73,8 @@ class Datagram(Channel):
         host        *Optional.* The local host to bind to. By default, is ''.
         ==========  ============
         """
-        if self.active:
-            raise RuntimeError("listen() called on active %s #%d."
+        if self.listening:
+            raise RuntimeError("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
         if self._socket is None:
@@ -94,7 +93,6 @@ class Datagram(Channel):
             self.close()
             raise
         
-        self.active = True
         self.listening = True
         self._update_addr()
         
@@ -110,8 +108,9 @@ class Datagram(Channel):
         self.read_delimiter = None
         self._recv_buffer = {}
         self._send_buffer = []
-        self.active = False
+        
         self.listening = False
+        
         self._update_addr()
         
         Channel.close(self)
@@ -142,7 +141,6 @@ class Datagram(Channel):
                         (self.__class__.__name__, self.fileno))
                 return
         
-        self.active = True
         self._send_buffer.append((data, addr))
         if not buffer_data:
             self._process_send_buffer()
@@ -206,8 +204,8 @@ class Datagram(Channel):
     
     def _process_recv_buffer(self):
         """
-        Process the :attr:`_recv_buffer`, passing chunks of data to
-        :meth:`on_read`.
+        Process the :attr:`~pants.datagram.Datagram._recv_buffer`, passing
+        chunks of data to :meth:`~pants.datagram.Datagram.on_read`.
         """
         for addr in self._recv_buffer.keys()[:]:
             buf = self._recv_buffer[addr]
@@ -240,7 +238,7 @@ class Datagram(Channel):
                             (self.__class__.__name__, self.fileno))
                     break
                 
-                if not self.active:
+                if self._socket is None:
                     break
             
             self.remote_addr = (None, None)
@@ -250,10 +248,16 @@ class Datagram(Channel):
             else:
                 del self._recv_buffer[addr]
             
-            if not self.active:
+            if self._socket is None:
                 break
     
     def _process_send_buffer(self):
+        """
+        Process the :attr:`~pants.datagram.Datagram._send_buffer`, passing
+        outgoing data to :meth:`~pants.channel.Channel._socket_sendto`
+        and calling :meth:`~pants.datagram.Datagram.on_write` when sending
+        has finished.
+        """
         while self._send_buffer:
             data, addr = self._send_buffer.pop(0)
             
@@ -268,7 +272,6 @@ class Datagram(Channel):
                 break
         
         if not self._send_buffer:
-            self.active = False
             self._safely_call(self.on_write)
 
 
