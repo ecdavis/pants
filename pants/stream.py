@@ -65,44 +65,10 @@ class Stream(Channel):
         self._send_buffer = []
         
         # Internal state
-        self._active = False
-        self._connected = False
-        self._connecting = False
-        self._listening = False
-    
-    ##### Status Methods ######################################################
-    
-    def active(self):
-        """
-        Check if the channel is active - either connected or listening.
-        
-        Returns True if the channel is active, False otherwise.
-        """
-        return self._active
-    
-    def connected(self):
-        """
-        Check if the channel is connected to a remote socket.
-        
-        Returns True if the channel is connected, False otherwise.
-        """
-        return self._connected
-    
-    def connecting(self):
-        """
-        Check if the channel is connecting to a remote socket.
-        
-        Returns True if the channel is connecting, False otherwise.
-        """
-        return self._connecting
-    
-    def listening(self):
-        """
-        Check if the channel is listening for connections.
-        
-        Returns True if the channel is listening, False otherwise.
-        """
-        return self._listening
+        self.active = False
+        self.connected = False
+        self.connecting = False
+        self.listening = False
     
     ##### Control Methods #####################################################
     
@@ -119,7 +85,7 @@ class Stream(Channel):
         port        The port to connect on.
         ==========  ============
         """
-        if self._active:
+        if self.active:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
@@ -127,8 +93,8 @@ class Stream(Channel):
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
         
-        self._active = True
-        self._connecting = True
+        self.active = True
+        self.connecting = True
         
         try:
             connected = self._socket_connect((host, port))
@@ -155,7 +121,7 @@ class Stream(Channel):
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
-        if self._active:
+        if self.active:
             raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
@@ -176,8 +142,8 @@ class Stream(Channel):
             self.close()
             raise
         
-        self._active = True
-        self._listening = True
+        self.active = True
+        self.listening = True
         self._update_addr()
         self._safely_call(self.on_listen)
         
@@ -193,10 +159,10 @@ class Stream(Channel):
         self.read_delimiter = None
         self._recv_buffer = ""
         self._send_buffer = []
-        self._active = False
-        self._connected = False
-        self._connecting = False
-        self._listening = False
+        self.active = False
+        self.connected = False
+        self.connecting = False
+        self.listening = False
         self._update_addr()
         
         Channel.close(self)
@@ -219,7 +185,7 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self._connected:
+        if not self.connected:
             log.warning("Attempted to write to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -246,7 +212,7 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self._connected:
+        if not self.connected:
             log.warning("Attempted to write file to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -262,10 +228,10 @@ class Stream(Channel):
         Update the stream's attr:`~pants.stream.Stream.remote_addr` and
         attr:`~pants.stream.Stream.local_addr` attributes.
         """
-        if self._connected:
+        if self.connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
-        elif self._listening:  
+        elif self.listening:  
             self.remote_addr = (None, None)
             self.local_addr = self._socket.getsockname()
         else:
@@ -278,7 +244,7 @@ class Stream(Channel):
         """
         Handle a read event raised on the channel.
         """
-        if self._listening:
+        if self.listening:
             self._handle_accept_event()
             return
         
@@ -306,12 +272,12 @@ class Stream(Channel):
         """
         Handle a write event raised on the channel.
         """
-        if self._listening:
+        if self.listening:
             log.warning("Received write event for listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self._connected:
+        if not self.connected:
             self._handle_connect_event()
         
         if not self._send_buffer:
@@ -345,15 +311,15 @@ class Stream(Channel):
         """
         Handle a connect event raised on the channel.
         """
-        self._connecting = False
+        self.connecting = False
         self._update_addr()
         err, srrstr = self._get_socket_error()
         if err == 0:
-            self._active = True
-            self._connected = True
+            self.active = True
+            self.connected = True
             self._safely_call(self.on_connect)
         else:
-            self._active = False
+            self.active = False
             self._safely_call(self.on_connect_error, (err, errstr))
     
     ##### Internal Processing Methods #########################################    
@@ -391,7 +357,7 @@ class Stream(Channel):
                         (self.__class__.__name__, self.fileno))
                 break
             
-            if self._socket is None or not self._connected:
+            if self._socket is None or not self.connected:
                 break
     
     def _process_send_buffer(self):

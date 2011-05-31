@@ -108,16 +108,6 @@ class Channel(object):
         self._events = Engine.ALL_EVENTS
         Engine.instance().add_channel(self)
     
-    ##### Status Methods ######################################################
-    
-    def closed(self):
-        """
-        Check if the channel is closed.
-        
-        Returns True if the channel is closed, False otherwise.
-        """
-        return self._socket is None
-    
     ##### Control Methods #####################################################
     
     def connect(self):

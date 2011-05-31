@@ -56,27 +56,8 @@ class Datagram(Channel):
         self._send_buffer = []
         
         # Internal state
-        self._active = False
-        self._listening = False
-    
-    ##### Status Methods ######################################################
-    
-    def active(self):
-        """
-        Check if the channel is active - either sending data or
-        listening.
-        
-        Returns True if the channel is active, False otherwise.
-        """
-        return self._active
-    
-    def listening(self):
-        """
-        Check if the channel is listening for packets.
-        
-        Returns True if the channel is listening, False otherwise.
-        """
-        return self._listening
+        self.active = False
+        self.listening = False
     
     ##### Control Methods #####################################################
     
@@ -93,8 +74,8 @@ class Datagram(Channel):
         host        *Optional.* The local host to bind to. By default, is ''.
         ==========  ============
         """
-        if self._active:
-            raise RuntimeError("listen() called on listening %s #%d."
+        if self.active:
+            raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
         
         if self._socket is None:
@@ -113,8 +94,8 @@ class Datagram(Channel):
             self.close()
             raise
         
-        self._active = True
-        self._listening = True
+        self.active = True
+        self.listening = True
         self._update_addr()
         
         return self
@@ -129,8 +110,8 @@ class Datagram(Channel):
         self.read_delimiter = None
         self._recv_buffer = {}
         self._send_buffer = []
-        self._active = False
-        self._listening = False
+        self.active = False
+        self.listening = False
         self._update_addr()
         
         Channel.close(self)
@@ -161,7 +142,7 @@ class Datagram(Channel):
                         (self.__class__.__name__, self.fileno))
                 return
         
-        self._active = True
+        self.active = True
         self._send_buffer.append((data, addr))
         if not buffer_data:
             self._process_send_buffer()
@@ -172,7 +153,7 @@ class Datagram(Channel):
         """
         Update the channel's :attr:`local_addr` attribute.
         """
-        if self._listening:
+        if self.listening:
             self.local_addr = self._socket.getsockname()
         else:
             self.local_addr = (None, None)
@@ -188,7 +169,7 @@ class Datagram(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if not self._listening:
+        if not self.listening:
             log.warning("Received read event for non-listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -259,7 +240,7 @@ class Datagram(Channel):
                             (self.__class__.__name__, self.fileno))
                     break
                 
-                if not self._active:
+                if not self.active:
                     break
             
             self.remote_addr = (None, None)
@@ -269,7 +250,7 @@ class Datagram(Channel):
             else:
                 del self._recv_buffer[addr]
             
-            if not self._active:
+            if not self.active:
                 break
     
     def _process_send_buffer(self):
@@ -287,7 +268,7 @@ class Datagram(Channel):
                 break
         
         if not self._send_buffer:
-            self._active = False
+            self.active = False
             self._safely_call(self.on_write)
 
 
