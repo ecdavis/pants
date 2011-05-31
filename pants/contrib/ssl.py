@@ -1,7 +1,6 @@
 ###############################################################################
 #
-# Copyright 2011 Chris Davis
-# Copyright 2011 Stendec <stendec365@gmail.com>
+# Copyright 2011 Pants (see AUTHORS.txt)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
