@@ -188,9 +188,16 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        self._send_buffer.append((data, 0, len(data)))
+        if self._send_buffer and isinstance(self._send_buffer[-1][0], basestring):
+            d, s, e = self._send_buffer.pop(-1)
+            self._send_buffer.append((d + data, s, e + len(data)))
+        else:
+            self._send_buffer.append((data, 0, len(data)))
+        
         if not buffer_data:
             self._process_send_buffer()
+        else:
+            self._wait_for_write_event = True
     
     def write_file(self, sfile, nbytes=0, offset=0, buffer_data=False):
         """
@@ -218,6 +225,8 @@ class Stream(Channel):
         self._send_buffer.append((sfile, offset, nbytes))
         if not buffer_data:
             self._process_send_buffer()
+        else:
+            self._wait_for_write_event = True
     
     ##### Internal Methods ####################################################
     
