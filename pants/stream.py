@@ -20,6 +20,7 @@
 # Imports
 ###############################################################################
 
+import os
 import socket
 
 from pants.channel import Channel
@@ -48,6 +49,9 @@ class Stream(Channel):
     kwargs      Keyword arguments to be passed through to :class:`~pants.channel.Channel`
     ==========  ============
     """
+    DATA_STRING = 0
+    DATA_FILE = 1
+    
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
@@ -188,11 +192,11 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        if self._send_buffer and isinstance(self._send_buffer[-1][0], basestring):
-            d, s, e = self._send_buffer.pop(-1)
-            self._send_buffer.append((d + data, s, e + len(data)))
-        else:
-            self._send_buffer.append((data, 0, len(data)))
+        if self._send_buffer and self._send_buffer[-1][0] == Stream.DATA_STRING:
+            data_type, existing_data = self._send_buffer.pop(-1)
+            data = existing_data + data
+        
+        self._send_buffer.append((Stream.DATA_STRING, data))
         
         if not buffer_data:
             self._process_send_buffer()
@@ -222,7 +226,8 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             return
         
-        self._send_buffer.append((sfile, offset, nbytes))
+        self._send_buffer.append((Stream.DATA_FILE, (sfile, offset, nbytes)))
+        
         if not buffer_data:
             self._process_send_buffer()
         else:
@@ -373,33 +378,55 @@ class Stream(Channel):
         :meth:`~pants.stream.Stream.on_write` when sending has finished.
         """
         while self._send_buffer:
-            data, offset, bytes = self._send_buffer.pop(0)
+            data_type, data = self._send_buffer.pop(0)
             
-            sending_a_string = isinstance(data, basestring)
-            
-            try:
-                if sending_a_string:
-                    bytes_sent = self._socket_send(data)
-                else:
-                    bytes_sent = self._socket_sendfile(data, offset, bytes)
-            except socket.error, err:
-                log.exception("Exception raised by send() on %s #%s." %
-                        (self.__class__.__name__, self.fileno))
-                # TODO Close this Stream here?
-                self.close()
-                return
-            
-            if sending_a_string:
-                if len(data) > bytes_sent:
-                    self._send_buffer.insert(0, (data[bytes_sent:], offset, bytes))
-            else:
-                if bytes == 0:
-                    self._send_buffer.insert(0, (data, offset+bytes_sent, bytes))
-                elif (bytes-offset) > bytes_sent:
-                    self._send_buffer.insert(0, (data, offset+bytes_sent, bytes-bytes_sent))
+            if data_type == Stream.DATA_STRING:
+                bytes_sent = self._process_send_data_string(data)
+            elif data_type == Stream.DATA_FILE:
+                bytes_sent = self._process_send_data_file(*data)
             
             if bytes_sent == 0:
                 break
         
         if not self._send_buffer:
             self._safely_call(self.on_write)
+    
+    def _process_send_data_string(self, data):
+        try:
+            bytes_sent = self._socket_send(data)
+        except socket.error, err:
+            log.exception("Exception raised in send() on %s #%d." %
+                    (self.__class__.__name__, self.fileno))
+            self.close()
+            return 0
+        
+        if len(data) > bytes_sent:
+            self._send_buffer.insert(0, (Stream.DATA_STRING, data[bytes_sent:]))
+        
+        return bytes_sent
+    
+    def _process_send_data_file(self, sfile, offset, nbytes):
+        try:
+            bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
+        except socket.error, err:
+            log.exception("Exception raised in sendfile() on %s #%d." %
+                    (self.__class__.__name__, self.fileno))
+            self.close()
+            return 0
+        
+        offset += bytes_sent
+        
+        if nbytes > 0:
+            if nbytes - bytes_sent > 0:
+                nbytes -= bytes_sent
+            else:
+                # Reached the end of the segment.
+                return bytes_sent
+        
+        if os.fstat(sfile.fileno()).st_size - offset <= 0:
+            # Reached the end of the file.
+            return bytes_sent
+        
+        self._send_buffer.insert(0, (Stream.DATA_FILE, (sfile, offset, nbytes)))
+        
+        return bytes_sent
