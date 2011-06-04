@@ -92,7 +92,7 @@ def startTLS(self, keyfile=None, certfile=None, server_side=False,
     self.ssl_suppress_ragged_eofs = suppress_ragged_eofs
     
     # Are we connected? If so, wrap and handshake immediately.
-    if self._connected:
+    if self.connected:
         self._ssl_wrap()
         self._ssl_handshake()
 

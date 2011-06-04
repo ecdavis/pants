@@ -134,7 +134,7 @@ class TelnetConnection(Connection):
                         (self.__class__.__name__, self.fileno))
                 break
             
-            if self._socket is None or not self._connected:
+            if self._socket is None or not self.connected:
                 break
     
     def _on_telnet_iac(self, data):
