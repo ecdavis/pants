@@ -530,7 +530,7 @@ class _Callback(object):
                     self.func.__name__)
     
     def cancel(self):
-        Engine.instance().remove(self)
+        Engine.instance().remove_timer(self)
 
 
 ###############################################################################
