@@ -525,9 +525,9 @@ class Channel(object):
             return
         
         events = Engine.ERROR | Engine.HANGUP
-        if self._wait_for_read_event == True:
+        if self._wait_for_read_event:
             events |= Engine.READ
-        if self._wait_for_write_event == True:
+        if self._wait_for_write_event:
             events |= Engine.WRITE
         if events != self._events:
             self._events = events

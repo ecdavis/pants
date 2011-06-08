@@ -310,6 +310,7 @@ class Stream(Channel):
                 try:
                     sock.close()
                 except socket.error, err:
+                    # TODO What do we do here?
                     pass
                 # TODO Close this Stream here?
                 return
@@ -325,7 +326,7 @@ class Stream(Channel):
         """
         self.connecting = False
         self._update_addr()
-        err, srrstr = self._get_socket_error()
+        err, errstr = self._get_socket_error()
         if err == 0:
             self.connected = True
             self._safely_call(self.on_connect)
