@@ -24,7 +24,6 @@ import os
 import socket
 
 from pants.channel import Channel
-from pants.engine import Engine
 
 
 ###############################################################################
@@ -100,7 +99,7 @@ class Stream(Channel):
 
         try:
             connected = self._socket_connect((host, port))
-        except socket.error, err:
+        except socket.error:
             self.close()
             raise
 
@@ -263,7 +262,7 @@ class Stream(Channel):
         while True:
             try:
                 data = self._socket_recv()
-            except socket.error, err:
+            except socket.error:
                 log.exception("Exception raised by recv() on %s #%d." %
                         (self.__class__.__name__, self.fileno))
                 # TODO Close this Stream here?
@@ -304,12 +303,12 @@ class Stream(Channel):
         while True:
             try:
                 sock, addr = self._socket_accept()
-            except socket.error, err:
+            except socket.error:
                 log.exception("Exception raised by accept() on %s #%d." %
                         (self.__class__.__name__, self.fileno))
                 try:
                     sock.close()
-                except socket.error, err:
+                except socket.error:
                     # TODO What do we do here?
                     pass
                 # TODO Close this Stream here?
@@ -360,7 +359,7 @@ class Stream(Channel):
                 if mark == -1:
                     break
                 data = self._recv_buffer[:mark]
-                self._recv_buffer = self._recv_buffer[mark+len(delimiter):]
+                self._recv_buffer = self._recv_buffer[mark + len(delimiter):]
                 self._safely_call(self.on_read, data)
 
             else:
@@ -395,7 +394,7 @@ class Stream(Channel):
     def _process_send_data_string(self, data):
         try:
             bytes_sent = self._socket_send(data)
-        except socket.error, err:
+        except socket.error:
             log.exception("Exception raised in send() on %s #%d." %
                     (self.__class__.__name__, self.fileno))
             self.close()
@@ -409,7 +408,7 @@ class Stream(Channel):
     def _process_send_data_file(self, sfile, offset, nbytes):
         try:
             bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
-        except socket.error, err:
+        except socket.error:
             log.exception("Exception raised in sendfile() on %s #%d." %
                     (self.__class__.__name__, self.fileno))
             self.close()
