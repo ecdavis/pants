@@ -169,9 +169,9 @@ def install(app=None, timeout=0.02):
             the engine's poll function.
     """
     global timer
-    
+
     Engine.instance()._install_poller(_Qt())
-    
+
     if app is None:
         app = QCoreApplication.instance()
     if app is None:

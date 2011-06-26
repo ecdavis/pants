@@ -43,7 +43,7 @@ class Client(Stream):
 class Connection(Stream):
     """
     A basic implementation of a connection to a server.
-    
+
     =========  ============
     Argument   Description
     =========  ============
@@ -53,7 +53,7 @@ class Connection(Stream):
     """
     def __init__(self, socket, server):
         Stream.__init__(self, socket=socket)
-        
+
         self.server = server
 
 
@@ -64,7 +64,7 @@ class Connection(Stream):
 class Server(Stream):
     """
     A basic implementation of a server.
-    
+
     ================  ============
     Argument          Description
     ================  ============
@@ -73,25 +73,25 @@ class Server(Stream):
     """
     #: A :obj:`pants.network.Connection` subclass with which to wrap newly connected sockets.
     ConnectionClass = Connection
-    
+
     def __init__(self, ConnectionClass=None):
         Stream.__init__(self)
-        
+
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
-        
+
         self.channels = weakref.WeakValueDictionary() # fd : channel
-    
+
     ##### Public Event Handlers ###############################################
-    
+
     def on_accept(self, socket, addr):
         """
         Called after the channel has accepted a new connection.
-        
+
         Create a new instance of :attr:`ConnectonClass` to wrap the socket
         and add it to the server.
-        
+
         =========  ============
         Argument   Description
         =========  ============
@@ -102,11 +102,11 @@ class Server(Stream):
         connection = self.ConnectionClass(socket, self)
         self.channels[connection.fileno] = connection
         connection._handle_connect_event()
-    
+
     def on_close(self):
         """
         Called after the channel has finished closing.
-        
+
         Close all active connections to the server.
         """
         for channel in self.channels.values():

@@ -42,7 +42,7 @@ log = logging.getLogger("pants")
 class Stream(Channel):
     """
     A streaming, connection-based :class:`~pants.channel.Channel`.
-    
+
     ==========  ============
     Arguments   Description
     ==========  ============
@@ -51,36 +51,36 @@ class Stream(Channel):
     """
     DATA_STRING = 0
     DATA_FILE = 1
-    
+
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
                     % self.__class__.__name__)
-        
+
         Channel.__init__(self, **kwargs)
-        
+
         # Socket
         self.remote_addr = (None, None)
         self.local_addr = (None, None)
-        
+
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = ""
         self._send_buffer = []
-        
+
         # Channel state
         self.connected = False
         self.connecting = False
         self.listening = False
-    
+
     ##### Control Methods #####################################################
-    
+
     def connect(self, host, port):
         """
         Connect the channel to a remote socket.
-        
+
         Returns the channel.
-        
+
         ==========  ============
         Arguments   Description
         ==========  ============
@@ -91,30 +91,30 @@ class Stream(Channel):
         if self.connected or self.listening or self.connecting:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
-        
+
         if self._socket is None:
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
-        
+
         self.connecting = True
-        
+
         try:
             connected = self._socket_connect((host, port))
         except socket.error, err:
             self.close()
             raise
-        
+
         if connected:
             self._handle_connect_event()
-        
+
         return self
-    
+
     def listen(self, port=8080, host='', backlog=1024):
         """
         Begin listening for connections made to the channel.
-        
+
         Returns the channel.
-        
+
         ==========  ============
         Arguments   Description
         ==========  ============
@@ -126,55 +126,55 @@ class Stream(Channel):
         if self.connected or self.listening or self.connecting:
             raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
-        
+
         if self._socket is None:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
-        
+
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError:
             pass
-        
+
         try:
             self._socket_bind((host, port))
             self._socket_listen(backlog)
         except socket.error, err:
             self.close()
             raise
-        
+
         self.listening = True
         self._update_addr()
         self._safely_call(self.on_listen)
-        
+
         return self
-    
+
     def close(self):
         """
         Close the channel.
         """
         if self._socket is None:
             return
-        
+
         self.read_delimiter = None
         self._recv_buffer = ""
         self._send_buffer = []
-        
+
         self.connected = False
         self.connecting = False
         self.listening = False
-        
+
         self._update_addr()
-        
+
         Channel.close(self)
-    
+
     ##### I/O Methods #########################################################
-    
+
     def write(self, data, buffer_data=False):
         """
         Write data to the channel.
-        
+
         ============  ============
         Arguments     Description
         ============  ============
@@ -186,27 +186,27 @@ class Stream(Channel):
             log.warning("Attempted to write to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
+
         if not self.connected:
             log.warning("Attempted to write to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
+
         if self._send_buffer and self._send_buffer[-1][0] == Stream.DATA_STRING:
             data_type, existing_data = self._send_buffer.pop(-1)
             data = existing_data + data
-        
+
         self._send_buffer.append((Stream.DATA_STRING, data))
-        
+
         if not buffer_data:
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True
-    
+
     def write_file(self, sfile, nbytes=0, offset=0, buffer_data=False):
         """
         Write a file to the channel.
-        
+
         ============  ============
         Arguments     Description
         ============  ============
@@ -220,21 +220,21 @@ class Stream(Channel):
             log.warning("Attempted to write file to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
+
         if not self.connected:
             log.warning("Attempted to write file to disconnected %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
+
         self._send_buffer.append((Stream.DATA_FILE, (sfile, offset, nbytes)))
-        
+
         if not buffer_data:
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True
-    
+
     ##### Internal Methods ####################################################
-    
+
     def _update_addr(self):
         """
         Update the stream's attr:`~pants.stream.Stream.remote_addr` and
@@ -243,15 +243,15 @@ class Stream(Channel):
         if self.connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
-        elif self.listening:  
+        elif self.listening:
             self.remote_addr = (None, None)
             self.local_addr = self._socket.getsockname()
         else:
             self.remote_addr = (None, None)
             self.local_addr = (None, None)
-    
+
     ##### Internal Event Handler Methods ######################################
-    
+
     def _handle_read_event(self):
         """
         Handle a read event raised on the channel.
@@ -259,7 +259,7 @@ class Stream(Channel):
         if self.listening:
             self._handle_accept_event()
             return
-        
+
         while True:
             try:
                 data = self._socket_recv()
@@ -269,7 +269,7 @@ class Stream(Channel):
                 # TODO Close this Stream here?
                 self.close()
                 return
-            
+
             if data is None:
                 self.close()
                 return
@@ -277,9 +277,9 @@ class Stream(Channel):
                 break
             else:
                 self._recv_buffer += data
-        
+
         self._process_recv_buffer()
-    
+
     def _handle_write_event(self):
         """
         Handle a write event raised on the channel.
@@ -288,15 +288,15 @@ class Stream(Channel):
             log.warning("Received write event for listening %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
-        
+
         if not self.connected:
             self._handle_connect_event()
-        
+
         if not self._send_buffer:
             return
-        
+
         self._process_send_buffer()
-    
+
     def _handle_accept_event(self):
         """
         Handle an accept event raised on the channel.
@@ -314,12 +314,12 @@ class Stream(Channel):
                     pass
                 # TODO Close this Stream here?
                 return
-            
+
             if sock is None:
                 return
-            
+
             self._safely_call(self.on_accept, sock, addr)
-    
+
     def _handle_connect_event(self):
         """
         Handle a connect event raised on the channel.
@@ -332,9 +332,9 @@ class Stream(Channel):
             self._safely_call(self.on_connect)
         else:
             self._safely_call(self.on_connect_error, (err, errstr))
-    
-    ##### Internal Processing Methods #########################################    
-    
+
+    ##### Internal Processing Methods #########################################
+
     def _process_recv_buffer(self):
         """
         Process the :attr:`~pants.stream.Stream._recv_buffer`, passing
@@ -342,19 +342,19 @@ class Stream(Channel):
         """
         while self._recv_buffer:
             delimiter = self.read_delimiter
-            
+
             if delimiter is None:
                 data = self._recv_buffer
                 self._recv_buffer = ""
                 self._safely_call(self.on_read, data)
-            
+
             elif isinstance(delimiter, (int, long)):
                 if len(self._recv_buffer) < delimiter:
                     break
                 data = self._recv_buffer[:delimiter]
                 self._recv_buffer = self._recv_buffer[delimiter:]
                 self._safely_call(self.on_read, data)
-            
+
             elif isinstance(delimiter, basestring):
                 mark = self._recv_buffer.find(delimiter)
                 if mark == -1:
@@ -362,15 +362,15 @@ class Stream(Channel):
                 data = self._recv_buffer[:mark]
                 self._recv_buffer = self._recv_buffer[mark+len(delimiter):]
                 self._safely_call(self.on_read, data)
-            
+
             else:
                 log.warning("Invalid read_delimiter on %s #%d." %
                         (self.__class__.__name__, self.fileno))
                 break
-            
+
             if self._socket is None or not self.connected:
                 break
-    
+
     def _process_send_buffer(self):
         """
         Process the :attr:`~pants.stream.Stream._send_buffer`, passing
@@ -380,18 +380,18 @@ class Stream(Channel):
         """
         while self._send_buffer:
             data_type, data = self._send_buffer.pop(0)
-            
+
             if data_type == Stream.DATA_STRING:
                 bytes_sent = self._process_send_data_string(data)
             elif data_type == Stream.DATA_FILE:
                 bytes_sent = self._process_send_data_file(*data)
-            
+
             if bytes_sent == 0:
                 break
-        
+
         if not self._send_buffer:
             self._safely_call(self.on_write)
-    
+
     def _process_send_data_string(self, data):
         try:
             bytes_sent = self._socket_send(data)
@@ -400,12 +400,12 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             self.close()
             return 0
-        
+
         if len(data) > bytes_sent:
             self._send_buffer.insert(0, (Stream.DATA_STRING, data[bytes_sent:]))
-        
+
         return bytes_sent
-    
+
     def _process_send_data_file(self, sfile, offset, nbytes):
         try:
             bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
@@ -414,20 +414,20 @@ class Stream(Channel):
                     (self.__class__.__name__, self.fileno))
             self.close()
             return 0
-        
+
         offset += bytes_sent
-        
+
         if nbytes > 0:
             if nbytes - bytes_sent > 0:
                 nbytes -= bytes_sent
             else:
                 # Reached the end of the segment.
                 return bytes_sent
-        
+
         if os.fstat(sfile.fileno()).st_size - offset <= 0:
             # Reached the end of the file.
             return bytes_sent
-        
+
         self._send_buffer.insert(0, (Stream.DATA_FILE, (sfile, offset, nbytes)))
-        
+
         return bytes_sent
