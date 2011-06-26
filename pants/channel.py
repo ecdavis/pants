@@ -82,6 +82,13 @@ class Channel(object):
     socket              *Optional.* A pre-existing socket to wrap.
     ==================  ============
     """
+    
+    #: The delimiter that determines when data is passed to
+    #: :meth:`~pants.channel.Channel.on_read`.
+    #:
+    #: Not implemented in :class:`~pants.channel.Channel`.
+    read_delimiter = None
+    
     def __init__(self, **kwargs):
         # Keyword arguments
         sock_family = kwargs.get("family", socket.AF_INET)
