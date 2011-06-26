@@ -39,6 +39,9 @@ log = logging.getLogger("pants")
 ###############################################################################
 
 class Datagram(Channel):
+    """
+    A packet-oriented, connectionless :class:`~pants.channel.Channel`.
+    """
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_DGRAM) != socket.SOCK_DGRAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_DGRAM."
