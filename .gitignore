@@ -1,0 +1,10 @@
+# Compiled Python files
+*.py[co]
+
+# Backup files
+*.sw[po]
+*~
+
+# System cruft
+Thumbs.db
+.DS_Store
