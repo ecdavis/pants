@@ -36,13 +36,13 @@ log = logging.getLogger("pants")
 ###############################################################################
 
 # Telnet commands
-IAC  = chr(255) # Interpret As Command
-DONT = chr(254) # Don't Perform
-DO   = chr(253) # Do Perform
-WONT = chr(252) # Won't Perform
-WILL = chr(251) # Will Perform
-SB   = chr(250) # Subnegotiation Begin
-SE   = chr(240) # Subnegotiation End
+IAC  = chr(255)  # Interpret As Command
+DONT = chr(254)  # Don't Perform
+DO   = chr(253)  # Do Perform
+WONT = chr(252)  # Won't Perform
+WILL = chr(251)  # Will Perform
+SB   = chr(250)  # Subnegotiation Begin
+SE   = chr(240)  # Subnegotiation End
 
 ###############################################################################
 # TelnetConnection Class
@@ -122,7 +122,7 @@ class TelnetConnection(Connection):
                 self._telnet_data = ''
                 self._safely_call(self.on_read, data)
 
-            elif isinstance(delimiter, (int,long)):
+            elif isinstance(delimiter, (int, long)):
                 if len(self._telnet_data) < delimiter:
                     break
                 data = self._telnet_data[:delimiter]
@@ -134,7 +134,7 @@ class TelnetConnection(Connection):
                 if mark == -1:
                     break
                 data = self._telnet_data[:mark]
-                self._telnet_data = self._telnet_data[mark+len(delimiter):]
+                self._telnet_data = self._telnet_data[mark + len(delimiter):]
                 self._safely_call(self.on_read, data)
 
             else:
@@ -175,19 +175,19 @@ class TelnetConnection(Connection):
 
                 seq += data[:loc]
 
-                if data[loc+1] == SE:
+                if data[loc + 1] == SE:
                     # Match
                     data = data[loc+2:]
                     break
 
-                elif data[loc+1] == IAC:
+                elif data[loc + 1] == IAC:
                     # Escaped
                     seq += IAC
                     data = data[loc+2:]
                     continue
 
                 # Unknown. Skip it.
-                data = data[loc+1:]
+                data = data[loc + 1:]
                 if not data:
                     return False
 
