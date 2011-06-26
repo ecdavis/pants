@@ -81,7 +81,7 @@ class Server(Stream):
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
 
-        self.channels = weakref.WeakValueDictionary() # fd : channel
+        self.channels = weakref.WeakValueDictionary()  # fd : channel
 
     ##### Public Event Handlers ###############################################
 
