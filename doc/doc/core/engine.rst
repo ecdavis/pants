@@ -58,11 +58,11 @@ Timers are function calls that are delayed until some point in the future.
 There are four methods used for scheduling timers:
 :meth:`~pants.engine.Engine.callback`, :meth:`~pants.engine.Engine.loop`,
 :meth:`~pants.engine.Engine.defer` and :meth:`~pants.engine.Engine.cycle`.
-These methods all return a dummy object that can be used to cancel the
-timer at any time::
+These methods all return a callable that can be used to cancel the timer
+at any time::
 
-    callback = engine.callback(my_callback)
-    callback.cancel()
+    cancel_callback = engine.callback(callback)
+    cancel_callback()
 
 The timer methods can be passed any number of positional and keyword
 arguments, which will then be passed through to the given function when
