@@ -22,6 +22,7 @@
 
 import bisect
 import errno
+import functools
 import select
 import time
 
@@ -149,22 +150,32 @@ class Engine(object):
         poll_timeout  The timeout to be passed to the polling object.
         ============= ============
         """
-        # Update time.
         self.time = time.time()
 
-        # Update timers.
-        for callback in self._callbacks[:]:  # Copy list, since we modify it.
+        # Timers
+
+        callbacks, self._callbacks = self._callbacks[:], []
+
+        for timer in callbacks:
             try:
-                self._callbacks.remove(callback)
-            except ValueError:
-                pass  # Callback not present.
-            finally:
-                callback.run()
+                timer.function()
+            except Exception:
+                log.exception("Exception raised while executing timer.")
+
+            if timer.requeue:
+                self._callbacks.append(timer)
 
         while self._deferreds and self._deferreds[0].end <= self.time:
-            # The deferred list is sorted by time.
-            deferred = self._deferreds.pop(0)
-            deferred.run()
+            timer = self._deferreds.pop(0)
+
+            try:
+                timer.function()
+            except Exception:
+                log.exception("Exception raised while executing timer.")
+
+            if timer.requeue:
+                timer.end = self.time + timer.delay
+                bisect.insort(self._deferreds, timer)
 
         if self._shutdown:
             return
@@ -174,10 +185,11 @@ class Engine(object):
             if timeout > 0.0:
                 poll_timeout = min(timeout, poll_timeout)
 
-        # Update channels.
         if not self._channels:
             time.sleep(poll_timeout)  # Don't burn CPU.
             return
+
+        # Channels
 
         try:
             events = self._poller.poll(poll_timeout)
@@ -255,7 +267,7 @@ class Engine(object):
 
     ##### Timer Methods #######################################################
 
-    def callback(self, func, *args, **kwargs):
+    def callback(self, function, *args, **kwargs):
         """
         Schedule a callback.
 
@@ -263,67 +275,70 @@ class Engine(object):
         immediately but rather at the beginning of the next iteration of the
         main engine loop.
 
-        Returns an object which can be used to cancel the callback.
+        Returns a callable which can be used to cancel the callback.
 
         =========  ============
         Argument   Description
         =========  ============
-        func       The callable to be executed when the callback is run.
+        function   The callable to be executed when the callback is run.
         args       The positional arguments to be passed to the callable.
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
-        callback = _Callback(func, *args, **kwargs)
-        self._callbacks.append(callback)
+        callback = functools.partial(function, *args, **kwargs)
+        timer = _Timer(callback, False)
+        self._callbacks.append(timer)
 
-        return callback
+        return functools.partial(self.remove_timer, timer)
 
-    def loop(self, func, *args, **kwargs):
+    def loop(self, function, *args, **kwargs):
         """
         Schedule a loop.
 
         A loop is a callback that is executed and then rescheduled, being
         run on each iteration of the main engine loop.
 
-        Returns an object which can be used to cancel the loop.
+        Returns a callable which can be used to cancel the loop.
 
         =========  ============
         Argument   Description
         =========  ============
-        func       The callable to be executed when the loop is run.
+        function   The callable to be executed when the loop is run.
         args       The positional arguments to be passed to the callable.
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
-        loop = _Loop(func, *args, **kwargs)
-        self._callbacks.append(loop)
+        loop = functools.partial(function, *args, **kwargs)
+        timer = _Timer(loop, True)
+        self._callbacks.append(timer)
 
-        return loop
+        return functools.partial(self.remove_timer, timer)
 
-    def defer(self, func, delay, *args, **kwargs):
+    def defer(self, delay, function, *args, **kwargs):
         """
         Schedule a deferred.
 
         A deferred is a function (or other callable) that is not executed
         immediately but rather after a certain amount of time.
 
-        Returns an object which can be used to cancel the deferred.
+        Returns a callable which can be used to cancel the deferred.
 
         =========  ============
         Argument   Description
         =========  ============
-        func       The callable to be executed when the deferred is run.
         delay      The delay, in seconds, after which the deferred should be run.
+        function   The callable to be executed when the deferred is run.
         args       The positional arguments to be passed to the callable.
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
-        deferred = _Deferred(func, delay, *args, **kwargs)
-        bisect.insort(self._deferreds, deferred)
+        deferred = functools.partial(function, *args, **kwargs)
+        timer = _Timer(deferred, False, delay, self.time + delay)
+        bisect.insort(self._deferreds, timer)
 
-        return deferred
+        return functools.partial(self.remove_timer, timer)
 
-    def cycle(self, func, interval, *args, **kwargs):
+    def cycle(self, interval, function, *args, **kwargs):
         """
         Schedule a cycle.
 
@@ -331,21 +346,22 @@ class Engine(object):
         time and then rescheduled, effectively being run at regular
         intervals.
 
-        Returns an object which can be used to cancel the cycle.
+        Returns a callable which can be used to cancel the cycle.
 
         =========  ============
         Argument   Description
         =========  ============
-        func       The callable to be executed when the cycle is run.
         interval   The interval, in seconds, at which the cycle should be run.
+        function   The callable to be executed when the cycle is run.
         args       The positional arguments to be passed to the callable.
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
-        cycle = _Cycle(func, interval, *args, **kwargs)
-        bisect.insort(self._deferreds, cycle)
+        cycle = functools.partial(function, *args, **kwargs)
+        timer = _Timer(cycle, True, interval, self.time + interval)
+        bisect.insort(self._deferreds, timer)
 
-        return cycle
+        return functools.partial(self.remove_timer, timer)
 
     def remove_timer(self, timer):
         """
@@ -357,14 +373,14 @@ class Engine(object):
         timer      The timer to be removed.
         =========  ============
         """
-        if isinstance(timer, _Deferred):
+        if timer.end is None:
             try:
-                self._deferreds.remove(timer)
+                self._callbacks.remove(timer)
             except ValueError:
                 pass  # Callback not present.
         else:
             try:
-                self._callbacks.remove(timer)
+                self._deferreds.remove(timer)
             except ValueError:
                 pass  # Callback not present.
 
@@ -514,59 +530,27 @@ class _Select(object):
 
 
 ###############################################################################
-# _Callback Class
+# _Timer Class
 ###############################################################################
 
-class _Callback(object):
-    def __init__(self, func, *args, **kwargs):
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
+class _Timer(object):
+    """
+    A simple data structure for storing timer information.
 
-    def run(self):
-        try:
-            self.func(*self.args, **self.kwargs)
-        except Exception:
-            log.exception("Exception raised while executing callback '%s'." %
-                    self.func.__name__)
-
-    def cancel(self):
-        Engine.instance().remove_timer(self)
-
-
-###############################################################################
-# _Loop Class
-###############################################################################
-
-class _Loop(_Callback):
-    def run(self):
-        _Callback.run(self)
-
-        Engine.instance()._callbacks.append(self)
-
-
-###############################################################################
-# _Deferred Class
-###############################################################################
-
-class _Deferred(_Callback):
-    def __init__(self, func, delay, *args, **kwargs):
-        _Callback.__init__(self, func, *args, **kwargs)
-
+    =========  ============
+    Argument   Description
+    =========  ============
+    function   The callable to be executed when the timer is run.
+    requeue    Whether the timer should be requeued after being run.
+    delay      The time, in seconds, after which the timer should be run - or None, for a callback/loop.
+    end        The time, in seconds since the epoch, after which the timer should be run - or None, for a callback/loop.
+    =========  ============
+    """
+    def __init__(self, function, requeue, delay=None, end=None):
+        self.function = function
+        self.requeue = requeue
         self.delay = delay
-        self.end = Engine.instance().time + delay
+        self.end = end
 
     def __cmp__(self, to):
         return cmp(self.end, to.end)
-
-
-###############################################################################
-# _Cycle Class
-###############################################################################
-
-class _Cycle(_Deferred):
-    def run(self):
-        _Deferred.run(self)
-
-        self.end = Engine.instance().time + self.delay
-        bisect.insort(Engine.instance()._deferreds, self)
