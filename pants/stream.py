@@ -40,13 +40,14 @@ log = logging.getLogger("pants")
 
 class Stream(_Channel):
     """
-    A stream-oriented, connecting :class:`~pants.channel.Channel`.
+    A stream-oriented, connecting channel.
 
-    ==========  ============
-    Arguments   Description
-    ==========  ============
-    kwargs      Keyword arguments to be passed through to :class:`~pants.channel.Channel`
-    ==========  ============
+    ==================  ============
+    Keyword Arguments   Description
+    ==================  ============
+    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
+    socket              *Optional.* A pre-existing socket to wrap.
+    ==================  ============
     """
     DATA_STRING = 0
     DATA_FILE = 1
@@ -56,7 +57,7 @@ class Stream(_Channel):
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
-        Channel.__init__(self, **kwargs)
+        _Channel.__init__(self, **kwargs)
 
         # Socket
         self.remote_addr = None
@@ -122,7 +123,7 @@ class Stream(_Channel):
 
         self._update_addr()
 
-        Channel.close(self)
+        _Channel.close(self)
 
     def end(self):
         """
@@ -204,8 +205,8 @@ class Stream(_Channel):
 
     def _update_addr(self):
         """
-        Update the stream's attr:`~pants.stream.Stream.remote_addr` and
-        attr:`~pants.stream.Stream.local_addr` attributes.
+        Update the channel's :attr:`~pants.stream.Stream.remote_addr`
+        and :attr:`~pants.stream.Stream.local_addr` attributes.
         """
         if self.connected:
             self.remote_addr = self._socket.getpeername()
@@ -306,8 +307,8 @@ class Stream(_Channel):
     def _process_send_buffer(self):
         """
         Process the :attr:`~pants.stream.Stream._send_buffer`, passing
-        outgoing data to :meth:`~pants.channel.Channel._socket_send` or
-        :meth:`~pants.channel.Channel._socket_sendfile` and calling
+        outgoing data to :meth:`~pants._channel._Channel._socket_send`
+        or :meth:`~pants._channel._Channel._socket_sendfile` and calling
         :meth:`~pants.stream.Stream.on_write` when sending has finished.
         """
         while self._send_buffer:
@@ -369,22 +370,23 @@ class Stream(_Channel):
 # StreamServer Class
 ###############################################################################
 
-class StreamServer(Channel):
+class StreamServer(_Channel):
     """
-    A stream-oriented, listening :class:`~pants.channel.Channel`.
+    A stream-oriented, listening channel.
 
-    ==========  ============
-    Arguments   Description
-    ==========  ============
-    kwargs      Keyword arguments to be passed through to :class:`~pants.channel.Channel`
-    ==========  ============
+    ==================  ============
+    Keyword Arguments   Description
+    ==================  ============
+    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
+    socket              *Optional.* A pre-existing socket to wrap.
+    ==================  ============
     """
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
-        Channel.__init__(self, **kwargs)
+        _Channel.__init__(self, **kwargs)
 
         # Socket
         self.remote_addr = None
@@ -446,14 +448,15 @@ class StreamServer(Channel):
 
         self._update_addr()
 
-        Channel.close(self)
+        _Channel.close(self)
 
     ##### Internal Methods ####################################################
 
     def _update_addr(self):
         """
-        Update the stream's attr:`~pants.stream.StreamServer.remote_addr`
-        and attr:`~pants.stream.StreamServer.local_addr` attributes.
+        Update the channel's
+        :attr:`~pants.stream.StreamServer.remote_addr` and
+        :attr:`~pants.stream.StreamServer.local_addr` attributes.
         """
         if self.listening:
             self.remote_addr = None
