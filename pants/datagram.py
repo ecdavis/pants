@@ -286,29 +286,3 @@ class Datagram(Channel):
 
         if not self._send_buffer:
             self._safely_call(self.on_write)
-
-
-###############################################################################
-# sendto Function
-###############################################################################
-
-_datagram = None
-
-def sendto(data, host, port):
-    """
-    Send a packet to a remote socket.
-
-    =========  ============
-    Argument   Description
-    =========  ============
-    data       A string of data to be sent.
-    host       The remote host to send the data to.
-    port       The port to send the data on.
-    =========  ============
-    """
-    global _datagram
-
-    if _datagram is None:
-        _datagram = Datagram()
-
-    _datagram.write(data, (host, port))
