@@ -44,9 +44,8 @@ class Engine(object):
     The asynchronous engine that powers a Pants application.
 
     The engine is a singleton object responsible for updating all
-    :class:`~pants.channel.Channel` objects and timers in your
-    application. Once started it will run until it is manually stopped,
-    interrupted or a fatal error occurs.
+    channels and timers in your application. Once started it will run
+    until it is manually stopped, interrupted or a fatal error occurs.
     """
     # Socket events - these correspond to epoll() states.
     NONE = 0x00
