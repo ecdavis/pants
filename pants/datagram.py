@@ -117,6 +117,18 @@ class Datagram(Channel):
 
         Channel.close(self)
 
+    def end(self):
+        """
+        Close the channel after writing is finished.
+        """
+        if self._socket is None:
+            return
+
+        if not self._send_buffer:
+            self.close()
+        else:
+            self.on_write = self.close
+
     ##### I/O Methods #########################################################
 
     def write(self, data, addr=None, buffer_data=False):

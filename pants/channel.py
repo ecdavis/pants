@@ -61,10 +61,10 @@ def strerror(err):
 
 
 ###############################################################################
-# Channel Class
+# _Channel Class
 ###############################################################################
 
-class Channel(object):
+class _Channel(object):
     """
     A simple interface for a socket wrapper class.
 
@@ -82,13 +82,6 @@ class Channel(object):
     socket              *Optional.* A pre-existing socket to wrap.
     ==================  ============
     """
-
-    #: The delimiter that determines when data is passed to
-    #: :meth:`~pants.channel.Channel.on_read`.
-    #:
-    #: Not implemented in :class:`~pants.channel.Channel`.
-    read_delimiter = None
-
     def __init__(self, **kwargs):
         # Keyword arguments
         sock_family = kwargs.get("family", socket.AF_INET)
@@ -108,34 +101,12 @@ class Channel(object):
 
         # I/O attributes
         self._recv_amount = 4096
-        self._recv_buffer = None
-        self._send_buffer = None
 
         # Events
         self._events = Engine.ALL_EVENTS
         Engine.instance().add_channel(self)
 
     ##### Control Methods #####################################################
-
-    def connect(self):
-        """
-        Connect the channel to a remote socket.
-
-        Returns the channel.
-
-        Not implemented in :class:`~pants.channel.Channel`.
-        """
-        raise NotImplementedError
-
-    def listen(self):
-        """
-        Begin listening for connections made to the channel.
-
-        Returns the channel.
-
-        Not implemented in :class:`~pants.channel.Channel`.
-        """
-        raise NotImplementedError
 
     def close(self):
         """
@@ -147,28 +118,6 @@ class Channel(object):
         Engine.instance().remove_channel(self)
         self._socket_close()
         self._safely_call(self.on_close)
-
-    def end(self):
-        """
-        Close the channel after writing is finished.
-        """
-        if self._socket is None:
-            return
-
-        if not self._send_buffer:
-            self.close()
-        else:
-            self.on_write = self.close
-
-    ##### I/O Methods #########################################################
-
-    def write(self):
-        """
-        Write data to the channel.
-
-        Not implemented in :class:`~pants.channel.Channel`.
-        """
-        raise NotImplementedError
 
     ##### Public Event Handlers ###############################################
 
