@@ -40,7 +40,7 @@ log = logging.getLogger("pants")
 
 class Stream(Channel):
     """
-    A streaming, connection-based :class:`~pants.channel.Channel`.
+    A stream-oriented, connecting :class:`~pants.channel.Channel`.
 
     ==========  ============
     Arguments   Description
@@ -70,7 +70,6 @@ class Stream(Channel):
         # Channel state
         self.connected = False
         self.connecting = False
-        self.listening = False
 
     ##### Control Methods #####################################################
 
@@ -87,7 +86,7 @@ class Stream(Channel):
         port        The port to connect on.
         ==========  ============
         """
-        if self.connected or self.listening or self.connecting:
+        if self.connected or self.connecting:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
@@ -108,47 +107,6 @@ class Stream(Channel):
 
         return self
 
-    def listen(self, port=8080, host='', backlog=1024):
-        """
-        Begin listening for connections made to the channel.
-
-        Returns the channel.
-
-        ==========  ============
-        Arguments   Description
-        ==========  ============
-        port        *Optional.* The port to listen for connections on. By default, is 8080.
-        host        *Optional.* The local host to bind to. By default, is ''.
-        backlog     *Optional.* The size of the connection queue. By default, is 1024.
-        ==========  ============
-        """
-        if self.connected or self.listening or self.connecting:
-            raise RuntimeError("listen() called on active %s #%d."
-                    % (self.__class__.__name__, self.fileno))
-
-        if self._socket is None:
-            raise RuntimeError("listen() called on closed %s."
-                    % self.__class__.__name__)
-
-        try:
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        except AttributeError:
-            pass
-
-        try:
-            self._socket_bind((host, port))
-            self._socket_listen(backlog)
-        except socket.error, err:
-            self.close()
-            raise
-
-        self.listening = True
-        self._update_addr()
-        self._safely_call(self.on_listen)
-
-        return self
-
     def close(self):
         """
         Close the channel.
@@ -162,7 +120,6 @@ class Stream(Channel):
 
         self.connected = False
         self.connecting = False
-        self.listening = False
 
         self._update_addr()
 
@@ -242,9 +199,6 @@ class Stream(Channel):
         if self.connected:
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
-        elif self.listening:
-            self.remote_addr = (None, None)
-            self.local_addr = self._socket.getsockname()
         else:
             self.remote_addr = (None, None)
             self.local_addr = (None, None)
@@ -255,10 +209,6 @@ class Stream(Channel):
         """
         Handle a read event raised on the channel.
         """
-        if self.listening:
-            self._handle_accept_event()
-            return
-
         while True:
             try:
                 data = self._socket_recv()
@@ -283,11 +233,6 @@ class Stream(Channel):
         """
         Handle a write event raised on the channel.
         """
-        if self.listening:
-            log.warning("Received write event for listening %s #%d." %
-                    (self.__class__.__name__, self.fileno))
-            return
-
         if not self.connected:
             self._handle_connect_event()
 
@@ -295,29 +240,6 @@ class Stream(Channel):
             return
 
         self._process_send_buffer()
-
-    def _handle_accept_event(self):
-        """
-        Handle an accept event raised on the channel.
-        """
-        while True:
-            try:
-                sock, addr = self._socket_accept()
-            except socket.error:
-                log.exception("Exception raised by accept() on %s #%d." %
-                        (self.__class__.__name__, self.fileno))
-                try:
-                    sock.close()
-                except socket.error:
-                    # TODO What do we do here?
-                    pass
-                # TODO Close this Stream here?
-                return
-
-            if sock is None:
-                return
-
-            self._safely_call(self.on_accept, sock, addr)
 
     def _handle_connect_event(self):
         """
@@ -430,3 +352,134 @@ class Stream(Channel):
         self._send_buffer.insert(0, (Stream.DATA_FILE, (sfile, offset, nbytes)))
 
         return bytes_sent
+
+
+###############################################################################
+# StreamServer Class
+###############################################################################
+
+class StreamServer(Channel):
+    """
+    A stream-oriented, listening :class:`~pants.channel.Channel`.
+
+    ==========  ============
+    Arguments   Description
+    ==========  ============
+    kwargs      Keyword arguments to be passed through to :class:`~pants.channel.Channel`
+    ==========  ============
+    """
+    def __init__(self, **kwargs):
+        if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
+            raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
+                    % self.__class__.__name__)
+
+        Channel.__init__(self, **kwargs)
+
+        # Socket
+        self.remote_addr = (None, None)
+        self.local_addr = (None, None)
+
+        # Channel state
+        self.listening = False
+
+    ##### Control Methods #####################################################
+
+    def listen(self, port=8080, host='', backlog=1024):
+        """
+        Begin listening for connections made to the channel.
+
+        Returns the channel.
+
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        port        *Optional.* The port to listen for connections on. By default, is 8080.
+        host        *Optional.* The local host to bind to. By default, is ''.
+        backlog     *Optional.* The size of the connection queue. By default, is 1024.
+        ==========  ============
+        """
+        if self.listening:
+            raise RuntimeError("listen() called on active %s #%d."
+                    % (self.__class__.__name__, self.fileno))
+
+        if self._socket is None:
+            raise RuntimeError("listen() called on closed %s."
+                    % self.__class__.__name__)
+
+        try:
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass
+
+        try:
+            self._socket_bind((host, port))
+            self._socket_listen(backlog)
+        except socket.error, err:
+            self.close()
+            raise
+
+        self.listening = True
+        self._update_addr()
+        self._safely_call(self.on_listen)
+
+        return self
+
+    def close(self):
+        """
+        Close the channel.
+        """
+        if self._socket is None:
+            return
+
+        self.listening = False
+
+        self._update_addr()
+
+        Channel.close(self)
+
+    ##### Internal Methods ####################################################
+
+    def _update_addr(self):
+        """
+        Update the stream's attr:`~pants.stream.StreamServer.remote_addr`
+        and attr:`~pants.stream.StreamServer.local_addr` attributes.
+        """
+        if self.listening:
+            self.remote_addr = (None, None)
+            self.local_addr = self._socket.getsockname()
+        else:
+            self.remote_addr = (None, None)
+            self.local_addr = (None, None)
+
+    ##### Internal Event Handler Methods ######################################
+
+    def _handle_read_event(self):
+        """
+        Handle a read event raised on the channel.
+        """
+        while True:
+            try:
+                sock, addr = self._socket_accept()
+            except socket.error:
+                log.exception("Exception raised by accept() on %s #%d." %
+                        (self.__class__.__name__, self.fileno))
+                try:
+                    sock.close()
+                except socket.error:
+                    # TODO What do we do here?
+                    pass
+                # TODO Close this Stream here?
+                return
+
+            if sock is None:
+                return
+
+            self._safely_call(self.on_accept, sock, addr)
+
+    def _handle_write_event(self):
+        """
+        Handle a write event raised on the channel.
+        """
+        log.warning("Received write event for %s #%d." %
+                    (self.__class__.__name__, self.fileno))
