@@ -40,9 +40,9 @@ log = logging.getLogger("pants")
 # Constants
 ###############################################################################
 
-#: The socket families supported by Channel.
+#: The socket families supported by Pants.
 SUPPORTED_FAMILIES = (socket.AF_INET, socket.AF_UNIX)
-#: The socket types supported by Channel.
+#: The socket types supported by Pants.
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
 
@@ -51,6 +51,9 @@ SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 ###############################################################################
 
 def strerror(err):
+    """
+    Given an error number, returns the appropriate error message.
+    """
     errstr = "Unknown error %d." % err
     try:
         errstr = os.strerror(err)
@@ -66,13 +69,17 @@ def strerror(err):
 
 class _Channel(object):
     """
-    A simple interface for a socket wrapper class.
+    A simple socket wrapper class.
 
-    Channel is intended to be subclassed rather than instantiated directly.
-    As such, many of its public methods (and some of its private methods)
-    will raise a :exc:`NotImplementedError` if they are called. Subclasses
-    should override these methods and ensure that their behaviour conforms
-    to the specification in this class.
+    _Channel wraps most common socket methods to make them "safe" and
+    somewhat more consistent in their return values. This class is
+    intended to be subclasses and doesn't really provide a public API.
+    Subclasses should override
+    :meth:`~pants._channel._Channel._handle_read_event` and
+    :meth:`~pants._channel._Channel._handle_write_event` to implement
+    basic event-handling behaviour. Subclasses should also ensure that
+    they call the various on_* event handler placeholders at the
+    appropriate times.
 
     ==================  ============
     Keyword Arguments   Description
@@ -281,7 +288,9 @@ class _Channel(object):
         """
         Accept a new connection to the socket.
 
-        Returns a 2-tuple containing the new socket and its remote address.
+        Returns a 2-tuple containing the new socket and its remote
+        address. The 2-tuple is (None, None) if no connection was
+        accepted.
         """
         try:
             return self._socket.accept()
@@ -493,7 +502,7 @@ class _Channel(object):
         """
         Handle a read event raised on the channel.
 
-        Not implemented in :class:`~pants.channel.Channel`.
+        Not implemented in :class:`~pants._channel._Channel`.
         """
         raise NotImplementedError
 
@@ -501,6 +510,6 @@ class _Channel(object):
         """
         Handle a write event raised on the channel.
 
-        Not implemented in :class:`~pants.channel.Channel`.
+        Not implemented in :class:`~pants._channel._Channel`.
         """
         raise NotImplementedError
