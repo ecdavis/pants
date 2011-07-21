@@ -22,7 +22,7 @@
 
 import weakref
 
-from pants.stream import Stream
+from pants.stream import Stream, StreamServer
 
 
 ###############################################################################
@@ -33,7 +33,23 @@ class Client(Stream):
     """
     A basic implementation of a client.
     """
-    pass
+
+    ##### Control Methods #####################################################
+
+    def connect(self, host, port):
+        """
+        Connect the channel to a remote socket.
+
+        Returns the channel.
+
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        host        The remote host to connect to.
+        port        The port to connect on.
+        ==========  ============
+        """
+        return Stream.connect(self, (host, port))
 
 
 ###############################################################################
@@ -61,7 +77,7 @@ class Connection(Stream):
 # Server Class
 ###############################################################################
 
-class Server(Stream):
+class Server(StreamServer):
     """
     A basic implementation of a server.
 
@@ -75,13 +91,31 @@ class Server(Stream):
     ConnectionClass = Connection
 
     def __init__(self, ConnectionClass=None):
-        Stream.__init__(self)
+        StreamServer.__init__(self)
 
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
             self.ConnectionClass = ConnectionClass
 
         self.channels = weakref.WeakValueDictionary()  # fd : channel
+
+    ##### Control Methods #####################################################
+
+    def listen(self, port=8080, host='', backlog=1024):
+        """
+        Begin listening for connections made to the channel.
+
+        Returns the channel.
+
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        port        *Optional.* The port to listen for connection on. By default, is 8080.
+        host        *Optional.* The local host to bind to. By default, is ''.
+        backlog     *Optional.* The size of the connection queue. By default, is 1024.
+        ==========  ============
+        """
+        return StreamServer.listen(self, (host, port), backlog)
 
     ##### Public Event Handlers ###############################################
 
