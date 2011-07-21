@@ -59,8 +59,8 @@ class Stream(Channel):
         Channel.__init__(self, **kwargs)
 
         # Socket
-        self.remote_addr = (None, None)
-        self.local_addr = (None, None)
+        self.remote_addr = None
+        self.local_addr = None
 
         # I/O attributes
         self.read_delimiter = None
@@ -73,7 +73,7 @@ class Stream(Channel):
 
     ##### Control Methods #####################################################
 
-    def connect(self, host, port):
+    def connect(self, addr):
         """
         Connect the channel to a remote socket.
 
@@ -82,8 +82,7 @@ class Stream(Channel):
         ==========  ============
         Arguments   Description
         ==========  ============
-        host        The remote host to connect to.
-        port        The port to connect on.
+        addr        The remote address to connect to.
         ==========  ============
         """
         if self.connected or self.connecting:
@@ -97,7 +96,7 @@ class Stream(Channel):
         self.connecting = True
 
         try:
-            connected = self._socket_connect((host, port))
+            connected = self._socket_connect(addr)
         except socket.error:
             self.close()
             raise
@@ -212,8 +211,8 @@ class Stream(Channel):
             self.remote_addr = self._socket.getpeername()
             self.local_addr = self._socket.getsockname()
         else:
-            self.remote_addr = (None, None)
-            self.local_addr = (None, None)
+            self.remote_addr = None
+            self.local_addr = None
 
     ##### Internal Event Handler Methods ######################################
 
@@ -388,15 +387,15 @@ class StreamServer(Channel):
         Channel.__init__(self, **kwargs)
 
         # Socket
-        self.remote_addr = (None, None)
-        self.local_addr = (None, None)
+        self.remote_addr = None
+        self.local_addr = None
 
         # Channel state
         self.listening = False
 
     ##### Control Methods #####################################################
 
-    def listen(self, port=8080, host='', backlog=1024):
+    def listen(self, addr, backlog=1024):
         """
         Begin listening for connections made to the channel.
 
@@ -405,8 +404,7 @@ class StreamServer(Channel):
         ==========  ============
         Arguments   Description
         ==========  ============
-        port        *Optional.* The port to listen for connections on. By default, is 8080.
-        host        *Optional.* The local host to bind to. By default, is ''.
+        addr        The local address to listen for connections on.
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
@@ -425,7 +423,7 @@ class StreamServer(Channel):
             pass
 
         try:
-            self._socket_bind((host, port))
+            self._socket_bind(addr)
             self._socket_listen(backlog)
         except socket.error, err:
             self.close()
@@ -458,11 +456,11 @@ class StreamServer(Channel):
         and attr:`~pants.stream.StreamServer.local_addr` attributes.
         """
         if self.listening:
-            self.remote_addr = (None, None)
+            self.remote_addr = None
             self.local_addr = self._socket.getsockname()
         else:
-            self.remote_addr = (None, None)
-            self.local_addr = (None, None)
+            self.remote_addr = None
+            self.local_addr = None
 
     ##### Internal Event Handler Methods ######################################
 
