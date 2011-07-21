@@ -41,7 +41,7 @@ log = logging.getLogger("pants")
 ###############################################################################
 
 #: The socket families supported by Channel.
-SUPPORTED_FAMILIES = (socket.AF_INET,)
+SUPPORTED_FAMILIES = (socket.AF_INET, socket.AF_UNIX)
 #: The socket types supported by Channel.
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
