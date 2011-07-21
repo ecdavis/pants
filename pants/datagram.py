@@ -39,14 +39,21 @@ log = logging.getLogger("pants")
 
 class Datagram(_Channel):
     """
-    A packet-oriented, connectionless :class:`~pants.channel.Channel`.
+    A packet-oriented channel.
+
+    ==================  ============
+    Keyword Arguments   Description
+    ==================  ============
+    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
+    socket              *Optional.* A pre-existing socket to wrap.
+    ==================  ============
     """
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_DGRAM) != socket.SOCK_DGRAM:
             raise TypeError("Cannot create a %s with a type other than "
                 "SOCK_DGRAM." % self.__class__.__name__)
 
-        Channel.__init__(self, **kwargs)
+        _Channel.__init__(self, **kwargs)
 
         # Socket
         self.remote_addr = None
@@ -114,7 +121,7 @@ class Datagram(_Channel):
 
         self._update_addr()
 
-        Channel.close(self)
+        _Channel.close(self)
 
     def end(self):
         """
@@ -162,7 +169,8 @@ class Datagram(_Channel):
 
     def _update_addr(self):
         """
-        Update the channel's :attr:`local_addr` attribute.
+        Update the channel's
+        :attr:`~pants.datagram.Datagram.local_addr` attribute.
         """
         if self.listening:
             self.local_addr = self._socket.getsockname()
@@ -266,10 +274,11 @@ class Datagram(_Channel):
 
     def _process_send_buffer(self):
         """
-        Process the :attr:`~pants.datagram.Datagram._send_buffer`, passing
-        outgoing data to :meth:`~pants.channel.Channel._socket_sendto`
-        and calling :meth:`~pants.datagram.Datagram.on_write` when sending
-        has finished.
+        Process the :attr:`~pants.datagram.Datagram._send_buffer`,
+        passing outgoing data to
+        :meth:`~pants._channel._Channel._socket_sendto` and calling
+        :meth:`~pants.datagram.Datagram.on_write` when sending has
+        finished.
         """
         while self._send_buffer:
             data, addr = self._send_buffer.pop(0)
