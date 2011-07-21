@@ -22,7 +22,7 @@
 
 import socket
 
-from pants.channel import Channel
+from pants._channel import _Channel
 
 
 ###############################################################################
@@ -37,7 +37,7 @@ log = logging.getLogger("pants")
 # Datagram Class
 ###############################################################################
 
-class Datagram(Channel):
+class Datagram(_Channel):
     """
     A packet-oriented, connectionless :class:`~pants.channel.Channel`.
     """

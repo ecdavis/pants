@@ -23,7 +23,7 @@
 import os
 import socket
 
-from pants.channel import Channel
+from pants._channel import _Channel
 
 
 ###############################################################################
@@ -38,7 +38,7 @@ log = logging.getLogger("pants")
 # Stream Class
 ###############################################################################
 
-class Stream(Channel):
+class Stream(_Channel):
     """
     A stream-oriented, connecting :class:`~pants.channel.Channel`.
 
