@@ -23,9 +23,9 @@
 import logging
 
 from pants.engine import Engine
-from pants.datagram import Datagram, sendto
+from pants.datagram import Datagram
 from pants.network import Client, Connection, Server
-from pants.stream import Stream
+from pants.stream import Stream, StreamServer
 
 
 ###############################################################################
@@ -38,7 +38,7 @@ __version__ = "0.10.0"
 __all__ = [
     "engine", # Core
     "callback", "loop", "cycle", "defer",  # Scheduling
-    "Datagram", "sendto", "Stream",  # Low-level networking
+    "Datagram", "Stream", "StreamServer",  # Low-level networking
     "Client", "Connection", "Server",  # High-level networking
     ]
 
