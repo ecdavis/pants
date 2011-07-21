@@ -49,8 +49,8 @@ class Datagram(Channel):
         Channel.__init__(self, **kwargs)
 
         # Socket
-        self.remote_addr = (None, None)
-        self.local_addr = (None, None)
+        self.remote_addr = None
+        self.local_addr = None
 
         # I/O attributes
         self.read_delimiter = None
@@ -62,7 +62,7 @@ class Datagram(Channel):
 
     ##### Control Methods #####################################################
 
-    def listen(self, port=8080, host=''):
+    def listen(self, addr):
         """
         Begin listening for packets sent to the channel.
 
@@ -71,8 +71,7 @@ class Datagram(Channel):
         ==========  ============
         Arguments   Description
         ==========  ============
-        port        *Optional.* The port to listen for packets on. By default, is 8080.
-        host        *Optional.* The local host to bind to. By default, is ''.
+        addr        The local address to listen for packets on.
         ==========  ============
         """
         if self.listening:
@@ -90,7 +89,7 @@ class Datagram(Channel):
             pass
 
         try:
-            self._socket_bind((host, port))
+            self._socket_bind(addr)
         except socket.error:
             self.close()
             raise
@@ -150,7 +149,7 @@ class Datagram(Channel):
 
         if addr is None:
             addr = self.remote_addr
-            if addr[0] is None:
+            if addr is None:
                 log.warning("Attempted to write to %s #%d with no remote "
                     "address." % (self.__class__.__name__, self.fileno))
                 return
@@ -168,7 +167,7 @@ class Datagram(Channel):
         if self.listening:
             self.local_addr = self._socket.getsockname()
         else:
-            self.local_addr = (None, None)
+            self.local_addr = None
 
     ##### Internal Event Handler Methods ######################################
 
@@ -255,7 +254,7 @@ class Datagram(Channel):
                 if self._socket is None:
                     break
 
-            self.remote_addr = (None, None)
+            self.remote_addr = None
 
             if buf:
                 self._recv_buffer[addr] = buf
