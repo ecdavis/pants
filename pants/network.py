@@ -33,6 +33,10 @@ class Client(Stream):
     """
     A basic implementation of a client.
     """
+    def __init__(self):
+        # This dummy method prevents keyword arguments from finding
+        # their way up to the Stream/_Channel constructors.
+        Stream.__init__(self)
 
     ##### Control Methods #####################################################
 
