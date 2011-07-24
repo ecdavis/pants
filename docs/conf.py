@@ -48,7 +48,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Pants'
-copyright = u'2011, Christopher Davis, Stendec'
+copyright = u'2011, Pants Developers'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -225,5 +225,5 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'pants', u'Pants Documentation',
-     [u'Christopher Davis', u'Stendec'], 1)
+     [u'Pants Developers'], 1)
 ]
