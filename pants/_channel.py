@@ -58,7 +58,8 @@ def strerror(err):
     try:
         errstr = os.strerror(err)
     except (NameError, OverflowError, ValueError):
-        errstr = errno.errorcode[err]
+        if err in errno.errorcode:
+            errstr = errno.errorcode[err]
 
     return errstr
 
