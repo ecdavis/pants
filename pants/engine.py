@@ -194,7 +194,7 @@ class Engine(object):
             events = self._poller.poll(poll_timeout)
         except Exception, err:
             if err[0] == errno.EINTR:
-                log.warning("Interrupted system call.", exc_info=True)
+                log.debug("Interrupted system call.")
                 return
             else:
                 raise
@@ -424,13 +424,7 @@ class _EPoll(object):
         self._epoll.unregister(fileno)
 
     def poll(self, timeout):
-        epoll_events = self._epoll.poll(timeout)
-        events = {}
-
-        for fileno, event in epoll_events:
-            events[fileno] = event
-
-        return events
+        return self._epoll.poll(timeout)
 
 
 ###############################################################################
@@ -457,8 +451,8 @@ class _KQueue(object):
         self._events.pop(fileno, None)
 
     def poll(self, timeout):
-        kqueue_events = self._kqueue.control(None, _KQueue.MAX_EVENTS, timeout)
         events = {}
+        kqueue_events = self._kqueue.control(None, _KQueue.MAX_EVENTS, timeout)
 
         for event in kqueue_events:
             fileno = event.ident
@@ -514,9 +508,8 @@ class _Select(object):
         self._e.discard(fileno)
 
     def poll(self, timeout):
-        r, w, e, = select.select(self._r, self._w, self._e, timeout)
-
         events = {}
+        r, w, e, = select.select(self._r, self._w, self._e, timeout)
 
         for fileno in r:
             events[fileno] = events.get(fileno, 0) | Engine.READ
