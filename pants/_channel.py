@@ -360,9 +360,12 @@ class _Channel(object):
         """
         try:
             return self._socket.send(data)
-        except socket.error, err:
+        except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True
+                return 0
+            elif err[0] == errno.EPIPE:
+                self.close()
                 return 0
             else:
                 raise
@@ -383,9 +386,12 @@ class _Channel(object):
         """
         try:
             return self._socket.sendto(data, flags, addr)
-        except socket.error, err:
+        except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True
+                return 0
+            elif err[0] == errno.EPIPE:
+                self.close()
                 return 0
             else:
                 raise
@@ -402,9 +408,12 @@ class _Channel(object):
         """
         try:
             return sendfile(sfile, self, offset, nbytes)
-        except socket.error, err:
+        except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._wait_for_write_event = True
+                return 0
+            elif err[0] == errno.EPIPE:
+                self.close()
                 return 0
             else:
                 raise

@@ -203,16 +203,6 @@ class Engine(object):
             channel = self._channels[fileno]
             try:
                 channel._handle_events(events)
-            except (IOError, OSError), err:
-                if err[0] == errno.EPIPE:
-                    # EPIPE: Broken pipe.
-                    log.debug("Broken pipe on %s #%d." %
-                            (channel.__class__.__name___, fileno))
-                    # TODO Close channel here?
-                    channel.close()
-                else:
-                    log.exception("Error while handling I/O events on %s #%d."
-                            % (channel.__class__.__name__, fileno))
             except (KeyboardInterrupt, SystemExit):
                 raise
             except Exception:
