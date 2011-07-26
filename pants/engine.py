@@ -392,7 +392,7 @@ class Engine(object):
 
         if poller is not None:
             self._poller = poller
-        if hasattr(select, "epoll"):
+        elif hasattr(select, "epoll"):
             self._poller = _EPoll()
         elif hasattr(select, "kqueue"):
             self._poller = _KQueue()
