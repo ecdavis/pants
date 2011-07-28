@@ -107,8 +107,6 @@ class TelnetConnection(Connection):
         """
         pass
 
-    ##### Internal Processing Methods #########################################
-
     ##### Internal Telnet State Processing ####################################
 
     def _on_telnet_data(self, data):
@@ -196,6 +194,8 @@ class TelnetConnection(Connection):
         # Still here? It must just be a command then. Send it on.
         self._safely_call(self.on_command, data[1])
         return data[2:]
+
+    ##### Internal Processing Methods #########################################
 
     def _process_recv_buffer(self):
         """
