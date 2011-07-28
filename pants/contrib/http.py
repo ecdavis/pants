@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# Copyright 2011 Pants (see AUTHORS.txt)
+# Copyright 2011 Pants Developers (see AUTHORS.txt)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
