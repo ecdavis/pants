@@ -1,0 +1,6 @@
+The design and implementation of Pants' low-level modules was heavily
+influenced by the ioloop and iostream modules in version 1.x of the Tornado
+Web Framework (http://tornadoweb.org/).
+
+Tornado 1.x is copyright 2009 by Facebook and is licensed under the Apache
+License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0.html).
