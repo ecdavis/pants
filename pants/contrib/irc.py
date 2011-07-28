@@ -45,6 +45,7 @@ CTCP    = re.compile(r"([\x00\n\r\x10])")
 unCTCP  = re.compile(r"\x10([0nr\x10])")
 
 CODECS  = ('utf-8','iso-8859-1','cp1252')
+#])" # this is here to correct syntax highlighting in textmate... remove it!!!
 
 ###############################################################################
 # BaseIRC Class

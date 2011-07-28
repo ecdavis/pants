@@ -1,5 +1,6 @@
 ###############################################################################
 #
+# Copyright 2009 Facebook (see CREDITS.txt)
 # Copyright 2011 Pants Developers (see AUTHORS.txt)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
