@@ -3,6 +3,7 @@
 
 .. automodule:: pants.util.sendfile
 
+
 Sendfile
 ========
 
@@ -21,10 +22,14 @@ Sendfile
     nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
     =========  ============
 
+
 Implementations
 ===============
 
 .. autofunction:: sendfile_fallback
+
 .. autofunction:: sendfile_linux
+
 .. autofunction:: sendfile_darwin
+
 .. autofunction:: sendfile_bsd

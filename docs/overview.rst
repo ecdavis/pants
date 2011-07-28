@@ -1,5 +1,6 @@
 Overview
 ********
+
 The Pants core is an asynchronous, non-blocking network programming
 framework designed with speed, simplicity and size in mind. It provides
 an asynchronous :obj:`~pants.engine.Engine` to power your application as
@@ -11,6 +12,7 @@ programming significantly simpler.
 
 Applications
 ============
+
 A basic Pants application consists of some number of :ref:`channel <channels>`
 and  :ref:`timer <timers>` objects being continuously updated by a single, 
 central :ref:`engine <engine>` object. The primary purpose of a Pants
@@ -35,10 +37,12 @@ operations complete, a callback method is invoked to notify the
 :ref:`channel <channels>`. Most of the code in a Pants application will hook
 into these callbacks to implement functionality.
 
+
 .. _channels:
 
 Channels
 ========
+
 Channels in Pants are objects that wrap a non-blocking :obj:`~socket.socket`
 and provide a simple, convenient interface with which to interact with that
 :obj:`~socket.socket`.
@@ -58,6 +62,7 @@ Stream-Oriented Channels
 
 Packet-Oriented Channels
 ------------------------
+
 
 .. _timers:
 
@@ -83,6 +88,7 @@ arguments, which will then be passed through to the given function when
 it is executed.
 
 .. _engine:
+
 
 Engine
 ======
@@ -131,6 +137,7 @@ Or by using the :meth:`~pants.engine.Engine.instance` classmethod::
     Engine.instance()
 
 These two methods are equivalent.
+
 
 Example: Echo
 =============
