@@ -42,7 +42,12 @@ SENDFILE_AMOUNT = 2 ** 16
 
 def sendfile_fallback(sfile, channel, offset, nbytes):
     """
-    Fallback implementation of sendfile().
+    Fallback implementation of ``sendfile()``.
+
+    This is not a true implementation of the ``sendfile()`` system call,
+    but rather a fallback option written in Python. It has the same
+    ultimate effect, but is far slower than a native implementation.
+    This function is only used as a last resort.
 
     =========  ============
     Argument   Description
@@ -68,7 +73,7 @@ def sendfile_fallback(sfile, channel, offset, nbytes):
 
 def sendfile_linux(sfile, channel, offset, nbytes):
     """
-    Linux 2.x implementation of sendfile().
+    Linux 2.x implementation of ``sendfile()``.
 
     =========  ============
     Argument   Description
@@ -96,7 +101,7 @@ def sendfile_linux(sfile, channel, offset, nbytes):
 
 def sendfile_darwin(sfile, channel, offset, nbytes):
     """
-    Darwin implementation of sendfile().
+    Darwin implementation of ``sendfile()``.
 
     =========  ============
     Argument   Description
@@ -120,7 +125,7 @@ def sendfile_darwin(sfile, channel, offset, nbytes):
 
 def sendfile_bsd(sfile, channel, offset, nbytes):
     """
-    FreeBSD/Dragonfly implementation of sendfile().
+    FreeBSD/Dragonfly implementation of ``sendfile()``.
 
     =========  ============
     Argument   Description
