@@ -5,7 +5,6 @@ Pants Documentation
     :maxdepth: 2
     
     overview
-    applications/index
-    networking/index
+    core/index
     utilities/index
     web/index
