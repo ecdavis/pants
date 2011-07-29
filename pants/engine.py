@@ -133,7 +133,8 @@ class Engine(object):
         :meth:`~pants.engine.Engine.stop` will cause the engine to cease
         polling and shut down.
         """
-        self._shutdown = True
+        if self._running:
+            self._shutdown = True
 
     def poll(self, poll_timeout):
         """
