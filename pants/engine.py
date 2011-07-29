@@ -393,9 +393,6 @@ class Engine(object):
         for fileno, channel in self._channels.iteritems():
             self._poller.add(fileno, channel._events)
 
-    def _destroy_poller(self):
-        self._poller.destroy()
-
 
 ###############################################################################
 # _EPoll Class
