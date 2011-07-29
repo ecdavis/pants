@@ -383,8 +383,8 @@ class IRCClient(BaseIRC):
                 self._port = port
 
 
-        Stream.connect(self, self._server, self._port)
-
+        Stream.connect(self, (self._server, self._port))
+    
     ##### I/O Methods #########################################################
 
     def join(self, channel):

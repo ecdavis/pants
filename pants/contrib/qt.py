@@ -55,6 +55,7 @@ class _Qt(object):
             self._r[fileno].setEnabled(False)
         except KeyError:
             pass
+        timer.setInterval(0)
 
     def _write_event(self, fileno):
         self._writable.add(fileno)
@@ -62,6 +63,7 @@ class _Qt(object):
             self._w[fileno].setEnabled(False)
         except KeyError:
             pass
+        timer.setInterval(0)
 
     def _error_event(self, fileno):
         self._errored.add(fileno)
@@ -69,6 +71,7 @@ class _Qt(object):
             self._e[fileno].setEnabled(False)
         except KeyError:
             pass
+        timer.setInterval(0)
 
     def add(self, fileno, events):
         if events & Engine.READ:
@@ -114,7 +117,7 @@ class _Qt(object):
             self._e[fileno].setEnabled(False)
             del self._e[fileno]
 
-    def remove(self, fileno):
+    def remove(self, fileno, events):
         if fileno in self._r:
             self._r[fileno].setEnabled(False)
             del self._r[fileno]
@@ -149,12 +152,27 @@ class _Qt(object):
 
         return events
 
+def do_poll():
+    """
+    Here, we run the Pants event loop. Then, we set the timer interval, either
+    to the provided timeout, or for how long it would take to reach the
+    earliest deferred event.
+    """
+    engine = Engine.instance()
+    
+    engine.poll(0)
+    
+    if engine._deferreds:
+        timer.setInterval(min(1000 * (engine._deferreds[0].end - engine.time), _timeout))
+    else:
+        timer.setInterval(_timeout * 1000)
 
 ###############################################################################
 # Installation Function
 ###############################################################################
 
 timer = None
+_timeout = 0.02
 
 def install(app=None, timeout=0.02):
     """
@@ -165,18 +183,21 @@ def install(app=None, timeout=0.02):
         app: The QApplication to attach to. If None, it will attempt to find
             the app or, failing that, it will create a new QCoreApplication
             instance.
-        timeout: The length of time, in seconds, to wait between each call to
-            the engine's poll function.
+        timeout: The maximum time to wait, in seconds, before running the
+            Pants event loop.
     """
     global timer
+    global _timeout
 
     Engine.instance()._install_poller(_Qt())
-
+    
     if app is None:
         app = QCoreApplication.instance()
     if app is None:
         app = QCoreApplication([])
-
+    
+    _timeout = timeout * 1000
+    
     timer = QTimer(app)
-    timer.timeout.connect(functools.partial(Engine.instance().poll, 0))
-    timer.start(timeout * 1000)
+    timer.timeout.connect(do_poll)
+    timer.start(_timeout)
