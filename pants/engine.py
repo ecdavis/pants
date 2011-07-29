@@ -279,7 +279,7 @@ class Engine(object):
         timer = _Timer(callback, False)
         self._callbacks.append(timer)
 
-        return functools.partial(self.remove_timer, timer)
+        return functools.partial(self._remove_timer, timer)
 
     def loop(self, function, *args, **kwargs):
         """
@@ -302,7 +302,7 @@ class Engine(object):
         timer = _Timer(loop, True)
         self._callbacks.append(timer)
 
-        return functools.partial(self.remove_timer, timer)
+        return functools.partial(self._remove_timer, timer)
 
     def defer(self, delay, function, *args, **kwargs):
         """
@@ -326,7 +326,7 @@ class Engine(object):
         timer = _Timer(deferred, False, delay, self.time + delay)
         bisect.insort(self._deferreds, timer)
 
-        return functools.partial(self.remove_timer, timer)
+        return functools.partial(self._remove_timer, timer)
 
     def cycle(self, interval, function, *args, **kwargs):
         """
@@ -351,9 +351,9 @@ class Engine(object):
         timer = _Timer(cycle, True, interval, self.time + interval)
         bisect.insort(self._deferreds, timer)
 
-        return functools.partial(self.remove_timer, timer)
+        return functools.partial(self._remove_timer, timer)
 
-    def remove_timer(self, timer):
+    def _remove_timer(self, timer):
         """
         Remove a timer from the engine.
 
