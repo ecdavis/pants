@@ -807,7 +807,7 @@ class Resolver(object):
             message.id = self._last_id
 
         # Timeout in timeout seconds.
-        df_timeout = pants.engine.defer(self._error, timeout, message.id)
+        df_timeout = pants.engine.defer(timeout, self._error, message.id)
 
         # Send the Message
         msg = str(message)
@@ -830,7 +830,7 @@ class Resolver(object):
                 # Pants gummed up. Try again.
                 self._next_server(message.id)
 
-            pants.engine.defer(self._next_server, 0.5, message.id)
+            pants.engine.defer(0.5, self._next_server, message.id)
 
         else:
             tcp = self._tcp[message.id] = _DNSStream(self, message.id)

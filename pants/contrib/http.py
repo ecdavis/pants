@@ -338,7 +338,7 @@ class HTTPClient(object):
         request = self._requests[0]
 
         request.append(
-            Engine.instance().defer(self._request_timeout, request[5], request))
+            Engine.instance().defer(request[5], self._request_timeout, request))
 
         port = request[2].port
         if not port:
@@ -374,14 +374,14 @@ class HTTPClient(object):
             return
 
         # If we got here, we're connected, and to the right server. Do stuff.
-        self.write('%s %s HTTP/1.1%s' % (request[0], request[8], CRLF))
+        self._stream.write('%s %s HTTP/1.1%s' % (request[0], request[8], CRLF))
         for k, v in request[3].iteritems():
-            self.write('%s: %s%s' % (k, v, CRLF))
+            self._stream.write('%s: %s%s' % (k, v, CRLF))
 
         if request[4]:
-            self.write('%s%s' % (CRLF, request[4]))
+            self._stream.write('%s%s' % (CRLF, request[4]))
         else:
-            self.write(CRLF)
+            self._stream.write(CRLF)
 
         # Now, wait for a response.
         self._stream.on_read = self._read_headers
@@ -451,7 +451,7 @@ class HTTPClient(object):
             new_req[9] = request[9] + 1
 
             new_req.append(
-                Engine.instance().defer(self._request_timeout, left, new_req))
+                Engine.instance().defer(left, self._request_timeout, new_req))
 
             self._requests.insert(0, new_req)
             self.current_response = None
@@ -1384,7 +1384,7 @@ class HTTPServer(Server):
     request_handler             A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
     max_request       10 MiB    *Optional.* The maximum allowed length, in bytes, of an HTTP request body.
     keep_alive        True      *Optional.* Whether or not multiple requests are allowed over a single connection.
-    ssl_options       None      *Optional.* A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
+    ssl_options       None      *Optional.* SSL is not currently implemented in Pants, and this will not work. A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
     cookie_secret     None      *Optional.* A string to use when signing secure cookies.
     xheaders          False     *Optional.* Whether or not to use X-Forwarded-For and X-Forwared-Proto headers.
     ================  ========  ============
