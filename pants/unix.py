@@ -25,6 +25,11 @@ import weakref
 
 from pants.stream import Stream, StreamServer
 
+try:
+    socket.AF_UNIX
+except AttributeError:
+    raise ImportError("Unix sockets are not available on this platform.")
+
 
 ###############################################################################
 # Client Class
