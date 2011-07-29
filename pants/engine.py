@@ -413,7 +413,7 @@ class _EPoll(object):
         self._epoll.unregister(fileno)
 
     def poll(self, timeout):
-        return self._epoll.poll(timeout)
+        return dict(self._epoll.poll(timeout))
 
 
 ###############################################################################
