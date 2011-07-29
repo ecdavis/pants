@@ -110,7 +110,6 @@ class WSGIConnector(object):
             'PATH_INFO'         : request.path,
             'QUERY_STRING'      : request.query,
             'SERVER_NAME'       : request.headers.get('Host','127.0.0.1'),
-            'SERVER_PORT'       : request.connection.server.local_addr[1],
             'SERVER_PROTOCOL'   : request.version,
             'REMOTE_ADDR'       : request.remote_ip,
             'GATEWAY_INTERFACE' : 'WSGI/1.0',
@@ -122,6 +121,9 @@ class WSGIConnector(object):
             'wsgi.multiprocess' : False,
             'wsgi.run_once'     : False
         }
+        
+        if isinstance(request.connection.server.local_addr, tuple):
+            environ['SERVER_PORT'] = request.connection.server.local_addr[1]
 
         if hasattr(request, 'arguments'):
             environ['wsgiorg.routing_args'] = (request.arguments, {})
