@@ -42,7 +42,12 @@ log = logging.getLogger("pants")
 ###############################################################################
 
 #: The socket families supported by Pants.
-SUPPORTED_FAMILIES = (socket.AF_INET, socket.AF_UNIX)
+try:
+    SUPPORTED_FAMILIES = (socket.AF_INET, socket.AF_UNIX)
+except AttributeError:
+    # Silly Windows.
+    SUPPORTED_FAMILIES = (socket.AF_INET, )
+
 #: The socket types supported by Pants.
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
