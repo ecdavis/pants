@@ -701,8 +701,9 @@ class _DNSStream(Stream):
             m = DNSMessage.from_string(self.response)
         except TooShortError:
             return
-
-        m.server = '%s:%d' % self.remote_addr
+        
+        if self.remote_addr and isinstance(self.remote_addr, tuple):
+            m.server = '%s:%d' % self.remote_addr
 
         if self.id in self.resolver._tcp:
             del self.resolver._tcp[self.id]
@@ -777,7 +778,7 @@ class Resolver(object):
         start = port = random.randrange(10005, 65535)
         while True:
             try:
-                self._udp.listen(port)
+                self._udp.listen(('',port))
                 break
             except Exception:
                 port += 1
@@ -834,7 +835,7 @@ class Resolver(object):
 
         else:
             tcp = self._tcp[message.id] = _DNSStream(self, message.id)
-            tcp.connect(self.servers[0], DNS_PORT)
+            tcp.connect((self.servers[0], DNS_PORT))
 
     def _next_server(self, id):
         if not id in self._messages or id in self._tcp:
@@ -878,11 +879,11 @@ class Resolver(object):
         #if data.tc and media == 'udp':
         #    self._messages[data.id] = callback, message, df_timeout, 'tcp', data
         #    tcp = self._tcp[data.id] = _DNSStream(self, message.id)
-        #    tcp.connect(self.servers[0], DNS_PORT)
+        #    tcp.connect((self.servers[0], DNS_PORT))
         #    return
 
         if not data.server:
-            if self._udp and self._udp.remote_addr:
+            if self._udp and isinstance(self._udp.remote_addr, tuple):
                 data.server = '%s:%d' % self._udp.remote_addr
             else:
                 data.server = '%s:%d' % (self.servers[0], DNS_PORT)
