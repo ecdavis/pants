@@ -487,15 +487,15 @@ class Application(object):
 
     def handle_500(self, request, exception):
         log.exception('Error handling HTTP request: %s %%s' % request.method,
-            request.uri) #, traceback.format_exc())
+            request.uri)
         if not self.debug:
             return error(500)
-
+        
         resp = u''.join([
             u"<h2>Traceback</h2>\n",
             u"<pre>%s</pre>\n" % traceback.format_exc(),
             u"<h2>Route</h2>\n<pre>",
-            u"route name   = %r\n" % self._routes[request.route][1],
+            u"route name   = %r\n" % request.route_name,
             u"match groups = %r" % (request.match.groups(),),
             u"</pre>\n",
             u"<h2>HTTP Request</h2>\n",
@@ -521,6 +521,7 @@ class Application(object):
         finally:
             request.route = None
             request.match = None
+            request.route_name = None
 
             Application.current_app = None
             self.request = None
@@ -618,10 +619,12 @@ class Application(object):
                 continue
 
             # Process this route.
+            func, name, methods = self._routes[domain][route][:3]
+            
             request.route = route
             request.match = match
-
-            func, name, methods = self._routes[domain][route][:3]
+            request.route_name = name
+            
             if request.method not in methods:
                 return error(
                     'The method %s is not allowed for %r.' % (
