@@ -258,10 +258,10 @@ class Stream(_Channel):
         Handle a connect event raised on the channel.
         """
         self.connecting = False
-        self._update_addr()
         err, errstr = self._get_socket_error()
         if err == 0:
             self.connected = True
+            self._update_addr()
             self._safely_call(self.on_connect)
         else:
             self._safely_call(self.on_connect_error, (err, errstr))
