@@ -446,7 +446,7 @@ class _Channel(object):
             return thing_to_call(*args, **kwargs)
         except Exception:
             log.exception("Exception raised on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+                    (self.__class__.__name__, self.fileno or -1))
 
     def _get_socket_error(self):
         """
