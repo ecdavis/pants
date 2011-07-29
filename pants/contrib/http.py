@@ -43,7 +43,6 @@ from datetime import datetime
 from pants import callback, Connection, Server, __version__ as pants_version
 from pants.engine import Engine
 from pants.stream import Stream
-from pants.contrib.ssl import SSLServer
 
 ###############################################################################
 # Logging
@@ -368,9 +367,10 @@ class HTTPClient(object):
 
             self._is_secure = request[2].scheme.lower() == 'https'
             if self._is_secure:
+                raise Exception("SSL has not yet been implemented in this version of Pants.")
                 self._stream.startTLS()
 
-            self._stream.connect(request[2].hostname, port)
+            self._stream.connect((request[2].hostname, port))
             return
 
         # If we got here, we're connected, and to the right server. Do stuff.
@@ -910,8 +910,9 @@ class HTTPConnection(Connection):
 
             protocol = 'http'
 
-            if self.is_secure():
-                protocol = 'https'
+            # SSL has not yet been implemented.
+            # if self.is_secure():
+            #     protocol = 'https'
 
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
@@ -1338,7 +1339,7 @@ class HTTPRequest(object):
 # HTTPServer Class
 ###############################################################################
 
-class HTTPServer(SSLServer):
+class HTTPServer(Server):
     """
     An `HTTP <http://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol>`_ server,
     extending the default Server class.
@@ -1392,7 +1393,7 @@ class HTTPServer(SSLServer):
 
     def __init__(self, request_handler, max_request=10485760, keep_alive=True,
                     ssl_options=None, cookie_secret=None, xheaders=False):
-        SSLServer.__init__(self, ssl_options=ssl_options)
+        Server.__init__(self)
 
         # Storage
         self.request_handler    = request_handler
@@ -1431,7 +1432,7 @@ class HTTPServer(SSLServer):
             else:
                 port = 80
 
-        SSLServer.listen(self, port, host, backlog)
+        Server.listen(self, port, host, backlog)
 
 ###############################################################################
 # Support Functions
