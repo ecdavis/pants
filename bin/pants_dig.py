@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 ###############################################################################
 #
 # Copyright 2011 Pants (see AUTHORS.txt)
@@ -30,7 +31,8 @@ from pants.util.dns import *
 ###############################################################################
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser()
+    usage = "usage: %prog [options] name [qtype]"
+    parser = optparse.OptionParser(usage=usage)
     parser.add_option("-d", "--debug", dest="debug", action="store_true", default=False,
                 help="Show extra messages.")
     parser.add_option("--servers", dest="list", action="store_true", default=False,
