@@ -22,4 +22,7 @@ setup(
         "Topic :: Internet",
         "Topic :: Software Development :: Libraries :: Python Modules",
         ],
+    scripts=[
+        "bin/pants_dig.py",
+        ],
     )
