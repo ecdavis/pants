@@ -1,8 +1,8 @@
 Overview
 ********
 
-The Pants core is an asynchronous, non-blocking network programming framework
-designed with speed, simplicity and size in mind. It provides an asynchronous
+Pants is an asynchronous, non-blocking network programming framework designed
+with speed, simplicity and size in mind. It provides an asynchronous
 :ref:`engine <engine>` to power your application as well as abstractions
 around sockets to make network programming significantly simpler.
 
@@ -59,22 +59,6 @@ Timers
 ======
 
 Timers are function calls that are delayed until some point in the future.
-There are four methods used for scheduling timers:
-:meth:`Engine.callback() <pants.engine.Engine.callback>`,
-:meth:`Engine.loop() <pants.engine.Engine.loop>`,
-:meth:`Engine.defer() <pants.engine.Engine.defer>` and
-:meth:`Engine.cycle() <pants.engine.Engine.cycle>`.
-These methods all return a callable that can be used to cancel the timer
-at any time::
-
-    from pants import engine
-
-    cancel_callback = engine.callback(callback)
-    cancel_callback()
-
-The timer methods can be passed any number of positional and keyword
-arguments, which will then be passed through to the given function when
-it is executed.
 
 **Further information:** :doc:`guides/timers`
 
