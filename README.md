@@ -10,30 +10,30 @@ Pants is available under the [Apache License, Version 2.0]
 
 Install
 =======
-Pants can be obtained in several ways. You can use
-`pip <http://http://pypi.python.org/pypi/pip>`_:
+Pants can be obtained in several ways. You can use [pip]
+(http://http://pypi.python.org/pypi/pip):
 
     pip install pants --upgrade
 
-Or `setuptools <http://pypi.python.org/pypi/setuptools>`_, if that's how you
+Or [setuptools](http://pypi.python.org/pypi/setuptools), if that's how you
 roll:
 
     easy_install -U pants
 
-Or for the bleeding edge version, you can clone the
-`git <http://git-scm.com/>`_  repository:
+Or for the bleeding edge version, you can clone the [git](http://git-scm.com/)
+repository:
 
     git clone git://github.com/ecdavis/Pants pants
     cd pants
     sudo python setup.py install
 
-Pants requires `Python 2.6+ <http://python.org/>`_ - Python 3 is not yet
+Pants requires [Python 2.6+](http://python.org/) - Python 3 is not yet
 supported.
 
 Community
 =========
 Pants has a small but active community of developers who congregate in the IRC
-channel `#pantsmud <http://webchat.freenode.net/?channels=pantsmud>`_ on
+channel [#pantsmud](http://webchat.freenode.net/?channels=pantsmud) on
 irc.freenode.net.
 
 Hello World
