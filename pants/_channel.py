@@ -272,10 +272,6 @@ class _Channel(object):
         backlog    The size of the connection queue.
         =========  ============
         """
-        if os.name == "nt" and backlog > 5:
-            log.warning("Setting backlog to 5 due to OS constraints.")
-            backlog = 5
-
         self._socket.listen(backlog)
         self._wait_for_read_event = True
 
