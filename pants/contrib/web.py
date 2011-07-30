@@ -32,7 +32,7 @@ import urllib
 
 from datetime import datetime, timedelta
 from pants import __version__ as pants_version
-from http import CRLF, HTTP, HTTPServer, HTTPRequest, SERVER, SERVER_URL, _date
+from http import CRLF, HTTP, HTTPServer, HTTPRequest, SERVER, SERVER_URL, date
 
 try:
     import simplejson as json
@@ -580,7 +580,7 @@ class Application(object):
         # More headers!
         headers['Content-Length'] = len(body)
         if not 'Date' in headers:
-            headers['Date'] = _date(datetime.utcnow())
+            headers['Date'] = date(datetime.utcnow())
         if not 'Server' in headers:
             headers['Server'] = SERVER
 
@@ -918,11 +918,11 @@ class FileServer(object):
         etag = '"%x-%x"' % (size, int(mtime))
 
         headers = {
-            'Last-Modified' : _date(modified),
-            'Expires'       : _date(expires),
+            'Last-Modified' : date(modified),
+            'Expires'       : date(expires),
             'Cache-Control' : 'max-age=604800',
             'Content-Type'  : type,
-            'Date'          : _date(datetime.utcnow()),
+            'Date'          : date(datetime.utcnow()),
             'Server'        : SERVER,
             'Accept-Ranges' : 'bytes',
             'ETag'          : etag
