@@ -4,7 +4,7 @@ Pants Documentation
 *A lightweight framework for writing asynchronous network applications in
 Python.*
 
-Install Pants using `pip <http://http://pypi.python.org/pypi/pip>`_::
+Install Pants using `pip <http://pypi.python.org/pypi/pip>`_::
 
     pip install pants
 
