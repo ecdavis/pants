@@ -47,3 +47,5 @@ Documentation
     core/index
     utilities/index
     web/index
+    contrib/index
+

@@ -209,7 +209,7 @@ class WebSocketConnection(object):
     
     def close(self):
         """
-        Close the WebSocket connection.
+        Close the WebSocket connection immediately.
         """
         if self._connection is None:
             return
@@ -231,7 +231,14 @@ class WebSocketConnection(object):
     
     def end(self, reason=1000):
         """
-        Close the WebSocket connection nicely.
+        Close the WebSocket connection nicely, waiting for any remaining data
+        to be sent and sending a close frame before ending.
+        
+        =========  =========  ============
+        Argument   Default    Description
+        =========  =========  ============
+        reason     ``1000``   *Optional.* The reason the socket is closing, from the ``CLOSE_REASONS`` dictionary.
+        =========  =========  ============
         """
         if self._connection is None:
             return

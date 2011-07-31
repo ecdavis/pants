@@ -53,7 +53,7 @@ CODECS  = ('utf-8','iso-8859-1','cp1252')
 
 class BaseIRC(Stream):
     """
-    The IRC protocol, implemented over a Pants Channel.
+    The IRC protocol, implemented over a Pants :class:`~pants.stream.Stream`.
 
     The goal with this is to create a lightweight IRC class that can serve as
     either a server or a client. As such, it doesn't implement a lot of logic
@@ -61,8 +61,11 @@ class BaseIRC(Stream):
 
     The BaseIRC class can receive and send IRC commands, and automatically
     respond to certain commands such as PING.
+    
+    This class extends :class:`~pants.stream.Stream`, and as such has the same
+    :func:`~pants.stream.Stream.connect` and :func:`~pants.stream.Stream.listen`
+    functions.
     """
-
     def __init__(self, socket=None, encoding='utf-8'):
         Stream.__init__(self, socket=socket)
 
@@ -91,16 +94,16 @@ class BaseIRC(Stream):
 
         This method is called whenever a command is received from the other
         side and successfully parsed as an IRC command.
-
-        Args:
-            command: The received command.
-            args: A list of the arguments following the command.
-            nick: The nick of the user that sent the command, if applicable, or
-                an empty string.
-            user: The user of the user that sent the command, if applicable, or
-                an empty string.
-            host: The host of the user that send the command, or the host of
-                the server that sent it. Empty if no host provided.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        command    The received command.
+        args       A list of the arguments following the command.
+        nick       The nick of the user that sent the command, if applicable, or an empty string.
+        user       The username of the user that sent the command, if applicable, or an empty string.
+        host       The host of the user that sent the command, the host of the server that sent the command, or an empty string if no host was supplied.
+        =========  ============
         """
         pass
 
@@ -115,26 +118,36 @@ class BaseIRC(Stream):
 
     ##### I/O Methods #########################################################
 
-    def message(self, nick, message, _ctcpQuote=True, _prefix=None):
+    def message(self, destination, message, _ctcpQuote=True, _prefix=None):
         """
         Send a message to the given nick or channel.
-
-        Args:
-            nick: The nick or channel to send the message to.
-            message: The message to be sent.
+        
+        ============  ========  ============
+        Argument      Default   Description
+        ============  ========  ============
+        destination             The nick or channel to send the message to.
+        message                 The text of the message to be sent.
+        _ctcpQuote    True      *Optional.* If True, the message text will be quoted for CTCP before being sent.
+        _prefix       None      *Optional.* A string that, if provided, will be prepended to the command string before it's sent to the server.
+        ============  ========  ============
         """
         if _ctcpQuote:
             message = ctcpQuote(message)
 
-        self.send_command("PRIVMSG", nick, message, _prefix=_prefix)
+        self.send_command("PRIVMSG", destination, message, _prefix=_prefix)
 
     def notice(self, destination, message, _ctcpQuote=True, _prefix=None):
         """
         Send a NOTICE to the specified destination.
 
-        Args:
-            destination: The destination of the NOTICE.
-            message: The message to send.
+        ===========  ========  ============
+        Argument     Default   Description
+        ===========  ========  ============
+        destination            The nick or channel to send the NOTICE to.
+        message                The text of the NOTICE to be sent.
+        _ctcpQuote   True      *Optional.* If True, the message text will be quoted for CTCP before being sent.
+        _prefix      None      *Optional.* A string that, if provided, will be prepended to the command string before it's sent to the server.
+        ===========  ========  ============
         """
         if _ctcpQuote:
             message = ctcpQuote(message)
@@ -144,9 +157,13 @@ class BaseIRC(Stream):
     def quit(self, reason=None, _prefix=None):
         """
         Send a QUIT message, with an optional reason.
-
-        Args:
-            reason: The reason for quitting. Optional.
+        
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        reason     None      *Optional.* The reason for quitting that will be displayed to other users.
+        _prefix    None      *Optional.* A string that, if provided, will be prepended to the command string before it's sent to the server.
+        =========  ========  ============
         """
         if not reason:
             reason = "pants.contrib.irc -- http://www.pantsweb.org/"
@@ -154,11 +171,15 @@ class BaseIRC(Stream):
 
     def send_command(self, command, *args, **kwargs):
         """
-        Send a command to the other side.
-
-        Args:
-            command: The command to send.
-            args: A list of arguments for the command. Optional.
+        Send a command to the remote endpoint.
+        
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        command              The command to send.
+        \*args                *Optional.* A list of arguments to send with the command.
+        _prefix    None      *Optional.* A string that, if provided, will be prepended to the command string before it's sent to the server.
+        =========  ========  ============
         """
         if args:
             args = list(args)
@@ -279,7 +300,7 @@ class Channel(object):
 
 class IRCClient(BaseIRC):
     """
-    An IRC client, written in Pants, based on BaseIRC.
+    An IRC client, written in Pants, based on :class:`~pants.contrib.irc.BaseIRC`.
 
     This implements rather more logic, and keeps track of what server it's
     connected to, its nick, and what channels it's in.
@@ -304,6 +325,10 @@ class IRCClient(BaseIRC):
 
     @property
     def nick(self):
+        """
+        This instance's current nickname on the server it's connected to, or
+        the nickname it will attempt to acquire when connecting.
+        """
         return self._nick
 
     @nick.setter
@@ -315,6 +340,10 @@ class IRCClient(BaseIRC):
 
     @property
     def port(self):
+        """
+        The port this instance is connected to on the remote server, or the
+        port it will attempt to connect to.
+        """
         return self._port
 
     @port.setter
@@ -325,6 +354,9 @@ class IRCClient(BaseIRC):
 
     @property
     def realname(self):
+        """
+        The real name this instance will report to the server when connecting.
+        """
         return self._realname
 
     @realname.setter
@@ -335,6 +367,9 @@ class IRCClient(BaseIRC):
 
     @property
     def server(self):
+        """
+        The server this instance is connected to, or will attempt to connect to.
+        """
         return self._server
 
     @server.setter
@@ -345,6 +380,9 @@ class IRCClient(BaseIRC):
 
     @property
     def user(self):
+        """
+        The user name this instance will report to the server when connecting.
+        """
         return self._user
 
     @user.setter
@@ -357,14 +395,8 @@ class IRCClient(BaseIRC):
 
     def channel(self, name):
         """
-        Retrieve a Channel object for the named channel, or None if we're not
-        in that channel.
-
-        Args:
-            name: The name of the channel.
-
-        Returns:
-            Channel instance, or None.
+        Retrieve a Channel object for the channel ``name``, or None if we're
+        not in that channel.
         """
         return self._channels.get(name, None)
 
@@ -372,9 +404,12 @@ class IRCClient(BaseIRC):
         """
         Connect to the server.
 
-        Args:
-            server: The server to connect to.
-            port: The port to connect to.
+        =========  ============
+        Argument   Description
+        =========  ============
+        server     The host to connect to.
+        port       The port to connect to on the remote server.
+        =========  ============
         """
         if not self.connected and not self.connecting:
             if server:
@@ -391,8 +426,11 @@ class IRCClient(BaseIRC):
         """
         Join the specified channel.
 
-        Args:
-            channel: The channel to join.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The name of the channel to join.
+        =========  ============
         """
         if channel in self._channels or channel in self._joining:
             return
@@ -404,10 +442,13 @@ class IRCClient(BaseIRC):
         """
         Leave the specified channel.
 
-        Args:
-            channel: The channel to leave.
-            reason: The reason why. Optional.
-            force: Don't make sure we're in the channel before sending PART.
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        channel              The channel to leave.
+        reason     None      *Optional.* The reason why.
+        force      False     *Optional.* Don't ensure the client is actually *in* the named channel before sending ``PART``.
+        =========  ========  ============
         """
         if not force and not channel in self._channels:
             return
@@ -427,13 +468,14 @@ class IRCClient(BaseIRC):
         This method is called when the bot receives a CTCP message, which
         could, in theory, be anywhere in a PRIVMSG... annoyingly enough.
 
-        Args:
-            nick: The nick of the user that sent the CTCP request, if there
-                is one, or an empty string.
-            message: The full CTCP message.
-            user: The user of the user that sent the CTCP request, if there
-                is one, or an empty string.
-            host: The host of the user  that sent the CTCP request.
+        =========  ============
+        Argument   Description
+        =========  ============
+        nick       The nick of the user that sent the CTCP message, or an empty string if no nick is available.
+        message    The full CTCP message.
+        user       The username of the user that sent the CTCP message, or an empty string if no username is available.
+        host       The host of the user that sent the CTCP message, or an empty string if no host is available.
+        =========  ============
         """
         pass
 
@@ -445,11 +487,14 @@ class IRCClient(BaseIRC):
         that this function is called whenever this IRC client successfully
         joins a channel.
 
-        Args:
-            channel: The channel in question.
-            nick: The nick of the user in question.
-            user: The user of the user in question.
-            host: The host of the user in question.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel a user has joined.
+        nick       The nick of the user that joined the channel.
+        user       The username of the user that joined the channel.
+        host       The host of the user that joined the channel.
+        =========  ============
         """
         pass
 
@@ -457,14 +502,17 @@ class IRCClient(BaseIRC):
         """
         Placeholder.
 
-        This method is called when the bot receives a message from a channel.
+        This method is called when the client receives a message from a channel.
 
-        Args:
-            channel: The channel the message was received in.
-            message: The message itself.
-            nick: The nick of the user that sent the message.
-            user: The user of the user that sent the message.
-            host: The host of the user that sent the message.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel the message was received in.
+        message    The text of the message.
+        nick       The nick of the user that sent the message.
+        user       The username of the user that sent the message.
+        host       The host of the user that sent the message.
+        =========  ============
         """
         pass
 
@@ -472,13 +520,16 @@ class IRCClient(BaseIRC):
         """
         Placeholder.
 
-        This method is called when the bot receives a message from a user.
+        This method is called when the client receives a message from a user.
 
-        Args:
-            nick: The nick of the user that sent the message.
-            message: The message itself.
-            user: The user of the user that sent the message.
-            host: The host of the user that sent the message.
+        =========  ============
+        Argument   Description
+        =========  ============
+        nick       The nick of the user that sent the message.
+        message    The text of the message.
+        user       The username of the user that sent the message.
+        host       The host of the user that sent the message.
+        =========  ============
         """
         pass
 
@@ -486,8 +537,14 @@ class IRCClient(BaseIRC):
         """
         Placeholder.
 
-        This method is called when the bot's nick on the network is changed
+        This method is called when the client's nick on the network is changed
         for any reason.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        nick       The client's new nick.
+        =========  ============
         """
         pass
 
@@ -499,12 +556,15 @@ class IRCClient(BaseIRC):
         that this function is called whenever this IRC client leaves a
         channel.
 
-        Args:
-            channel: The channel in question.
-            reason: The reason for parting.
-            nick: The nick of the user in question.
-            user: The user of the user in question.
-            host: The host of the user in question.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel that the user has left.
+        reason     The provided reason message, or an empty string if there is no message.
+        nick       The nick of the user that left the channel.
+        user       The username of the user that left the channel.
+        host       The host of the user that left the channel.
+        =========  ============
         """
         pass
 
@@ -514,9 +574,12 @@ class IRCClient(BaseIRC):
 
         This method is called when the topic of a channel changes.
 
-        Args:
-            channel: The channel in question.
-            topic: The new topic.
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel which had its topic changed.
+        topic      The channel's new topic.
+        =========  ============
         """
         pass
 

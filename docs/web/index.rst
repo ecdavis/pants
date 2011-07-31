@@ -9,3 +9,4 @@ HTTP & Web
     http_client
     wsgi
     web
+    websocket
