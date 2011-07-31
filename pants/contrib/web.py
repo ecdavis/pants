@@ -577,7 +577,12 @@ class Application(object):
             headers['Content-Type'] = '%s%s%s' % (before, sep, enc)
 
         elif isinstance(body, dict):
-            body = json.dumps(body)
+            try:
+                body = json.dumps(body)
+            except Exception, e:
+                body, status, headers = self.handle_500(request, e)
+                body = body.encode('utf-8')
+                headers['Content-Type'] = 'text/html; charset=UTF-8'
 
         elif not isinstance(body, str):
             body = str(body)
