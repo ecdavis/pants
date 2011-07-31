@@ -1,4 +1,4 @@
-Using channels
+Using Channels
 **************
 
 Network Channels

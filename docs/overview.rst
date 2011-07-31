@@ -37,6 +37,20 @@ operations complete, a callback method is invoked to notify the
 into these callbacks to implement functionality.
 
 
+.. _engine:
+
+Engine
+======
+
+The engine is the core object of any Pants application. It keeps track of
+every active :ref:`channel <channels>` and continuously checks them for new
+events, raising them when they occur. The engine also provides the
+:ref:`timer <timers>` functionality which allows functions to be executed
+after some delay without blocking the process.
+
+**Further information:** :doc:`guides/engine`
+
+
 .. _channels:
 
 Channels
@@ -65,20 +79,6 @@ will not block the process, which is particularly useful given Pants'
 asynchronous nature.
 
 **Further information:** :doc:`guides/timers`
-
-
-.. _engine:
-
-Engine
-======
-
-The engine is the core object of any Pants application. It keeps track of
-every active :ref:`channel <channels>` and continuously checks them for new
-events, raising them when they occur. The engine also provides the
-:ref:`timer <timers>` functionality which allows functions to be executed
-after some delay without blocking the process.
-
-**Further information:** :doc:`guides/engine`
 
 
 Example: Echo

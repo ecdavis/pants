@@ -1,5 +1,8 @@
-Using the engine
+Using the Engine
 ****************
+
+Pants applications are powered by a singleton object called the **engine**.
+
 
 Accessing the Engine
 ====================
@@ -18,27 +21,42 @@ Or by using the :meth:`~pants.engine.Engine.instance` classmethod::
 These two methods are equivalent.
 
 
-Integrating with existing event loops
-=====================================
+Starting and Stopping
+=====================
 
-Applications
-============
+The engine is started with a call to
+:meth:`Engine.start() <pants.engine.Engine.start>`::
 
-The :obj:`~pants.engine.Engine` can be used in two different ways. It
-can provide the main event loop for your application, or it can be
-integrated into an existing event loop (one run by a GUI framework, for
-instance).
+    engine.start()
 
-If you choose to use Pants' event loop, you will need to start the
-:obj:`~pants.engine.Engine` with the :meth:`~pants.engine.Engine.start`
-method. This will cause the :obj:`~pants.engine.Engine` to call
-:meth:`~pants.engine.Engine.poll` continuously until it is stopped
-either by an uncaught :exc:`Exception` or the
-:meth:`~pants.engine.Engine.stop` method. The :meth:`~pants.engine.Engine.start` method blocks the process until
-:meth:`~pants.engine.Engine.stop` is called, so be sure to fully initialise
-your application before you call it.
+This method will enter a loop which will continuously call
+:meth:`Engine.poll() <pants.engine.Engine.poll>` until the engine is stopped
+with a call to :meth:`Engine.stop() <pants.engine.Engine.stop>`::
 
-If you want to integrate Pants with an existing event loop, you will need
-to call :meth:`~pants.engine.Engine.poll` on each iteration of that loop.
-Ideally, :meth:`~pants.engine.Engine.poll` should be called many times
+    engine.stop()
+
+After the engine is started, it blocks the process until it is stopped. This
+means that you must completely initialise your application before starting the
+engine in order for it to work as expected.
+
+
+Integration
+===========
+
+It is possible to integrate Pants into an existing main loop, such as a GUI
+framework's event loop.
+
+If you need to integrate with an existing loop, you should not use the
+:meth:`Engine.start() <pants.engine.Engine.start>` and
+:meth:`Engine.stop() <pants.engine.Engine.stop>` methods, but instead call
+:meth:`Engine.poll() <pants.engine.Engine.poll>` on each iteration of your
+loop. Ideally, :meth:`~pants.engine.Engine.poll` should be called many times
 each second to ensure that Pants is as fast as it can be.
+
+
+Timers
+======
+
+The engine is responsible for scheduling timers.
+
+**Further information:** :doc:`timers`
