@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+A convenient collection of the core Pants classes and methods to allow
+imports from the top-level package.
+"""
 
 ###############################################################################
 # Imports

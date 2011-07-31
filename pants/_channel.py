@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+Implementation of a non-blocking, socket-wrapping channel.
+"""
 
 ###############################################################################
 # Imports

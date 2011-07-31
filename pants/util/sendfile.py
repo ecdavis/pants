@@ -15,6 +15,10 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+Various implementations of the platform-dependant sendfile() system
+call.
+"""
 
 ###############################################################################
 # Imports
