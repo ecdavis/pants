@@ -177,7 +177,7 @@ class _Channel(object):
     def on_listen(self):
         """
         Placeholder. Called when the channel begins listening for new
-        connections.
+        connections or packets.
         """
         pass
 
