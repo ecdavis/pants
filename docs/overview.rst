@@ -59,6 +59,10 @@ Timers
 ======
 
 Timers are function calls that are delayed until some point in the future.
+They can be one-off or repeating and can be scheduled to execute in sync with
+Pants' main event loop or after an arbitrary amount of time. Naturally, timers
+will not block the process, which is particularly useful given Pants'
+asynchronous nature.
 
 **Further information:** :doc:`guides/timers`
 
