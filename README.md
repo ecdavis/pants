@@ -13,19 +13,17 @@ Install
 Pants can be obtained in several ways. You can use [pip]
 (http://http://pypi.python.org/pypi/pip):
 
-    pip install pants --upgrade
+    pip install pants
 
 Or [setuptools](http://pypi.python.org/pypi/setuptools), if that's how you
 roll:
 
-    easy_install -U pants
+    easy_install pants
 
 Or for the bleeding edge version, you can clone the [git](http://git-scm.com/)
 repository:
 
     git clone git://github.com/ecdavis/Pants pants
-    cd pants
-    sudo python setup.py install
 
 Pants requires [Python 2.6+](http://python.org/) - Python 3 is not yet
 supported.
