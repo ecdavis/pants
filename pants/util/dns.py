@@ -237,7 +237,7 @@ if os.name == 'nt':
             elif result != 1:
                 raise socket.error("unknown error calling inet_pton")
 
-            return buf.value
+            return buf.raw[:bytes-1]
 
         socket.inet_pton = inet_pton
 
@@ -279,7 +279,7 @@ if os.name == 'nt':
             if not result:
                 raise socket.error("unknown error calling inet_ntop")
 
-            return buf.value
+            return buf.raw[:bytes-1]
 
         socket.inet_ntop = inet_ntop
 
