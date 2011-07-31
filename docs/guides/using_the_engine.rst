@@ -59,4 +59,4 @@ Timers
 
 The engine is responsible for scheduling timers.
 
-**Further information:** :doc:`timers`
+**Further information:** :doc:`using_timers`

@@ -48,7 +48,7 @@ events, raising them when they occur. The engine also provides the
 :ref:`timer <timers>` functionality which allows functions to be executed
 after some delay without blocking the process.
 
-**Further information:** :doc:`guides/engine`
+**Further information:** :doc:`guides/using_the_engine`
 
 
 .. _channels:
@@ -64,7 +64,7 @@ Channels may represent local servers, remote connections to local servers or
 local connections to remote servers. Channels may use either network sockets
 or Unix sockets and can be stream-oriented (TCP) or packet-oriented (UDP).
 
-**Further information:** :doc:`guides/channels`
+**Further information:** :doc:`guides/using_channels`
 
 
 .. _timers:
@@ -78,7 +78,7 @@ Pants' main event loop or after an arbitrary amount of time. Naturally, timers
 will not block the process, which is particularly useful given Pants'
 asynchronous nature.
 
-**Further information:** :doc:`guides/timers`
+**Further information:** :doc:`guides/using_timers`
 
 
 Example: Echo

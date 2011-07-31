@@ -4,6 +4,6 @@ Guides
 .. toctree::
     :maxdepth: 2
     
-    engine
-    channels
-    timers
+    using_the_engine
+    using_channels
+    using_timers
