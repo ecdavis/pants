@@ -1,6 +1,9 @@
 # Compiled Python files
 *.py[co]
 
+# Compiled Documentation
+/docs/_build/
+
 # Backup files
 *.sw[po]
 *~
