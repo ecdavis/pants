@@ -26,6 +26,7 @@ from pants.engine import Engine
 from pants.datagram import Datagram
 from pants.network import Client, Connection, Server
 from pants.stream import Stream, StreamServer
+from pants.unix import UnixClient, UnixConnection, UnixServer
 
 
 ###############################################################################
@@ -40,6 +41,7 @@ __all__ = [
     "callback", "loop", "cycle", "defer",  # Scheduling
     "Datagram", "Stream", "StreamServer",  # Low-level networking
     "Client", "Connection", "Server",  # High-level networking
+    "UnixClient", "UnixConnection", "UnixServer", # High-level networking
     ]
 
 
