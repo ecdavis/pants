@@ -38,26 +38,30 @@ Hello World
 ===========
 Here's an absurdly simple example - Hello World:
 
-    from pants import Connection, engine, Server
-    
-    class Hello(Connection):
-        def on_connect(self):
-            self.write("Hello, World!\r\n")
-            self.close()
-    
-    Server(Hello).listen(4000)
-    engine.start()
+```python
+from pants import Connection, engine, Server
+
+class Hello(Connection):
+    def on_connect(self):
+        self.write("Hello, World!\r\n")
+        self.close()
+
+Server(Hello).listen(4000)
+engine.start()
+```
 
 Want an absurdly fast web server? Got you covered:
 
-    from pants.contrib.web import Application, HTTPServer
-    from pants import engine
-    
-    app = Application()
-    
-    @app.route('/')
-    def hello():
-        return "Hello, World!"
-    
-    HTTPServer(app).listen(80)
-    engine.start()
+```python
+from pants.contrib.web import Application, HTTPServer
+from pants import engine
+
+app = Application()
+
+@app.route('/')
+def hello():
+    return "Hello, World!"
+
+HTTPServer(app).listen(80)
+engine.start()
+```
