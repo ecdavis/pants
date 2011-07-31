@@ -9,9 +9,11 @@ Sendfile
 
 .. py:function:: sendfile(sfile, channel, offset, nbytes)
     
-    Provides access to or implements the ``sendfile()`` system call in Python.
+    Provides access to or implements the ``sendfile()`` system call in
+    Python.
     
-    This function is replaced at runtime by one of the implementations listed below.
+    This function is replaced at runtime by one of the implementations
+    listed below.
 
     =========  ============
     Argument   Description

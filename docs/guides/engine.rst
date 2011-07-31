@@ -1,8 +1,28 @@
 Using the engine
 ****************
 
+Accessing the Engine
+====================
+
+The :obj:`~pants.engine.Engine` can be accessed in one of two ways, by
+importing it directly from the ``pants`` package::
+
+    from pants import engine
+
+Or by using the :meth:`~pants.engine.Engine.instance` classmethod::
+
+    from pants.engine import Engine
+
+    engine = Engine.instance()
+
+These two methods are equivalent.
+
+
+Integrating with existing event loops
+=====================================
+
 Applications
-------------
+============
 
 The :obj:`~pants.engine.Engine` can be used in two different ways. It
 can provide the main event loop for your application, or it can be
@@ -22,19 +42,3 @@ If you want to integrate Pants with an existing event loop, you will need
 to call :meth:`~pants.engine.Engine.poll` on each iteration of that loop.
 Ideally, :meth:`~pants.engine.Engine.poll` should be called many times
 each second to ensure that Pants is as fast as it can be.
-
-Accessing the Engine
---------------------
-
-The :obj:`~pants.engine.Engine` can be accessed in one of two ways, by
-importing it directly from the ``pants`` package::
-
-    from pants import engine
-
-Or by using the :meth:`~pants.engine.Engine.instance` classmethod::
-
-    from pants.engine import Engine
-
-    Engine.instance()
-
-These two methods are equivalent.
