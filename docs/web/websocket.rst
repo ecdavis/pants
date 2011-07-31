@@ -45,4 +45,4 @@ WebSocketConnection
 ===================
 
 .. autoclass:: WebSocketConnection
-    :members: connect, close, end, write, on_read, on_write, on_connect, on_close
+    :members: close, end, write, on_read, on_write, on_connect, on_close
