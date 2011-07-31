@@ -31,7 +31,7 @@ from pants.stream import Stream, StreamServer
 
 class Client(Stream):
     """
-    A basic implementation of a client.
+    A network socket client.
     """
     def __init__(self):
         # This dummy method prevents keyword arguments from finding
@@ -62,7 +62,7 @@ class Client(Stream):
 
 class Connection(Stream):
     """
-    A basic implementation of a connection to a server.
+    A connection to a network socket server.
 
     =========  ============
     Argument   Description
@@ -83,7 +83,7 @@ class Connection(Stream):
 
 class Server(StreamServer):
     """
-    A basic implementation of a server.
+    A network socket server.
 
     ================  ============
     Argument          Description

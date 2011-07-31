@@ -37,7 +37,7 @@ except AttributeError:
 
 class UnixClient(Stream):
     """
-    A basic implementation of a Unix socket client.
+    A Unix socket client.
     """
     def __init__(self):
         # This dummy method prevents keyword arguments from finding
@@ -67,7 +67,7 @@ class UnixClient(Stream):
 
 class UnixConnection(Stream):
     """
-    A basic implementation of a connection to a Unix socket server.
+    A connection to a Unix socket server.
 
     =========  ============
     Argument   Description
@@ -88,7 +88,7 @@ class UnixConnection(Stream):
 
 class UnixServer(StreamServer):
     """
-    A basic implementation of a Unix socket server.
+    A Unix socket server.
 
     ================  ============
     Argument          Description
@@ -119,7 +119,7 @@ class UnixServer(StreamServer):
         ==========  ============
         Arguments   Description
         ==========  ============
-        addr        The address to connect to.
+        addr        The address to listen on.
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
