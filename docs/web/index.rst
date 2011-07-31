@@ -1,9 +1,11 @@
-Web
-***
+HTTP & Web
+**********
 
 .. toctree::
     :maxdepth: 2
     
-    web
-    wsgi
     http
+    http_server
+    http_client
+    wsgi
+    web
