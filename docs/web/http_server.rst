@@ -22,4 +22,4 @@ HTTPRequest
 ===========
 
 .. autoclass:: HTTPRequest
-   :members: cookies, full_url, time, get_secure_cookie, set_secure_cookie, send, send_status, send_headers, send_cookies
+   :members: cookies, full_url, time, get_secure_cookie, set_secure_cookie, send_status, send_headers, send_cookies, send, finish

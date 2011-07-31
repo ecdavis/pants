@@ -45,7 +45,7 @@ class HTTPClient(object):
     Argument           Default   Description
     =================  ========  ============
     response_handler   None      *Optional.* A callable that will handle any received responses.
-    max_redirects      5         *Optional.* The number of times to follow a redirect issued by the server.
+    max_redirects      ``5``     *Optional.* The number of times to follow a redirect issued by the server.
     keep_alive         True      *Optional.* Whether or not a single connection will be reused for multiple requests.
     unicode            True      *Optional.* Whether or not to attempt to convert the response body to unicode using the provided Content-Type header's encoding information.
     =================  ========  ============
@@ -87,7 +87,7 @@ class HTTPClient(object):
         Argument   Default   Description
         =========  ========  ============
         url                  The URL to request.
-        timeout    30        *Optional.* The time, in seconds, to wait for a response before erroring.
+        timeout    ``30``    *Optional.* The time, in seconds, to wait for a response before erroring.
         headers    None      *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
         =========  ========  ============
         """
@@ -123,7 +123,7 @@ class HTTPClient(object):
         Argument   Default   Description
         =========  ========  ============
         url                  The URL to request.
-        timeout    30        *Optional.* The time, in seconds, to wait for a response before erroring.
+        timeout    ``30``    *Optional.* The time, in seconds, to wait for a response before erroring.
         headers    None      *Optional.* A dictionary of headers to send with the request. If none are provided, basic headers are set.
         files      None      *Optional.* A dictionary of files to send with the request. If this is provided, the dictionary keys should be equivalent to HTML form field names, and the values should be tuples of ``(filename, data)``.
         =========  ========  ============

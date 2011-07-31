@@ -34,13 +34,13 @@ from web import error
 
 class WSGIConnector(object):
     """
-    This class provides a simple interface for hosting WSGI compatible
-    applications with the pants.contrib.http :class:`HTTPServer` by functioning
-    as a valid request handler.
+    This class acts as a request handler for :class:`pants.contrib.http.HTTPServer`
+    and provides a simple interface for hosting `WSGI <http://en.wikipedia.org/wiki/WSGI>`_
+    compatible applications.
 
     When called, it constructs a proper environment for the WSGI call, and
-    calls it within a try block to catch errors. A 500 Internal Server Error
-    page is displayed if the WSGI application raises an error.
+    calls it within a try block to catch errors. A ``500 Internal Server Error``
+    page is displayed if an exception bubbles up from the WSGI application.
 
     ============  ============
     Argument      Description
@@ -71,22 +71,23 @@ class WSGIConnector(object):
         self.app = application
         self.debug = debug
 
-    def attach(self, application, route):
+    def attach(self, application, path, domain=None):
         """
         Attach the WSGIConnector to an instance of
         :class:`pants.contrib.web.Application` at the given route.
 
-        ============  ============
-        Argument      Description
-        ============  ============
-        application   The :class:`Application` to attach to.
-        route         The route for access to this WSGIConnector.
-        ============  ============
+        ============  ========  ============
+        Argument      Default   Description
+        ============  ========  ============
+        application             The :class:`~pants.contrib.web.Application` to attach to.
+        path                    The path to serve requests from.
+        domain        None      *Optional.* The domain to serve requests upon.
+        ============  ========  ============
         """
-        route = re.compile("^%s(.*)$" % re.escape(route))
+        path = re.compile("^%s(.*)$" % re.escape(path))
         application._insert_route(
-            route, self, "WSGIConnector", ['HEAD','GET','POST','PUT'], None,
-            None)
+            path, self, domain, "WSGIConnector", ['HEAD','GET','POST','PUT'],
+            None, None)
 
     def __call__(self, request):
         """

@@ -42,6 +42,8 @@ class HTTPConnection(Connection):
     In order, this class is in charge of: reading HTTP request lines, reading
     the associated headers, reading any request body, and executing the
     appropriate request handler if the request is valid.
+    
+    You will almost never access this class directly.
     """
     def __init__(self, *args):
         Connection.__init__(self, *args)
@@ -60,10 +62,9 @@ class HTTPConnection(Connection):
         This function should be called when the response to the current
         request has been completed, in preparation for either closing the
         connection or attempting to read a new request from the connection.
-
-        Failing to call this function (or the finish function of the request,
-        which in turn calls this) will drastically reduce the performance of
-        the HTTP server.
+        
+        This function is called for you when you call
+        :func:`HTTPRequest.finish() <pants.contrib.http.server.HTTPRequest.finish>`.
         """
         self._finished = True
         if not self._send_buffer:
@@ -368,19 +369,19 @@ class HTTPRequest(object):
     def set_secure_cookie(self, name, value, expires=30*86400, **kwargs):
         """
         Set a timestamp on a cookie and sign it, ensuring that it can't be
-        altered by the client. To use this, the :class:`HTTPServer` *must* have
-        a ``cookie_secret`` set.
+        altered by the client. To use this, the :class:`~pants.contrib.http.HTTPServer`
+        *must* have a ``cookie_secret`` set.
 
         Cookies set with this function may be read with
-        :func:`HTTPServer.get_secure_cookie`.
+        :func:`~pants.contrib.http.HTTPServer.get_secure_cookie`.
 
-        =========  ============
-        Argument   Description
-        =========  ============
-        name       The name of the cookie to set.
-        value      The value of the cookie.
-        expires    *Optional.* How long, in seconds, the cookie should last before expiring. By default, this is 30 days.
-        =========  ============
+        =========  ===========  ============
+        Argument   Default      Description
+        =========  ===========  ============
+        name                    The name of the cookie to set.
+        value                   The value of the cookie.
+        expires    ``2592000``  *Optional.* How long, in seconds, the cookie should last before expiring. The default value is equivilent to 30 days.
+        =========  ===========  ============
 
         Additional arguments, such as ``path`` and ``httponly`` may be set by
         providing them as keyword arguments.
@@ -426,11 +427,12 @@ class HTTPRequest(object):
     def finish(self):
         """
         This function should be called when the response has been completed,
-        allowing the associated :class:`HTTPConnection` to either close the
-        connection to the client or begin listening for a new request.
+        allowing the associated :class:`~pants.contrib.http.HTTPConnection` to
+        either close the connection to the client or begin listening for a new
+        request.
 
         Failing to call this function will drastically reduce the performance
-        of the HTTP server.
+        of the HTTP server, if it will work at all.
         """
         self._finish = time()
         self.connection.finish()
@@ -532,7 +534,7 @@ class HTTPRequest(object):
         =========  ========  ============
         Argument   Default   Description
         =========  ========  ============
-        code       200       *Optional.* The HTTP status code to send to the client.
+        code       ``200``   *Optional.* The HTTP status code to send to the client.
         =========  ========  ============
         """
         try:
@@ -590,9 +592,11 @@ class HTTPServer(Server):
                 '<p>Your request was for <code>%s</code>.</p>' % request.uri
             ])
 
-            request.send('HTTP/1.1 200 OK\\r\\n')
-            request.send('Content-Type: text/html\\r\\n')
-            request.send('Content-Length: %d\\r\\n\\r\\n' % len(response))
+            request.send_status(200)
+            request.send_headers({
+                'Content-Type': 'text/html',
+                'Content-Length': len(response)
+                })
             request.send(response)
             request.finish()
 
@@ -605,11 +609,11 @@ class HTTPServer(Server):
     Argument          Default   Description
     ================  ========  ============
     request_handler             A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
-    max_request       10 MiB    *Optional.* The maximum allowed length, in bytes, of an HTTP request body.
+    max_request       10 MiB    *Optional.* The maximum allowed length, in bytes, of an HTTP request body. This should be kept small, as the entire request body will be held in memory.
     keep_alive        True      *Optional.* Whether or not multiple requests are allowed over a single connection.
     ssl_options       None      *Optional.* SSL is not currently implemented in Pants, and this will not work. A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
     cookie_secret     None      *Optional.* A string to use when signing secure cookies.
-    xheaders          False     *Optional.* Whether or not to use X-Forwarded-For and X-Forwared-Proto headers.
+    xheaders          False     *Optional.* Whether or not to use ``X-Forwarded-For`` and ``X-Forwared-Proto`` headers.
     ================  ========  ============
     """
     ConnectionClass = HTTPConnection
@@ -641,13 +645,13 @@ class HTTPServer(Server):
         """
         Begins listening on the given host and port.
 
-        =========  ============
-        Argument   Description
-        =========  ============
-        port       *Optional.* The port for the server to listen on. If this isn't specified, it will be set to either 80, or 443 if SSL options have been provided.
-        host       *Optional.* The host interface to listen on. By default, listen on all interfaces (``''``).
-        backlog    *Optional.* The maximum number of connection attempts to queue. Defaults to 1,024.
-        =========  ============
+        =========  ==================  ============
+        Argument   Default             Description
+        =========  ==================  ============
+        port       ``80`` or ``443``   *Optional.* The port for the server to listen on. If this isn't specified, it will be set to either 80, or 443 if SSL options have been provided.
+        host       ``''``              *Optional.* The host interface to listen on. An empty string will cause the server to listen on all interfaces.
+        backlog    ``1024``            *Optional.* The maximum number of connection attempts to queue.
+        =========  ==================  ============
         """
         if not port:
             if self.ssl_options:

@@ -831,7 +831,7 @@ class FileServer(object):
                 bl = re.compile(bl)
             self.blacklist.append(bl)
 
-    def attach(self, app, route='/static/', domain=None):
+    def attach(self, app, path='/static/', domain=None):
         """
         Attach this fileserver to an application, bypassing the usual route
         decorator to ensure things are done right.
@@ -840,12 +840,12 @@ class FileServer(object):
         Argument   Default          Description
         =========  ===============  ============
         app                         The :class:`~pants.contrib.web.Application` instance to attach to.
-        route      ``'/static/'``   *Optional.* The path to serve requests from.
+        path       ``'/static/'``   *Optional.* The path to serve requests from.
         domain     None             *Optional.* The domain to serve requests upon.
         =========  ===============  ============
         """
-        route = re.compile("^%s(.*)$" % re.escape(route))
-        app._insert_route(route, self, domain, "FileServer", ['HEAD','GET'], None, None)
+        path = re.compile("^%s(.*)$" % re.escape(path))
+        app._insert_route(path, self, domain, "FileServer", ['HEAD','GET'], None, None)
 
     def check_blacklist(self, path):
         """
