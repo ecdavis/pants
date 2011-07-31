@@ -114,34 +114,66 @@ abstraction from low to high. The lower-level channel classes are
 different channel classes all have different use-cases, and you should select
 the one most suitable for your application.
 
-Channels have a :ref:`type <types>` and a :ref:`family <families>` that
-determines their behaviour. Pants supports the most commonly used socket types
-and families. The lower-level channel classes implement functionality for
-different socket types, while the higher-level channel classes subclass the
-lower-level ones and implement family-specific functionality.
 
+Types & Families
+----------------
 
-.. _types:
-
-Types
------
-
-Pants currently supports two types of channels: stream-oriented and
-packet-oriented.
+Channels have a type  and a family that determines their behaviour. Pants
+supports the most commonly used socket types and families. The lower-level
+channel classes implement functionality for different socket types, while the
+higher-level channel classes subclass the lower-level ones and implement
+family-specific functionality.
 
 
 Stream-Oriented
-^^^^^^^^^^^^^^^
+---------------
 
-Stream-oriented channels are connection-based. :class:`~pants.stream.Stream`
-is used to represent local connections to remote servers and remote
-connections to local servers. :class:`~pants.stream.StreamServer` is used to
-represent local servers themselves. Stream-oriented channels are the most
-common, and it is these two classes that the higher-level channel classes
-inherit from.
+Stream-oriented channels are connection-based - they may represent local
+servers, remote connections to local servers and local connections to remote
+servers. At the lower level, the :class:`~pants.stream.Stream` and
+:class:`~pants.stream.StreamServer` classes are used to represent streaming
+channels. There are higher-level classes to represent clients, servers and
+connections of the network and Unix families.
 
-Once created, an instance of :class:`~pants.stream.Stream` can be used to
-connect to remote hosts::
+
+Clients
+^^^^^^^
+
+Client channels represent connections from the application to a remote host.
+The :class:`~pants.network.Client` and :class:`~pants.unix.UnixClient` classes
+represent network and Unix socket clients, respectively. You will need to
+subclass one of the core client classes in order to implement your client's
+functionality.
+
+Servers
+^^^^^^^
+
+Server channels represent local sockets listening for new connections. The
+:class:`~pants.network.Server` and :class:`~pants.unix.UnixServer` classes
+represent network and Unix socket servers, respectively. When a remote client
+connects to a server channel, a new instance of a specified
+:ref:`connection <connections>` class will be automatically created to
+represent that remote connection. It is often not necessary to subclass the
+core server classes - it is possible to specify a connection class for the
+server to use simply by passing it as an argument to the server's constructor.
+
+.. _connections:
+
+Connections
+^^^^^^^^^^^
+
+Connection channels represent connections from a remote host to a server
+running in the application. The :class:`~pants.network.Connection` and
+:class:`~pants.unix.UnixConnection` classes represent network and Unix socket
+connections, respectively. Connection channels can be used in much the same as
+client channels can, with the simple exception that you do not need to tell
+them to connect to a remote host - they are already connected when they are
+created.
+
+Using a Stream
+^^^^^^^^^^^^^^
+
+Once created, a streaming channel can be used to connect to remote hosts::
 
     stream.connect(('example.com', 80)) # On a network stream, connect to example.com on port 80.
 
@@ -156,28 +188,31 @@ immediately::
     stream.end() # Wait for any remaining data to be written, then close.
     stream.close() # Close immediately.
 
-An instance of :class:`~pants.stream.StreamServer` can be told to listen for
-new connections::
+A streaming server can be told to listen for new connections::
 
     stream_server.listen(('', 8080)) # Listen for connections to any host on port 8080.
 
-When new connections are made, the raw socket and remote address will be
-passed to :meth:`~pants.stream.StreamServer.on_accept`. Finally, stream
-servers can, of course, be closed::
+When new connections are made, the new socket and its remote address will be
+passed to :meth:`on_accept` - the core classes implement :meth:`on_accept` to
+automatically wrap the new socket with a channel class.
+
+Finally, streaming servers can - of course - be closed::
 
     stream_server.close()
 
 
 Packet-Oriented
-^^^^^^^^^^^^^^^
+---------------
 
-Packet-oriented channels, on the other hand, are connectionless. Channels
-represented by :class:`~pants.datagram.Datagram` are used to send and receive
-packets to and from remote packet-oriented sockets. Typically, only one
-packet-oriented channel is required for each protocol you intend to implement.
+Packet-oriented channels are connectionless. Channels represented by
+:class:`~pants.datagram.Datagram` are used to send and receive packets to and
+from remote packet-oriented sockets. Typically, only one packet-oriented
+channel is required for each protocol you intend to implement.
 
-Once created, an instance of :class:`~pants.datagram.Datagram` can be told to
-listen for incoming packets::
+Using a Packet Channel
+^^^^^^^^^^^^^^^^^^^^^^
+
+Once created, a packet channel can be told to for incoming packets::
 
     datagram.listen(('', 8080)) # Listen for packets sent to any host on port 8080.
 
@@ -185,24 +220,8 @@ Packets can be send to remote hosts::
 
     datagram.write("foo", ('example.com', 80)) # Send the string "foo" to example.com on port 80.
 
-And, as with streams, the datagram channel can be closed either immediately or
+And, as with streams, the packet channel can be closed either immediately or
 after it has finished writing data::
 
     datagram.end()
     datagram.close()
-
-
-.. _families:
-
-Families
---------
-
-Pants currently supports two channel families: network and Unix.
-
-
-Network
-^^^^^^^
-
-
-Unix
-^^^^
