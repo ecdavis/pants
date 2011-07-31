@@ -553,6 +553,8 @@ class Application(object):
                     body[:5].lower() in ('<html','<!doc')) or \
                     hasattr(body, '__html__'):
                 headers['Content-Type'] = 'text/html'
+            elif isinstance(body, dict):
+                headers['Content-Type'] = 'application/json'
             else:
                 headers['Content-Type'] = 'text/plain'
 
@@ -573,6 +575,9 @@ class Application(object):
 
             body = body.encode(enc)
             headers['Content-Type'] = '%s%s%s' % (before, sep, enc)
+
+        elif isinstance(body, dict):
+            body = json.dumps(body)
 
         elif not isinstance(body, str):
             body = str(body)

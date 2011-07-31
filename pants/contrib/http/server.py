@@ -71,7 +71,7 @@ class HTTPConnection(Connection):
 
     ##### Public Event Handlers ###############################################
 
-    def on_write(self, bytes_written=None):
+    def on_write(self):
         if self._finished:
             self._request_finished()
 
@@ -313,7 +313,6 @@ class HTTPRequest(object):
 
         if hasattr(self, '_cookies') and self.cookies:
             out += u'    cookies  = {\n'
-            keys = list(self.cookies.__iter__())
             for k in self.cookies:
                 out += u'        %r: %r\n' % (k, self.cookies[k].value)
             out += u'        }\n\n'
@@ -410,7 +409,7 @@ class HTTPRequest(object):
             value, expires, ts, signature = self.cookies[name].value.split('|')
             expires = int(expires)
             ts = int(ts)
-        except AttributeError, ValueError:
+        except (AttributeError, ValueError):
             print 'boo'
             return None
 
@@ -537,7 +536,6 @@ class HTTPRequest(object):
         =========  ========  ============
         """
         try:
-            HTTP[code]
             self.connection.write('%s %d %s%s' % (
                 self.version, code, HTTP[code], CRLF))
         except KeyError:
@@ -636,7 +634,7 @@ class HTTPServer(Server):
         return self._cookie_secret
 
     @cookie_secret.setter
-    def cookie_secret(self, val):
+    def cookie_secret_setter(self, val):
         self._cookie_secret = val
 
     def listen(self, port=None, host='', backlog=1024):
