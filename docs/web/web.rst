@@ -23,10 +23,6 @@ Helper Functions
 
 .. autofunction:: error
 
-.. autofunction:: json_response
-
-.. autofunction:: jsonify
-
 .. autofunction:: redirect
 
 .. autofunction:: url_for

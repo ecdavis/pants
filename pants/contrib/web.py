@@ -39,9 +39,8 @@ try:
 except ImportError:
     import json
 
-__all__ = ('Application','HTTPException','HTTPTransparentRedirect','abort',
-    'all_or_404','error','json_response','jsonify','redirect','url_for',
-    'HTTPServer','FileServer')
+__all__ = ('Application', 'HTTPException', 'HTTPTransparentRedirect', 'abort',
+    'all_or_404', 'error', 'redirect', 'url_for', 'HTTPServer', 'FileServer')
 
 ###############################################################################
 # Cross Platform Hidden File Detection
@@ -319,13 +318,11 @@ class Application(object):
 
     def run(self, port=None, host='', ssl_options=None):
         """
-        This function exists for convenience, and when called creates an
-        :class:`pants.contrib.http.HTTPServer` instance with its request
+        This function exists for convenience, and when called creates a
+        :class:`~pants.contrib.http.HTTPServer` instance with its request
         handler set to this application instance, calls
-        :func:`pants.contrib.http.HTTPServer.listen` on that HTTPServer, and
-        finally, starts the Pants engine to process requests.
-
-        Example::
+        :func:`~pants.contrib.http.HTTPServer.listen` on that HTTPServer, and
+        finally, starts the Pants engine to process requests. Example::
 
             from pants.contrib.web import *
             app = Application()
@@ -367,7 +364,7 @@ class Application(object):
                 char, = request.match.groups()
                 return 'The character is %s!' % char
 
-        That is, essentially, equivilent to:
+        That is, essentially, equivilent to::
 
             @app.route("/char/<char>/")
             def my_route(char):
@@ -418,7 +415,7 @@ class Application(object):
 
             @app.route("/user/<int:id>/")
             def user(id):
-                # Code Here
+                return "Hi, user %d!" % id
 
         The ``id`` is automatically converted into an integer for you, and as
         an added bonus, your function is never even called if the provided
@@ -442,7 +439,11 @@ class Application(object):
         be automatically encoded and an encoding argument will be added to the
         ``Content-Type`` header.
 
-        If a non-string object is returned, it will be converted to a string
+        If a dictionary is returned, it will be automatically converted to a
+        string of `JSON <http://en.wikipedia.org/wiki/JSON>`_ and the
+        ``Content-Type`` header will be set to ``application/json``.
+
+        If any other object is returned, it will be converted to a string
         via ``str()`` before any content headers are set. The exception to this
         is that, if the object has a ``__html__`` method, that method will be
         called rather than ``str()``, and the ``Content-Type`` will be
@@ -780,10 +781,22 @@ class Application(object):
 class FileServer(object):
     """
     The FileServer is a request handling class that, as it sounds, serves files
-    to the client. It also supports the Content-Range header, HEAD requests,
+    to the client. It also supports the ``Content-Range`` header, HEAD requests,
     and last modified dates.
-
-    It attempts to serve the files as efficiently as possible.
+    
+    ==========  ==============================  ============
+    Argument    Default                         Description
+    ==========  ==============================  ============
+    path                                        The path to serve.
+    blacklist   ``.py`` and ``.pyc`` files      *Optional.* A list of regular expressions to test filenames against. If a given file matches any of the provided patterns, it will not be downloadable and instead return a ``403 Unauthorized`` error.
+    default     ``index.html``, ``index.htm``   *Optional.* A list of default files to be displayed rather than a directory listing if they exist.
+    renderers   None                            *Optional.* A dictionary of methods for rendering files with a given extension into more suitable output, such as converting rST to HTML, or minifying CSS.
+    ==========  ==============================  ============
+    
+    It attempts to serve the files as efficiently as possible, using the
+    `sendfile <http://www.kernel.org/doc/man-pages/online/pages/man2/sendfile.2.html>`_
+    system call when possible, and with proper use of ETags and other headers to
+    minimize repetitive downloading.
 
     Using it is simple. It only requires a single argument: the path to serve
     files from. You can also supply a list of default files to check to serve
@@ -791,39 +804,18 @@ class FileServer(object):
 
     When used with an Application, the FileServer is not created in the usual
     way with the route decorator, but rather with a method of the FileServer
-    itself. Example:
+    itself. Example::
 
         FileServer("/tmp/path").attach(app)
 
-    If you wish to listen on a path other than /static/, you can also use that
-    when attaching:
+    If you wish to listen on a path other than ``/static/``, you can also use
+    that when attaching::
 
         FileServer("/tmp/path").attach(app, "/files/")
     """
     def __init__(self, path, blacklist=[re.compile('.*\.pyc?$')],
-            defaults=['index.html','index.html'],
+            defaults=['index.html','index.htm'],
             renderers=None):
-        """
-        Initialize the FileServer.
-
-        Args:
-            path: The path to serve.
-            blacklist: A list of regular expressions to test filenames against.
-                If any match a given file, it will not be downloadable via
-                this class. Optional.
-
-                Any blacklist items are expected to be either a regex pattern
-                object, a unicode string, or a regular string. In the event
-                of a regular string, it will be compiled into a regex pattern
-                object.
-
-                By default, all .py and .pyc files are blacklisted.
-            defaults: A list of default files, such as index.html. Optional.
-            renderers: A dictionary of methods for rendering files into
-                suitable output, useful for processing CSS and JavaScript, or
-                converting structured text documents into HTML for display in
-                a browser. Optional.
-        """
         # Make sure our path is unicode.
         if not isinstance(path, unicode):
             path = _decode(path)
@@ -844,9 +836,13 @@ class FileServer(object):
         Attach this fileserver to an application, bypassing the usual route
         decorator to ensure things are done right.
 
-        Args:
-            app: The application to attach to.
-            route: The path to listen on. Defaults to '/static/'.
+        =========  ===============  ============
+        Argument   Default          Description
+        =========  ===============  ============
+        app                         The :class:`~pants.contrib.web.Application` instance to attach to.
+        route      ``'/static/'``   *Optional.* The path to serve requests from.
+        domain     None             *Optional.* The domain to serve requests upon.
+        =========  ===============  ============
         """
         route = re.compile("^%s(.*)$" % re.escape(route))
         app._insert_route(route, self, domain, "FileServer", ['HEAD','GET'], None, None)
@@ -854,10 +850,14 @@ class FileServer(object):
     def check_blacklist(self, path):
         """
         Check the given path to make sure it isn't blacklisted. If it is
-        blacklisted, then raise an HTTPException via abort.
+        blacklisted, then raise an :class:`~pants.contrib.web.HTTPException`
+        via :func:`~pants.contrib.web.abort`.
 
-        Args:
-            path: The path to check.
+        =========  ============
+        Argument   Description
+        =========  ============
+        path       The path to check against the blacklist.
+        =========  ============
         """
         for bl in self.blacklist:
             if isinstance(bl, unicode):
@@ -1235,24 +1235,24 @@ def _parse_date(text):
 
 def abort(status=404, message=None, headers=None):
     """
-    Raise an HTTPException to display an error page.
+    Raise a :class:`~pants.contrib.web.HTTPException` to display an error page.
     """
     raise HTTPException(status, message, headers)
 
 def all_or_404(*args):
     """
-    If any of the provided arguments aren't truthy, raise a 404 exception.
-    This is automatically called for you if you set auto404=True when using the
-    route decorator.
+    If any of the provided arguments aren't truthy, raise a ``404 Not Found``
+    exception. This is automatically called for you if you set ``auto404=True``
+    when using the route decorator.
     """
     all(args) or abort()
 
 def error(message=None, status=None, headers=None, request=None, debug=None):
     """
-    Return a very simple error page, defaulting to a 404 Not Found error if
-    no status code is supplied. Usually, you'll want to call abort() in your
-    code, rather than error, to streamline the process of abandoning your code.
-    Usage:
+    Return a very simple error page, defaulting to a ``404 Not Found`` error if
+    no status code is supplied. Usually, you'll want to call :func:`~pants.contrib.web.abort`
+    in your code, rather than error(), to streamline the process of abandoning
+    your code. Usage::
 
         return error(404)
         return error("Some message.", 404)
@@ -1302,46 +1302,18 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
 
     return result, status, headers
 
-def json_response(object, status=200, headers=None):
-    """
-    Constructs a JSON response from a given object. You can also specify a
-    HTTP status code and additional headers. Example:
-
-        return json_response(["my","object","here"])
-
-    Args:
-        object: The object to return.
-        status: The HTTP status code to send. Defaults to 200.
-        headers: A dictionary of headers to send. Optional.
-    """
-    if not headers:
-        headers = {}
-    if not 'Content-Type' in headers:
-        headers['Content-Type'] = 'application/json'
-
-    return json.dumps(object), status, headers
-
-def jsonify(*args, **kwargs):
-    """
-    Construct a JSON response using the provided arguments or keyword
-    arguments. Somewhat less powerful than json_response, but providing a
-    simple interface. Example:
-
-        return jsonify(username="Stacy",
-                       email="stacy@examples.com",
-                       id=2)
-    """
-    if args:
-        if kwargs:
-            args = list(args) + [kwargs]
-        kwargs = args
-    return json.dumps(kwargs), 200, {'Content-Type':'application/json'}
-
 def redirect(uri, status=302):
     """
-    Construct a 302 Found response to instruct the client's browser to redirect
-    its request to a different URL. Other codes may be returned by specifying a
-    status.
+    Construct a ``302 Found`` response to instruct the client's browser to
+    redirect its request to a different URL. Other codes may be returned by
+    specifying a status.
+    
+    =========  ========  ============
+    Argument   Default   Description
+    =========  ========  ============
+    uri                  The URI to redirect the client's browser to.
+    status     ``302``   *Optional.* The status code to send with the response.
+    =========  ========  ============
     """
     url = uri
     if isinstance(url, unicode):
@@ -1355,13 +1327,40 @@ def url_for(name, **values):
     """
     Generates a URL to the route with the given name. The name is relative to
     the module of the route function. Examples:
+    
+    ==============  ================  ================
+    View's Module   Target Endpoint   Target Function
+    ==============  ================  ================
+    ``test``        ``index``         ``test.index``
+    ``test``        ``.who``          The first ``who`` function in *any* module.
+    ``test``        ``admin.login``   ``admin.login``
+    ==============  ================  ================
+    
+    Any value provided to the function with an unknown key is appended to the
+    generated URL as query arguments. For example, take the following route::
 
-    View's Module | Target Endpoint | Target Function
-    'test'        | 'index'         | 'index' function of 'test' module
-    'test'        | '.who'          | First 'who' function of any module
-    'test'        | 'admin.login'   | 'login' function of 'admin' module
+        @app.route("/user/<int:id>/")
+        def user_page(id):
+            pass
 
-    Provided values with unknown keys are added to the URL as query arugments.
+    Assuming ``url_for`` is used within the same module, the following examples
+    will hold true::
+        
+        >>> url_for("user_page", id=12)
+        '/user/12/'
+        
+        >>> url_for("user_page", id=12, section=3)
+        '/user/12/?section=3'
+        
+        >>> url_for("user_page", id=12, _external=True)
+        'http://www.example.com/user/12/'
+    
+    As demonstrated above, the ``_external`` parameter is special, and will
+    result in the generation of a full URL, using the scheme and host provided
+    by the current request.
+    
+    *Note:* This function has not yet been updated to properly make use of
+    domains.
     """
     app = Application.current_app
     request = app.request
