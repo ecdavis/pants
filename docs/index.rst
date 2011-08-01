@@ -44,6 +44,13 @@ Documentation
 
     overview
     guides/index
+
+API
+===
+
+.. toctree::
+    :maxdepth: 2
+
     core/index
     utilities/index
     web/index
