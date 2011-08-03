@@ -103,8 +103,8 @@ def parse_address(addr):
 # Commands
 ###############################################################################
 
-@command("Import a script before starting the Pants engine.")
-def file(global_options, arguments):
+@command("Import a script before starting the Pants engine.", name="file")
+def run_files(global_options, arguments):
     if not arguments:
         print "Usage: %s [global-options] file [list of importable modules]" % os.path.basename(sys.argv[0])
         sys.exit(0)
@@ -113,8 +113,8 @@ def file(global_options, arguments):
         try:
             if f.endswith('.py'):
                 f = f[:-3]
-            mod = __import__(f, globals(), locals())
-        except ImportError, e:
+            __import__(f, globals(), locals())
+        except ImportError:
             log.exception("Unable to import module %r." % f)
             sys.exit(1)
     
@@ -345,28 +345,28 @@ if __name__ == '__main__':
     # Are we profiling?
     if global_options.profile:
         profiler = global_options.profiler.lower()
-        file = global_options.statfile
+        pfile = global_options.statfile
         
         if profiler == 'cprofile':
-            if file == '-':
-                file = None
+            if pfile == '-':
+                pfile = None
             
             import cProfile
-            starter = functools.partial(cProfile.run, 'real_starter()', file)
+            starter = functools.partial(cProfile.run, 'real_starter()', pfile)
         
         elif profiler == 'profile':
-            if file == '-':
-                file = None
+            if pfile == '-':
+                pfile = None
             
             import profile
-            starter = functools.partial(profile.run, 'real_starter()', file)
+            starter = functools.partial(profile.run, 'real_starter()', pfile)
         
         elif profiler == 'hotshot':
-            if file == '-':
-                file = tempfile.mktemp()
+            if pfile == '-':
+                pfile = tempfile.mktemp()
             
             import hotshot
-            profiler = hotshot.Profile(file)
+            profiler = hotshot.Profile(pfile)
             starter = functools.partial(profiler.runcall, real_starter)
         
         else:
@@ -450,7 +450,7 @@ if __name__ == '__main__':
     if global_options.profile and global_options.profiler.lower() == 'hotshot'\
             and global_options.statfile == '-':
         import hotshot.stats
-        stats = hotshot.stats.load(file)
+        stats = hotshot.stats.load(pfile)
         
         stats.sort_stats('name').print_stats()
     
