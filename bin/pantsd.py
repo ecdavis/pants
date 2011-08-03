@@ -277,7 +277,8 @@ if __name__ == '__main__':
     
     # Build the epilog text.
     epilog = ["", "Commands:"]
-    for key, (desc, func) in commands.iteritems():
+    for key in sorted(commands.keys()):
+        desc, func = commands[key]
         epilog.append("  %-20s  %s" % (key, desc))
     epilog.append("")
     
