@@ -108,15 +108,27 @@ def run_files(global_options, arguments):
     if not arguments:
         print "Usage: %s [global-options] file [list of importable modules]" % os.path.basename(sys.argv[0])
         sys.exit(0)
-    
+
+    wd = os.getcwd()
+
     for f in arguments:
         try:
             if f.endswith('.py'):
                 f = f[:-3]
-            __import__(f, globals(), locals())
+            
+            try:
+                __import__(f, globals(), locals())
+            except ImportError:
+                if os.path.basename(f) == f:
+                    raise
+                
+                os.chdir(os.path.join(wd, os.path.dirname(f)))
+                __import__(os.path.basename(f), globals(), locals())
+        
         except ImportError:
             log.exception("Unable to import module %r." % f)
             sys.exit(1)
+        os.chdir(wd)
     
     return pants.engine.start
 
@@ -342,6 +354,9 @@ if __name__ == '__main__':
     # used to actually start the event loop.
     real_starter = starter = commands[command][1](global_options, arguments)
     
+    # Log the pants version
+    log.log(PANTS, "Using Pants v%s" % pants.__version__)
+    
     # Are we profiling?
     if global_options.profile:
         profiler = global_options.profiler.lower()
@@ -442,6 +457,28 @@ if __name__ == '__main__':
             except (AssertionError, OSError):
                 log.error("Unable to assume the UID %d." % user)
                 sys.exit(1)
+    
+    # Debug Information
+    if global_options.debug:
+        for k,v in pants.engine._channels.iteritems():
+            if not v.listening:
+                continue
+            
+            addr = v.local_addr
+            if addr is None:
+                continue
+            
+            if isinstance(addr, tuple):
+                if addr[0] == '0.0.0.0' or addr[0] == '':
+                    addr = 'port %d' % addr[1]
+                else:
+                    addr = '%s:%d' % addr
+            elif isinstance(addr, basestring):
+                addr = 'unix:%s' % addr
+            else:
+                addr = str(addr)
+            
+            log.debug('%s listening on %s' % (v.__class__.__name__, addr))
     
     # Now that we're set up, run it.
     starter()
