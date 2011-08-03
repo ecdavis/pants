@@ -119,8 +119,57 @@ def file(global_options, arguments):
             sys.exit(1)
     
     return pants.engine.start
+
+@command("A simple HTTP server.")
+def http(global_options, arguments):
+    parser = optparse.OptionParser(
+                usage="%prog [global-options] http [options] [path]")
     
-@command("A simple HTTP/1.1 WSGI server.")
+    parser.add_option("-b", "--bind", metavar="ADDRESS", dest="address",
+                      default=":80", help="Bind the server to 'HOST', 'HOST:PORT', or 'unix:PATH'.")
+    parser.add_option("--backlog", dest="backlog", type="int",
+                      help="The maximum number of pending connections.")
+    parser.add_option("-x", "--x-headers", action="store_true", dest="xhead",
+                      default=False, help="Process X- headers received with requests.")
+    
+    parser.add_option("-i", "--index", metavar="FILE", dest="indices",
+                      action="append", default=[], help="Serve files named FILE if available rather than a directory listing.")
+    
+    options, args = parser.parse_args(arguments)
+    args = ''.join(args)
+    
+    # First, find the directory.
+    path = os.path.realpath(args)
+    if not os.path.exists(path) or not os.path.isdir(path):
+        log.error("The provided path %r is not a directory or does not exist."
+            % path)
+        sys.exit(1)
+    
+    # Parse the address.
+    address = parse_address(options.address)
+    
+    # Fix up the indices list.
+    indices = options.indices
+    if not indices:
+        indices.extend(['index.html', 'index.htm'])
+    
+    # Import the necessary modules.
+    from pants.contrib.http import HTTPServer
+    from pants.contrib.web import FileServer
+    
+    # Create the server now. Exclude .py from the blacklist though, for now.
+    fs = FileServer(path, blacklist=['.*\.pyc'], defaults=indices)
+    server = HTTPServer(fs, xheaders=options.xhead)
+    
+    backlog = options.backlog if options.backlog else socket.SOMAXCONN
+    
+    # Start listening.
+    server.listen(address[1], address[0], backlog)
+    
+    # Return a function that will start things up.
+    return pants.engine.start
+
+@command("Serve a WSGI application over an HTTP/1.1 server.")
 def wsgi(global_options, arguments):
     parser = optparse.OptionParser(
                 usage="%prog [global-options] wsgi [options] module:app")

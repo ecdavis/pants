@@ -879,6 +879,10 @@ class FileServer(object):
         # Conver the path to unicode.
         path = _decode(urllib.unquote(path))
 
+        # Strip off a starting quote.
+        if path.startswith('/') or path.startswith('\\'):
+            path = path[1:]
+
         # Normalize the path.
         full_path = os.path.normpath(os.path.join(self.path, path))
 
@@ -900,7 +904,18 @@ class FileServer(object):
                     return self.__call__(request)
 
             # Guess not. List it.
-            return self.list_directory(request, path)
+            if hasattr(request, 'match'):
+                return self.list_directory(request, path)
+            else:
+                body, status, headers = self.list_directory(request, path)
+                if isinstance(body, unicode):
+                    body = body.encode('utf-8')
+                headers['Content-Length'] = len(body)
+                request.send_status(status)
+                request.send_headers(headers)
+                request.send(body)
+                request.finish()
+                return
 
         # Blacklist Checking.
         self.check_blacklist(full_path)
