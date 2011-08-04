@@ -44,6 +44,7 @@ Documentation
 
     overview
     guides/index
+    examples/index
 
 API
 ===
