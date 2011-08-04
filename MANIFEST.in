@@ -1,0 +1,4 @@
+include AUTHORS.txt
+include CREDITS.txt
+include LICENSE.txt
+recursive-include docs *.rst
