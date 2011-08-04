@@ -118,11 +118,23 @@ the one most suitable for your application.
 Types & Families
 ----------------
 
-Channels have a type  and a family that determines their behaviour. Pants
+Channels have a type and a family that determines their behaviour. Pants
 supports the most commonly used socket types and families. The lower-level
 channel classes implement functionality for different socket types, while the
 higher-level channel classes subclass the lower-level ones and implement
 family-specific functionality.
+
+Pants supports the two main families of socket - network 
+(:const:`~socket.AF_INET`) and Unix (:const:`~socket.AF_UNIX`). Network
+channels - as the name implies - are used for communication over a network
+such as the Internet. Unix channels, on the other hand, are used for
+inter-process communication between Unix processes. Unix channels are only
+supported on certain platforms.
+
+When it comes to types, Pants supports stream-oriented 
+(:const:`~socket.SOCK_STREAM`) and packet-oriented
+(:const:`~socket.SOCK_DGRAM`)
+channels. These are explained in further detail below.
 
 
 Stream-Oriented
