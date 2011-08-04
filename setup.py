@@ -20,6 +20,8 @@ setup(
         "Intended Audience :: Developers",
         "Natural Language :: English",
         "Topic :: Internet",
+        "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+        "Topic :: Interner :: WWW/HTTP :: WSGI :: Server",
         "Topic :: Software Development :: Libraries :: Python Modules",
         ],
     scripts=[
