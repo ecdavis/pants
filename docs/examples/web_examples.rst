@@ -1,7 +1,6 @@
 Web
 ***
 
-
 Hello, World!
 =============
 
@@ -14,7 +13,7 @@ Hello World to any connecting clients::
 
     app = Application()
 
-    @app.route('/')
+    @app.route("/")
     def hello_world():
         return "Hello, World!"
 
@@ -28,8 +27,63 @@ It's often more convenient to just use the
 
     app = Application()
 
-    @app.route('/')
+    @app.route("/")
     def hello_world():
         return "Hello, World!"
 
     app.run()
+
+
+Go Away, World!
+===============
+
+HTTP errors are easy with Application. For example, an HTTP ``404 Not Found``
+response::
+
+    from pants.contrib.web import *
+
+    app = Application()
+
+    @app.route("/")
+    def go_away():
+        return "Go Away, World!", 404
+
+    app.run()
+
+
+Hello, `JSON <http://en.wikipedia.org/wiki/JSON>`_!
+===================================================
+
+The Application framework makes it easy to send JSON documents to clients by
+simply returning a dictionary as the response body::
+
+    from pants.contrib.web import *
+
+    app = Application()
+
+    @app.route("/")
+    def hello_json():
+        return {"hello": "world"}
+
+    app.run()
+
+
+Static Files
+============
+
+The :class:`~pants.contrib.web.FileServer` class provides an easy way to serve
+static files to clients, with support for headers that allow for intelligent
+caching and support for the ``sendfile`` system call where available.
+
+.. code-block:: python
+
+    from pants.contrib.web import *
+
+    app = Application()
+
+    FileServer('/path/to/files').attach(app)
+
+    app.run()
+
+FileServer instances can also be used as request handlers directly with 
+:class:`~pants.contrib.http.HTTPServer`.

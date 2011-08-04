@@ -600,6 +600,7 @@ class HTTPServer(Server):
         self.max_request        = max_request
         self.keep_alive         = keep_alive
         self.xheaders           = xheaders
+        self.ssl_options        = ssl_options
 
         self._cookie_secret     = cookie_secret
 
