@@ -159,9 +159,9 @@ def do_poll():
     earliest deferred event.
     """
     engine = Engine.instance()
-    
+
     engine.poll(0)
-    
+
     if engine._deferreds:
         timer.setInterval(min(1000 * (engine._deferreds[0].end - engine.time), _timeout))
     else:
@@ -179,66 +179,26 @@ def install(app=None, timeout=0.02):
     Creates a :class:`~PySide.QtCore.QTimer` instance that will be triggered
     continuously to call :func:`Engine.poll() <pants.engine.Engine.poll>`,
     ensuring that Pants remains responsive.
-    
+
     =========  ========  ============
     Argument   Default   Description
     =========  ========  ============
     app        None      *Optional.* The :class:`~PySide.QtCore.QCoreApplication` to attach to. If no application is provided, it will attempt to find an existing application in memory, or, failing that, create a new application instance.
     timeout    ``0.02``  *Optional.* The maximum time to wait, in seconds, before running :func:`Engine.poll() <pants.engine.Engine.poll>`.
     =========  ========  ============
-    
-    This function can be called at any point before executing the Qt
-    application. Example::
-        
-        # First, create a simple web application with Pants.
-        from pants.contrib.web import Application, HTTPServer
-
-        webapp = Application()
-        @webapp.route("/")
-        def hello():
-            return "Hello, World!"
-
-        HTTPServer(webapp).listen(80)
-
-        # Now, create a simple Qt application with a progress bar.
-        from PySide.QtGui import QApplication, QProgressBar
-        from PySide.QtCore import QTimer
-
-        app = QApplication([])
-
-        qb = QProgressBar()
-
-        def update():
-            value = qb.value() + 1
-            if value > qb.maximum():
-                value = qb.minimum()
-            qb.setValue(value)
-
-        tmr = QTimer(qb)
-        tmr.timeout.connect(update)
-
-        tmr.start(100)
-        qb.show()
-
-        # Install the Qt poller for Pants.
-        from pants.contrib.qt import install
-        install(app)
-
-        # Now, run it.
-        app.exec_()
     """
     global timer
     global _timeout
 
     Engine.instance()._install_poller(_Qt())
-    
+
     if app is None:
         app = QCoreApplication.instance()
     if app is None:
         app = QCoreApplication([])
-    
+
     _timeout = timeout * 1000
-    
+
     timer = QTimer(app)
     timer.timeout.connect(do_poll)
     timer.start(_timeout)

@@ -4,6 +4,9 @@ Examples
 
 .. toctree::
     :maxdepth: 2
-    
-    core_hello_world
-    core_message_oriented
+
+    basic_examples
+    http_examples
+    wsgi_examples
+    web_examples
+    qt_examples

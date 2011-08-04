@@ -61,7 +61,7 @@ class BaseIRC(Stream):
 
     The BaseIRC class can receive and send IRC commands, and automatically
     respond to certain commands such as PING.
-    
+
     This class extends :class:`~pants.stream.Stream`, and as such has the same
     :func:`~pants.stream.Stream.connect` and :func:`~pants.stream.Stream.listen`
     functions.
@@ -94,7 +94,7 @@ class BaseIRC(Stream):
 
         This method is called whenever a command is received from the other
         side and successfully parsed as an IRC command.
-        
+
         =========  ============
         Argument   Description
         =========  ============
@@ -121,7 +121,7 @@ class BaseIRC(Stream):
     def message(self, destination, message, _ctcpQuote=True, _prefix=None):
         """
         Send a message to the given nick or channel.
-        
+
         ============  ========  ============
         Argument      Default   Description
         ============  ========  ============
@@ -157,7 +157,7 @@ class BaseIRC(Stream):
     def quit(self, reason=None, _prefix=None):
         """
         Send a QUIT message, with an optional reason.
-        
+
         =========  ========  ============
         Argument   Default   Description
         =========  ========  ============
@@ -172,7 +172,7 @@ class BaseIRC(Stream):
     def send_command(self, command, *args, **kwargs):
         """
         Send a command to the remote endpoint.
-        
+
         =========  ========  ============
         Argument   Default   Description
         =========  ========  ============
@@ -419,7 +419,7 @@ class IRCClient(BaseIRC):
 
 
         Stream.connect(self, (self._server, self._port))
-    
+
     ##### I/O Methods #########################################################
 
     def join(self, channel):

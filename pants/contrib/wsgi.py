@@ -48,24 +48,6 @@ class WSGIConnector(object):
     application   The WSGI application that will handle incoming requests.
     debug         *Optional.* Whether or not to display tracebacks and additional information about a request within the output 500 Internal Server Error pages.
     ============  ============
-
-    Example Usage::
-
-        def application(environ, start_response):
-            status = '200 OK'
-            output = 'Pong!'
-
-            response_headers = [('Content-type', 'text/plain'),
-                                ('Content-Length', str(len(output)))]
-            start_response(status, response_headers)
-            return [output]
-
-        from pants.contrib.http import HTTPServer
-        from pants.contrib.wsgi import WSGIConnector
-        from pants import engine
-
-        HTTPServer(WSGIConnector(application)).listen()
-        engine.start()
     """
     def __init__(self, application, debug=False):
         self.app = application
@@ -122,7 +104,7 @@ class WSGIConnector(object):
             'wsgi.multiprocess' : False,
             'wsgi.run_once'     : False
         }
-        
+
         if isinstance(request.connection.server.local_addr, tuple):
             environ['SERVER_PORT'] = request.connection.server.local_addr[1]
 

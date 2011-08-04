@@ -281,20 +281,7 @@ class Application(object):
     degree of convenience that makes writing dynamic pages easier.
 
     Instances of Application are callable, and may be used as a HTTPServer's
-    request handler. For example::
-
-        from pants.contrib.http import HTTPServer
-        from pants.contrib.web import Application
-        from pants import engine
-
-        app = Application()
-
-        @app.route('/')
-        def hello_world():
-            return "Hiya, Everyone!"
-
-        HTTPServer(app).listen()
-        engine.start()
+    request handler.
 
     ===============  ============
     Argument         Description
@@ -322,16 +309,7 @@ class Application(object):
         :class:`~pants.contrib.http.HTTPServer` instance with its request
         handler set to this application instance, calls
         :func:`~pants.contrib.http.HTTPServer.listen` on that HTTPServer, and
-        finally, starts the Pants engine to process requests. Example::
-
-            from pants.contrib.web import *
-            app = Application()
-
-            @app.route('/')
-            def hello_world():
-                return "Hiya, Everyone!"
-
-            app.run()
+        finally, starts the Pants engine to process requests.
 
         ============  ============
         Argument      Description
@@ -491,7 +469,7 @@ class Application(object):
             request.uri)
         if not self.debug:
             return error(500)
-        
+
         resp = u''.join([
             u"<h2>Traceback</h2>\n",
             u"<pre>%s</pre>\n" % traceback.format_exc(),
@@ -631,11 +609,11 @@ class Application(object):
 
             # Process this route.
             func, name, methods = self._routes[domain][route][:3]
-            
+
             request.route = route
             request.match = match
             request.route_name = name
-            
+
             if request.method not in methods:
                 return error(
                     'The method %s is not allowed for %r.' % (
@@ -783,7 +761,7 @@ class FileServer(object):
     The FileServer is a request handling class that, as it sounds, serves files
     to the client. It also supports the ``Content-Range`` header, HEAD requests,
     and last modified dates.
-    
+
     ==========  ==============================  ============
     Argument    Default                         Description
     ==========  ==============================  ============
@@ -792,7 +770,7 @@ class FileServer(object):
     default     ``index.html``, ``index.htm``   *Optional.* A list of default files to be displayed rather than a directory listing if they exist.
     renderers   None                            *Optional.* A dictionary of methods for rendering files with a given extension into more suitable output, such as converting rST to HTML, or minifying CSS.
     ==========  ==============================  ============
-    
+
     It attempts to serve the files as efficiently as possible, using the
     `sendfile <http://www.kernel.org/doc/man-pages/online/pages/man2/sendfile.2.html>`_
     system call when possible, and with proper use of ETags and other headers to
@@ -1322,7 +1300,7 @@ def redirect(uri, status=302):
     Construct a ``302 Found`` response to instruct the client's browser to
     redirect its request to a different URL. Other codes may be returned by
     specifying a status.
-    
+
     =========  ========  ============
     Argument   Default   Description
     =========  ========  ============
@@ -1342,7 +1320,7 @@ def url_for(name, **values):
     """
     Generates a URL to the route with the given name. The name is relative to
     the module of the route function. Examples:
-    
+
     ==============  ================  ================
     View's Module   Target Endpoint   Target Function
     ==============  ================  ================
@@ -1350,7 +1328,7 @@ def url_for(name, **values):
     ``test``        ``.who``          The first ``who`` function in *any* module.
     ``test``        ``admin.login``   ``admin.login``
     ==============  ================  ================
-    
+
     Any value provided to the function with an unknown key is appended to the
     generated URL as query arguments. For example, take the following route::
 
@@ -1360,20 +1338,20 @@ def url_for(name, **values):
 
     Assuming ``url_for`` is used within the same module, the following examples
     will hold true::
-        
+
         >>> url_for("user_page", id=12)
         '/user/12/'
-        
+
         >>> url_for("user_page", id=12, section=3)
         '/user/12/?section=3'
-        
+
         >>> url_for("user_page", id=12, _external=True)
         'http://www.example.com/user/12/'
-    
+
     As demonstrated above, the ``_external`` parameter is special, and will
     result in the generation of a full URL, using the scheme and host provided
     by the current request.
-    
+
     *Note:* This function has not yet been updated to properly make use of
     domains.
     """

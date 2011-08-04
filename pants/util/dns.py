@@ -704,7 +704,7 @@ class _DNSStream(Stream):
             m = DNSMessage.from_string(self.response)
         except TooShortError:
             return
-        
+
         if self.remote_addr and isinstance(self.remote_addr, tuple):
             m.server = '%s:%d' % self.remote_addr
 

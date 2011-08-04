@@ -42,7 +42,7 @@ class HTTPConnection(Connection):
     In order, this class is in charge of: reading HTTP request lines, reading
     the associated headers, reading any request body, and executing the
     appropriate request handler if the request is valid.
-    
+
     You will almost never access this class directly.
     """
     def __init__(self, *args):
@@ -62,7 +62,7 @@ class HTTPConnection(Connection):
         This function should be called when the response to the current
         request has been completed, in preparation for either closing the
         connection or attempting to read a new request from the connection.
-        
+
         This function is called for you when you call
         :func:`HTTPRequest.finish() <pants.contrib.http.server.HTTPRequest.finish>`.
         """
@@ -577,33 +577,6 @@ class HTTPServer(Server):
     A server's behavior is defined almost entirely by its request handler, and
     will not send any response by itself unless the received HTTP request is
     not valid or larger than the specified limit (which defaults to 10 MiB).
-
-    The following is an example that will display a very simple Hello World to
-    any connecting clients::
-
-        from pants.contrib.http import HTTPServer
-        from pants import engine
-
-        def on_request(request):
-            response = ''.join([
-                '<!DOCTYPE html>',
-                '<title>Hello, World!</title>',
-                '<h1>Hello, World!</h1>',
-                '<p>Your request was for <code>%s</code>.</p>' % request.uri
-            ])
-
-            request.send_status(200)
-            request.send_headers({
-                'Content-Type': 'text/html',
-                'Content-Length': len(response)
-                })
-            request.send(response)
-            request.finish()
-
-        server = HTTPServer(on_request)
-        server.listen(80)
-
-        engine.start()
 
     ================  ========  ============
     Argument          Default   Description
