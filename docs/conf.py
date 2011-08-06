@@ -101,7 +101,7 @@ intersphinx_mapping = {'python': ('http://docs.python.org/', None)}
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-if os.environ.get('READTHEDOCS', None) == 'True':
+if os.environ.get('READTHEDOCS', None):
     html_theme = 'default'
 else:
     html_theme = 'pantsdoc3'
