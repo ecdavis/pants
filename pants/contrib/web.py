@@ -231,6 +231,13 @@ REGEXES = {
     float   : r'(-?\d+(?:\.\d+)?)',
 }
 
+# Formats for _parse_date to use.
+DATE_FORMATS = (
+    "%a, %d %b %Y %H:%M:%S %Z",
+    "%A, %d-%b-%y %H:%M:%S %Z",
+    "%a %b %d %H:%M:%S %Y",
+    )
+
 ###############################################################################
 # Special Exceptions
 ###############################################################################
@@ -1220,7 +1227,12 @@ def _decode(text):
         return text.decode('utf-8','ignore')
 
 def _parse_date(text):
-    return datetime(*time.strptime(text, "%a, %d %b %Y %H:%M:%S GMT")[:6])
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime(*time.strptime(text, fmt)[:6])
+        except ValueError:
+            continue
+    raise ValueError("Unable to parse time data %r." % text)
 
 ###############################################################################
 # Public Helper Functions
