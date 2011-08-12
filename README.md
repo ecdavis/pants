@@ -23,7 +23,7 @@ roll:
 Or for the bleeding edge version, you can clone the [git](http://git-scm.com/)
 repository:
 
-    git clone git://github.com/ecdavis/Pants pants
+    git clone git://github.com/ecdavis/pants
 
 Pants requires [Python 2.6+](http://python.org/) - Python 3 is not yet
 supported.
