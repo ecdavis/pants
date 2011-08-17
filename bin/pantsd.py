@@ -22,6 +22,7 @@
 ###############################################################################
 
 import functools
+import imp
 import logging
 import logging.handlers
 import optparse
@@ -82,6 +83,10 @@ def command(description, name=None):
         return func
     return decorator
 
+###############################################################################
+# Utility Functions
+###############################################################################
+
 def parse_address(addr):
     if not ':' in addr:
         log.error("Invalid address supplied.")
@@ -99,6 +104,25 @@ def parse_address(addr):
             sys.exit(1)
         return (host, port)
 
+def importer(module):
+    """ Import anything. """
+    if module.endswith('.py'):
+        module = module[:-3]
+
+    try:
+        return __import__(module)
+    except ImportError:
+        pass
+
+    if os.path.basename(module) == module:
+        path = [os.getcwd()]
+        name = module
+    else:
+        path = [os.path.dirname(module)]
+        name = os.path.basename(module)
+
+    return imp.load_module(name, *imp.find_module(name, path))
+
 ###############################################################################
 # Commands
 ###############################################################################
@@ -113,17 +137,7 @@ def run_files(global_options, arguments):
 
     for f in arguments:
         try:
-            if f.endswith('.py'):
-                f = f[:-3]
-
-            try:
-                __import__(f, globals(), locals())
-            except ImportError:
-                if os.path.basename(f) == f:
-                    raise
-
-                os.chdir(os.path.join(wd, os.path.dirname(f)))
-                __import__(os.path.basename(f), globals(), locals())
+            importer(f)
 
         except ImportError:
             log.exception("Unable to import module %r." % f)
@@ -207,7 +221,7 @@ def wsgi(global_options, arguments):
     module, _, call = args.partition(':')
 
     try:
-        mod = __import__(module, globals(), locals())
+        mod = importer(module)
     except ImportError:
         log.error("Unable to import the module %r." % module)
         sys.exit(1)
