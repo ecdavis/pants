@@ -172,6 +172,10 @@ class Datagram(_Channel):
             self._wait_for_write_event = True
 
     def flush(self):
+        """
+        Attempt to immediately write any internally buffered data to the
+        channel.
+        """
         if not self._send_buffer:
             return
 
