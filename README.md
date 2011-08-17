@@ -44,7 +44,7 @@ from pants import Connection, engine, Server
 class Hello(Connection):
     def on_connect(self):
         self.write("Hello, World!\r\n")
-        self.close()
+        self.end()
 
 Server(Hello).listen(4000)
 engine.start()
