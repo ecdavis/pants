@@ -8,4 +8,4 @@
 ============
 
 .. autoclass:: Datagram
-    :members: listen, close, end, write, on_read, on_write, on_listen, on_close
+    :members: listen, close, end, write, flush, on_read, on_write, on_listen, on_close
