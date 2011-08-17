@@ -142,7 +142,7 @@ class Stream(_Channel):
 
     ##### I/O Methods #########################################################
 
-    def write(self, data, buffer_data=False):
+    def write(self, data, buffer_data=True):
         """
         Write data to the channel.
 
@@ -174,7 +174,7 @@ class Stream(_Channel):
         else:
             self._wait_for_write_event = True
 
-    def write_file(self, sfile, nbytes=0, offset=0, buffer_data=False):
+    def write_file(self, sfile, nbytes=0, offset=0, buffer_data=True):
         """
         Write a file to the channel.
 
@@ -203,6 +203,13 @@ class Stream(_Channel):
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True
+
+    def flush(self):
+        if not self._send_buffer:
+            return
+
+        self._wait_for_write_event = False
+        self._process_send_buffer()
 
     ##### Internal Methods ####################################################
 

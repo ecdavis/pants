@@ -140,7 +140,7 @@ class Datagram(_Channel):
 
     ##### I/O Methods #########################################################
 
-    def write(self, data, addr=None, buffer_data=False):
+    def write(self, data, addr=None, buffer_data=True):
         """
         Write data to the channel.
 
@@ -165,8 +165,19 @@ class Datagram(_Channel):
                 return
 
         self._send_buffer.append((data, addr))
+
         if not buffer_data:
             self._process_send_buffer()
+        else:
+            self._wait_for_write_event = True
+
+    def flush(self):
+        if not self._send_buffer:
+            return
+
+        self._wait_for_write_event = False
+        self._process_send_buffer()
+
 
     ##### Private Methods #####################################################
 
