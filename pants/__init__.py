@@ -41,7 +41,7 @@ except ImportError:
 ###############################################################################
 
 __authors__ = ["Christopher Davis", "Stendec"]
-__version__ = "0.10.0"
+__version__ = "0.10.1"
 
 __all__ = [
     "engine", # Core
