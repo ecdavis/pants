@@ -142,16 +142,16 @@ class Stream(_Channel):
 
     ##### I/O Methods #########################################################
 
-    def write(self, data, buffer_data=True):
+    def write(self, data, flush=False):
         """
         Write data to the channel.
 
-        ============  ============
-        Arguments     Description
-        ============  ============
-        data          A string of data to write to the channel.
-        buffer_data   If True, the data will be buffered and written later.
-        ============  ============
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        data        A string of data to write to the channel.
+        flush       If True, flush the internal write buffer.
+        ==========  ============
         """
         if self._socket is None:
             log.warning("Attempted to write to closed %s #%d." %
@@ -169,23 +169,23 @@ class Stream(_Channel):
 
         self._send_buffer.append((Stream.DATA_STRING, data))
 
-        if not buffer_data:
+        if flush:
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True
 
-    def write_file(self, sfile, nbytes=0, offset=0, buffer_data=True):
+    def write_file(self, sfile, nbytes=0, offset=0, flush=False):
         """
         Write a file to the channel.
 
-        ============  ============
-        Arguments     Description
-        ============  ============
-        sfile         A file object to write to the channel.
-        nbytes        The number of bytes of the file to write. If 0, all bytes will be written.
-        offset        The number of bytes to offset writing by.
-        buffer_data   If True, the file will be buffered and written later.
-        ============  ============
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        sfile       A file object to write to the channel.
+        nbytes      The number of bytes of the file to write. If 0, all bytes will be written.
+        offset      The number of bytes to offset writing by.
+        flush       If True, flush the internal write buffer.
+        ==========  ============
         """
         if self._socket is None:
             log.warning("Attempted to write file to closed %s #%d." %
@@ -199,7 +199,7 @@ class Stream(_Channel):
 
         self._send_buffer.append((Stream.DATA_FILE, (sfile, offset, nbytes)))
 
-        if not buffer_data:
+        if flush:
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True

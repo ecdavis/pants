@@ -140,17 +140,17 @@ class Datagram(_Channel):
 
     ##### I/O Methods #########################################################
 
-    def write(self, data, addr=None, buffer_data=True):
+    def write(self, data, addr=None, flush=False):
         """
         Write data to the channel.
 
-        ============  ============
-        Arguments     Description
-        ============  ============
-        data          A string of data to write to the channel.
-        addr          The remote address to write the data to.
-        buffer_data   If True, the data will be buffered and written later.
-        ============  ============
+        ==========  ============
+        Arguments   Description
+        ==========  ============
+        data        A string of data to write to the channel.
+        addr        The remote address to write the data to.
+        flush       If True, flush the internal write buffer.
+        ==========  ============
         """
         if self._socket is None:
             log.warning("Attempted to write to closed %s #%d." %
@@ -166,7 +166,7 @@ class Datagram(_Channel):
 
         self._send_buffer.append((data, addr))
 
-        if not buffer_data:
+        if flush:
             self._process_send_buffer()
         else:
             self._wait_for_write_event = True
