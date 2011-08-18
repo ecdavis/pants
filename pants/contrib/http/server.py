@@ -66,6 +66,7 @@ class HTTPConnection(Connection):
         This function is called for you when you call
         :func:`HTTPRequest.finish() <pants.contrib.http.server.HTTPRequest.finish>`.
         """
+        self.flush()
         self._finished = True
         if not self._send_buffer:
             self._request_finished()
