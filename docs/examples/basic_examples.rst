@@ -37,7 +37,7 @@ A simple server that understands a basic, variable-length message protocol::
             self.on_read = self.on_read_header
 
         def on_read_header(self, data):
-            message_length = struct.unpack("!H", data)
+            message_length, = struct.unpack("!H", data)
 
             self.read_delimiter = message_length
             self.on_read = self.on_read_message
