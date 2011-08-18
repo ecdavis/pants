@@ -86,7 +86,8 @@ Example: Echo
 
 ::
 
-    from pants.network import Connection, engine, Server
+    from pants.network import Connection, Server
+    from pants import engine
 
     class Echo(Connection):
         def on_read(self, data):
