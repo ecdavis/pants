@@ -282,7 +282,7 @@ if os.name == 'nt':
             if not result:
                 raise socket.error("unknown error calling inet_ntop")
 
-            return buf.raw[:bytes-1]
+            return buf.value
 
         socket.inet_ntop = inet_ntop
 
