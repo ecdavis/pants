@@ -165,7 +165,7 @@ def do_poll():
     if engine._deferreds:
         timer.setInterval(min(1000 * (engine._deferreds[0].end - engine.time), _timeout))
     else:
-        timer.setInterval(_timeout * 1000)
+        timer.setInterval(_timeout)
 
 ###############################################################################
 # Installation Function
