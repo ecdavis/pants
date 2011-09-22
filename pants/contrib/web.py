@@ -365,22 +365,28 @@ class Application(object):
         """
         def decorator(func):
             if rule[0] != '/':
-                domain, _, rule = rule.partition('/')
-                rule = '/' + rule
+                domain, _, _rule = rule.partition('/')
+                _rule = '/' + rule
             else:
                 domain = None
+                _rule = rule
 
-            regex, arguments, names, namegen = _route_to_regex(rule)
+            regex, arguments, names, namegen = _route_to_regex(_rule)
             _regex = re.compile(regex)
 
-            if name is None:
-                name = "%s.%s" % (func.__module__, func.__name__)
+            _name = name
+            if _name is None:
+                _name = "%s.%s" % (func.__module__, func.__name__)
 
-            self._insert_route(_regex, func, domain, name, methods, names, namegen)
+            if not hasattr(func, 'content_type'):
+                func.content_type = None
+
+            self._insert_route(_regex, func, domain, _name, methods, names, namegen)
             return func
         return decorator
 
-    def route(self, rule, name=None, methods=['GET','HEAD'], auto404=False):
+    def route(self, rule, name=None, methods=['GET','HEAD'], auto404=False,
+              content_type=None):
         """
         The route decorator is used to register a new request handler with the
         Application instance. Example::
@@ -446,21 +452,22 @@ class Application(object):
             def nowhere():
                 return "This does not exist.", 404
 
-        =========  ============
-        Argument   Description
-        =========  ============
-        rule       The route rule to be matched for the decorated function to be used for handling a request.
-        name       *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
-        methods    *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
-        auto404    *Optional.* If this is set to True, all response handler arguments will be checked for truthiness (True, non-empty strings, etc.) and, if any fail, a ``404 Not Found`` page will be rendered automatically.
-        =========  ============
+        =============  ============
+        Argument       Description
+        =============  ============
+        rule           The route rule to be matched for the decorated function to be used for handling a request.
+        name           *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
+        methods        *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
+        auto404        *Optional.* If this is set to True, all response handler arguments will be checked for truthiness (True, non-empty strings, etc.) and, if any fail, a ``404 Not Found`` page will be rendered automatically.
+        content_type   *Optional.* If set, the ``Content-Type`` header will default to this unless returned as part of a header dict from the view function.
+        =============  ============
         """
         if callable(name):
-            self._add_route(rule, name, None, methods, auto404)
+            self._add_route(rule, name, None, methods, auto404, content_type)
             return
 
         def decorator(func):
-            self._add_route(rule, func, name, methods, auto404)
+            self._add_route(rule, func, name, methods, auto404, content_type)
             return func
         return decorator
 
@@ -503,7 +510,7 @@ class Application(object):
 
         try:
             request.auto_finish = True
-            self.handle_output(self.handle_request(request))
+            self.handle_output(*self.handle_request(request))
         finally:
             request.route = None
             request.match = None
@@ -512,7 +519,7 @@ class Application(object):
             Application.current_app = None
             self.request = None
 
-    def handle_output(self, result):
+    def handle_output(self, result, content_type):
         """ Process the output of handle_request. """
         request = self.request
 
@@ -535,9 +542,11 @@ class Application(object):
 
         # Set a Content-Type header if there isn't already one.
         if not 'Content-Type' in headers:
-            if (isinstance(body, basestring) and
+            if content_type != None:
+                headers['Content-Type'] = content_type
+            elif (isinstance(body, basestring) and
                     body[:5].lower() in ('<html','<!doc')) or \
-                    hasattr(body, '__html__'):
+                    hasattr(body, 'to_html'):
                 headers['Content-Type'] = 'text/html'
             elif isinstance(body, dict):
                 headers['Content-Type'] = 'application/json'
@@ -546,7 +555,7 @@ class Application(object):
 
         # Convert the body to something sendable.
         try:
-            body = body.__html__()
+            body = body.to_html()
         except AttributeError:
             pass
 
@@ -626,21 +635,21 @@ class Application(object):
                     'The method %s is not allowed for %r.' % (
                         request.method, path), 405, {
                             'Allow': ', '.join(methods)
-                        })
+                        }), None
             else:
                 try:
-                    return func(request)
+                    return func(request), func.content_type
                 except HTTPException, e:
                     if hasattr(self, 'handle_%d' % e.status):
-                        return getattr(self, 'handle_%d' % e.status)(request, e)
+                        return getattr(self, 'handle_%d' % e.status)(request, e), None
                     else:
-                        return error(e.message, e.status, e.headers)
+                        return error(e.message, e.status, e.headers), None
                 except HTTPTransparentRedirect, e:
                     request.uri = e.uri
                     request._parse_uri()
-                    return self.handle_request(request)
+                    return self.handle_request(request), None
                 except Exception, e:
-                    return self.handle_500(request, e)
+                    return self.handle_500(request, e), None
             break
         else:
             # No matching routes.
@@ -649,11 +658,11 @@ class Application(object):
                 for route in self._routes[domain]:
                     if route.match(p):
                         if request.query:
-                            return redirect('%s?%s' % (p,request.query))
+                            return redirect('%s?%s' % (p,request.query)), None
                         else:
-                            return redirect(p)
+                            return redirect(p), None
 
-        return self.handle_404(request, None)
+        return self.handle_404(request, None), None
 
     ##### Internal Methods and Event Handlers #################################
 
@@ -666,7 +675,7 @@ class Application(object):
         self._names[name] = route
 
     def _add_route(self, route, view, name=None, methods=['GET','HEAD'],
-            auto404=False):
+            auto404=False, content_type=None):
         """ See: Application.route """
         if name is None:
             if view is None:
@@ -756,6 +765,7 @@ class Application(object):
                         view.__call__.func_globals['request'] = None
 
         view_runner.__name__ = name
+        view_runner.content_type = content_type
         self._insert_route(_regex, view_runner, domain,
             "%s.%s" %(view.__module__,name), methods, names, namegen)
 
@@ -798,7 +808,7 @@ class FileServer(object):
 
         FileServer("/tmp/path").attach(app, "/files/")
     """
-    def __init__(self, path, blacklist=[re.compile('.*\.pyc?$')],
+    def __init__(self, path, blacklist=[re.compile('.*\.py[co]?$')],
             defaults=['index.html','index.htm'],
             renderers=None):
         # Make sure our path is unicode.
