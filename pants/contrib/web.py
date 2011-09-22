@@ -647,7 +647,7 @@ class Application(object):
                 except HTTPTransparentRedirect, e:
                     request.uri = e.uri
                     request._parse_uri()
-                    return self.handle_request(request), None
+                    return self.handle_request(request)
                 except Exception, e:
                     return self.handle_500(request, e), None
             break
