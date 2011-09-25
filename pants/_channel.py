@@ -79,11 +79,12 @@ def strerror(err):
     errstr = 'Unknown error %d' % err
     try:
         errstr = os.strerror(err)
-        assert errstr != 'Unknown error'
-    except (AssertionError, NameError, OverflowError, ValueError):
-        if err in errno.errorcode:
-            errstr = errno.errorcode[err]
-    
+    except (NameError, OverflowError, ValueError):
+        pass
+
+    if errstr.startswith('Unknown error') and err in errno.errorcode:
+        errstr = errno.errorcode[err]
+
     return errstr
 
 
@@ -132,7 +133,7 @@ class _Channel(object):
 
         # Events
         self._events = Engine.ALL_EVENTS
-        
+
         if self._socket:
             Engine.instance().add_channel(self)
 
@@ -489,7 +490,7 @@ class _Channel(object):
         global dns
         if dns is None:
             from pants.util import dns
-        
+
         if isinstance(addr, str):
             # This is a unix socket!
             if not hasattr(socket, "AF_UNIX"):
@@ -497,9 +498,14 @@ class _Channel(object):
                 return
             callback(addr, socket.AF_UNIX)
             return
-        
+
+        # Check for a port only.
+        if isinstance(addr, int):
+            # INADDR_ANY-atize it!
+            addr = ('', addr)
+
         # Check for INADDR_ANY or INADDR_BROADCAST.
-        if addr[0] == '' or addr[0] == '<broadcast>':
+        if addr[0] in ('', '<broadcast>'):
             if socket.has_ipv6:
                 callback(addr, socket.AF_INET6)
             elif len(addr) == 4:
@@ -511,18 +517,21 @@ class _Channel(object):
         # It must be a tuple or list. Or, at least, assume it is.
         # That means it's either an AF_INET or AF_INET6 address.
         got_family = None
-        try:
-            assert len(addr) == 2
-            result = socket.inet_pton(socket.AF_INET, addr[0])
-            got_family = socket.AF_INET
-        except (AssertionError, socket.error):
+
+        if socket.has_ipv6:
             try:
-                assert socket.has_ipv6
                 result = socket.inet_pton(socket.AF_INET6, addr[0])
                 got_family = socket.AF_INET6
-            except (AssertionError,socket.error), ex:
+            except socket.error:
                 pass
-        
+
+        if got_family is None and len(addr) == 2:
+            try:
+                result = socket.inet_pton(socket.AF_INET, addr[0])
+                got_family = socket.AF_INET
+            except socket.error:
+                pass
+
         # Do it this way so any errors aren't gobbled up in those try thingies.
         if got_family is not None:
             callback(addr, got_family)
@@ -573,7 +582,7 @@ class _Channel(object):
         if len(addr) == 4:
             qtype = dns.AAAA
         else:
-            qtype = (dns.AAAA,dns.A)
+            qtype = (dns.AAAA, dns.A)
 
         dns.query(addr[0], qtype, callback=dns_callback)
 
@@ -612,7 +621,7 @@ class _Channel(object):
                 self.connecting = False
                 self._safely_call(self.on_connect_error, err, errstr)
                 return
-            
+
             if err != 0:
                 log.error("Error on %s #%d: %s (%d)" %
                         (self.__class__.__name__, self.fileno, errstr, err))

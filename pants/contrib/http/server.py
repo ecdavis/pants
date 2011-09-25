@@ -616,22 +616,25 @@ class HTTPServer(Server):
     def cookie_secret_setter(self, val):
         self._cookie_secret = val
 
-    def listen(self, port=None, host='', backlog=1024):
+    def listen(self, addr=None, backlog=1024):
         """
         Begins listening on the given host and port.
 
         =========  ==================  ============
         Argument   Default             Description
         =========  ==================  ============
-        port       ``80`` or ``443``   *Optional.* The port for the server to listen on. If this isn't specified, it will be set to either 80, or 443 if SSL options have been provided.
-        host       ``''``              *Optional.* The host interface to listen on. An empty string will cause the server to listen on all interfaces.
+        addr       ``80`` or ``443``   *Optional.* The address for the server to listen on. If this isn't specified, it will be set to either port 80 or port 443, depending on security, and listen on INADDR_ANY.
         backlog    ``1024``            *Optional.* The maximum number of connection attempts to queue.
         =========  ==================  ============
         """
-        if not port:
+        if addr is None or isinstance(addr, (list,tuple)) and len(addr) > 1 and addr[1] is None:
             if self.ssl_options:
                 port = 443
             else:
                 port = 80
-
-        Server.listen(self, port, host, backlog)
+            if addr is None:
+                addr = port
+            else:
+                addr = tuple(addr[0] + (port,) + addr[2:])
+        
+        Server.listen(self, addr, backlog)
