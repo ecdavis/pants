@@ -30,6 +30,7 @@ import os
 import random
 import socket
 import struct
+import sys
 import time
 
 import pants.engine
@@ -915,6 +916,9 @@ class Resolver(object):
         allow_hosts   True      *Optional.* Whether or not to use any records gathered from the OS hosts file.
         ============  ========  ============
         """
+        if not isinstance(qtype, (list,tuple)):
+            qtype = (qtype)
+        
         if allow_hosts:
             if host_time + 30 < time.time():
                 load_hosts()
@@ -923,66 +927,86 @@ class Resolver(object):
             if name in self._cache and CNAME in self._cache[name]:
                 cname = self._cache[name][CNAME]
 
-            if qtype == A and name in hosts[A]:
-                self._safely_call(callback, DNS_OK, cname, None, (hosts[A][name], ))
+            result = []
 
-            elif qtype == AAAA and name in hosts[AAAA]:
-                self._safely_call(callback, DNS_OK, cname, None, (hosts[AAAA][name], ))
+            if AAAA in qtype and name in hosts[AAAA]:
+                result.append(hosts[AAAA][name])
 
-        if allow_cache and name in self._cache and (qtype,qclass) in self._cache[name]:
-            cname = None
-            if CNAME in self._cache[name]:
-                cname = self._cache[name][CNAME]
-            death, ttl, rdata = self._cache[name][(qtype, qclass)]
+            if A in qtype and name in hosts[A]:
+                result.append(hosts[A][name])
 
-            if death < time.time():
-                # Clear out the old record.
-                del self._cache[name][(qtype, qclass)]
-
-            else:
+            if result:
                 if callback:
-                    self._safely_call(callback, DNS_OK, cname, ttl, rdata)
+                    self._safely_call(callback, DNS_OK, cname, None, tuple(result))
                 return
+
+        if allow_cache and name in self._cache:
+            cname = self._cache[name].get(CNAME, None)
+
+            tm = time.time()
+            result = []
+            min_ttl = sys.maxint
+
+            for t in qtype:
+                death, ttl, rdata = self._cache[name][(t, qclass)]
+                if death < tm:
+                    del self._cache[name][(t, qclass)]
+                    continue
+
+                min_ttl = min(ttl, min_ttl)
+                if rdata:
+                    result.extend(rdata)
+
+            if callback:
+                self._safely_call(callback, DNS_OK, cname, min_ttl,
+                                    tuple(result))
+            return
 
         # Build a message and add our question.
         m = DNSMessage()
-        m.questions.append((name, qtype, qclass))
+
+        m.questions.append((name, qtype[0], qclass))
 
         # Make the function for handling our response.
         def handle_response(status, data):
             cname = None
             # TTL is 30 by default, so answers with no records we want will be
             # repeated, but not too often.
-            ttl = 30
+            ttl = sys.maxint
 
             if not data:
                 self._safely_call(callback, status, None, None, None)
                 return
 
-            rdata = []
+            rdata = {}
+            final_rdata = []
             for (aname, atype, aclass, attl, ardata) in data.answers:
                 if atype == CNAME:
                     cname = ardata[0]
 
-                if atype == qtype and aclass == qclass:
-                    ttl = attl
+                if atype in qtype and aclass == qclass:
+                    ttl = min(attl, ttl)
                     if len(ardata) == 1:
-                        rdata.append(ardata[0])
+                        rdata.setdefault(atype, []).append(ardata[0])
+                        final_rdata.append(ardata[0])
                     else:
-                        rdata.append(ardata)
-            rdata = tuple(rdata)
+                        rdata.setdefault(atype, []).append(ardata)
+                        final_rdata.append(ardata)
+            final_rdata = tuple(final_rdata)
+            ttl = min(30, ttl)
 
             if allow_cache:
                 if not name in self._cache:
                     self._cache[name] = {}
                     if cname:
                         self._cache[name][CNAME] = cname
-                    self._cache[name][(qtype, qclass)] = time.time() + ttl, ttl, rdata
+                    for t in qtype:
+                        self._cache[name][(t, qclass)] = time.time() + ttl, ttl, rdata.get(t, [])
 
             if data.rcode != DNS_OK:
                 status = data.rcode
 
-            self._safely_call(callback, status, cname, ttl, rdata)
+            self._safely_call(callback, status, cname, ttl, final_rdata)
 
         # Send it, so we get an ID.
         self.send_message(m, handle_response)

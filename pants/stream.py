@@ -23,10 +23,12 @@ Low-level implementations of stream-oriented channels.
 # Imports
 ###############################################################################
 
+import functools
 import os
 import socket
 
 from pants._channel import _Channel
+from pants.engine import Engine
 
 
 ###############################################################################
@@ -48,7 +50,6 @@ class Stream(_Channel):
     ==================  ============
     Keyword Arguments   Description
     ==================  ============
-    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
     socket              *Optional.* A pre-existing socket to wrap.
     ==================  ============
     """
@@ -56,7 +57,8 @@ class Stream(_Channel):
     DATA_FILE = 1
 
     def __init__(self, **kwargs):
-        if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
+        sock = kwargs.get("socket", None)
+        if sock and sock.type != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
@@ -77,38 +79,67 @@ class Stream(_Channel):
 
     ##### Control Methods #####################################################
 
-    def connect(self, addr):
+    def connect(self, addr, native_resolve=True):
         """
         Connect the channel to a remote socket.
 
         Returns the channel.
 
-        ==========  ============
-        Arguments   Description
-        ==========  ============
-        addr        The remote address to connect to.
-        ==========  ============
+        ===============  ============
+        Arguments        Description
+        ===============  ============
+        addr             The remote address to connect to.
+        native_resolve   *Optional.* If this is set to True, Pants will not attempt to resolve the given address name itself.
+        ===============  ============
         """
         if self.connected or self.connecting:
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
-        if self._socket is None:
+        if self._closed:
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
 
         self.connecting = True
 
+        # Identify the type of address.
+        self._resolve_addr(addr, native_resolve, self._do_connect)
+
+        return self
+
+    def _do_connect(self, addr, family, error=None):
+        """
+        Actually connect, now that we know what sort of address we've got. Or,
+        if addr is None, connection failed and error information is available.
+        """
+        if not addr:
+            self.connecting = False
+            self._safely_call(self.on_connect_error, *error)
+            return
+
+        # If we already have a socket, we shouldn't. Toss it!
+        if self._socket:
+            if self._socket.family != family:
+                Engine.instance().remove_channel(self)
+                self._socket_close()
+                self._closed = False
+
+        # Create our socket.
+        if self._socket is None:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            self._socket_set(sock)
+            Engine.instance().add_channel(self)
+
+        # Now, connect!
         try:
             connected = self._socket_connect(addr)
-        except socket.error:
+        except socket.error, ex:
             self.close()
-            raise
+            self._safely_call(self.on_connect_error, ex.errno, ex.strerror)
+            return
 
         if connected:
             self._handle_connect_event()
-
-        return self
 
     def close(self):
         """
@@ -278,7 +309,7 @@ class Stream(_Channel):
             self._update_addr()
             self._safely_call(self.on_connect)
         else:
-            self._safely_call(self.on_connect_error, (err, errstr))
+            self._safely_call(self.on_connect_error, err, errstr)
 
     ##### Internal Processing Methods #########################################
 
@@ -396,7 +427,8 @@ class StreamServer(_Channel):
     ==================  ============
     """
     def __init__(self, **kwargs):
-        if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
+        sock = kwargs.get("socket", None)
+        if sock and sock.type != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
@@ -406,37 +438,74 @@ class StreamServer(_Channel):
         self.remote_addr = None
         self.local_addr = None
 
+        self._slave = None
+
         # Channel state
         self.listening = False
 
     ##### Control Methods #####################################################
 
-    def listen(self, addr, backlog=1024):
+    def listen(self, addr, backlog=1024, native_resolve=True, slave=True):
         """
         Begin listening for connections made to the channel.
 
         Returns the channel.
 
-        ==========  ============
-        Arguments   Description
-        ==========  ============
-        addr        The local address to listen for connections on.
-        backlog     *Optional.* The size of the connection queue. By default, is 1024.
-        ==========  ============
+        ===============  ============
+        Arguments        Description
+        ===============  ============
+        addr             The local address to listen for connections on.
+        backlog          *Optional.* The size of the connection queue. By default, is 1024.
+        native_resolve   *Optional.* If this is set to True, Pants will not attempt to resolve the given address name itself.
+        slave            *Optional.* When True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
+        ===============  ============
         """
         if self.listening:
             raise RuntimeError("listen() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
-        if self._socket is None:
+        if self._closed:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
+
+        # Resolve our address.
+        self._resolve_addr(addr, native_resolve, functools.partial(self._do_listen, backlog, slave))
+        
+        return self
+
+    def _do_listen(self, backlog, slave, addr, family, error=None):
+        """
+        Actually start to listen, now that we know what sort of address we've
+        got. Or, if addr is None, it's a bad address, so do an error thing.
+        """
+        if not addr:
+            log.error("Error listening on %s #%d: %s (%d)" %
+                        (self.__class__.__name__, self.fileno, errstr, err))
+            return
+
+        # If we already have a socket, we shouldn't. Toss it!
+        if self._socket:
+            if self._socket.family != family:
+                Engine.instance().remove_channel(self)
+                self._socket_close()
+                self._closed = False
+
+        # Create our socket.
+        if self._socket is None:
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            self._socket_set(sock)
+            Engine.instance().add_channel(self)
 
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         except AttributeError:
             pass
+
+        if hasattr(socket, "IPPROTO_IPV6") and hasattr(socket, "IPV6_V6ONLY")\
+                and family == socket.AF_INET6:
+            self._socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            slave = False
 
         try:
             self._socket_bind(addr)
@@ -449,7 +518,9 @@ class StreamServer(_Channel):
         self._update_addr()
         self._safely_call(self.on_listen)
 
-        return self
+        # Should we make a slave?
+        if slave and not isinstance(addr, str) and addr[0] == '' and socket.has_ipv6:
+            self._slave = StreamServerSlave(self, addr, backlog)
 
     def close(self):
         """
@@ -461,6 +532,9 @@ class StreamServer(_Channel):
         self.listening = False
 
         self._update_addr()
+        
+        if self._slave:
+            self._slave.close()
 
         _Channel.close(self)
 
@@ -510,3 +584,48 @@ class StreamServer(_Channel):
         """
         log.warning("Received write event for %s #%d." %
                     (self.__class__.__name__, self.fileno))
+
+
+###############################################################################
+# StreamServerSlave Class
+###############################################################################
+
+class StreamServerSlave(StreamServer):
+    """
+    A slave for a StreamServer to allow listening on multiple address familes.
+    """
+    def __init__(self, server, addr, backlog):
+        StreamServer.__init__(self)
+        self.server = server
+        
+        # Now, listen our way.
+        if server._socket.family == socket.AF_INET6:
+            family = socket.AF_INET
+        else:
+            family = socket.AF_INET6
+        
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        self._socket_set(sock)
+        Engine.instance().add_channel(self)
+        
+        try:
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass
+
+        try:
+            self._socket_bind(addr)
+            self._socket_listen(backlog)
+        except socket.error, err:
+            self.close()
+            raise
+
+        self.listening = True
+        self._update_addr()
+        
+        self.on_accept = self.server.on_accept
+
+    def on_close(self):
+        if self.server._slave == self:
+            self.server._slave = None

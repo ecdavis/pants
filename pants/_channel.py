@@ -24,13 +24,17 @@ Implementation of a non-blocking, socket-wrapping channel.
 # Imports
 ###############################################################################
 
+import time
+
 import errno
 import os
 import socket
+import sys
 
 from pants.engine import Engine
 from pants.util.sendfile import sendfile
 
+dns = None
 
 ###############################################################################
 # Logging
@@ -51,9 +55,18 @@ except AttributeError:
     # Silly Windows.
     SUPPORTED_FAMILIES = (socket.AF_INET, )
 
+if socket.has_ipv6:
+    SUPPORTED_FAMILIES = SUPPORTED_FAMILIES + (socket.AF_INET6, )
+
 #: The socket types supported by Pants.
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
+if sys.platform == 'win32':
+    FAMILY_ERROR = (10047, "WSAEAFNOSUPPORT")
+    NAME_ERROR = (11001, "WSAHOST_NOT_FOUND")
+else:
+    FAMILY_ERROR = (97, "Address family not supported by protocol")
+    NAME_ERROR = (-2, "Name or service not known")
 
 ###############################################################################
 # Functions
@@ -63,13 +76,14 @@ def strerror(err):
     """
     Given an error number, returns the appropriate error message.
     """
-    errstr = "Unknown error %d." % err
+    errstr = 'Unknown error %d' % err
     try:
         errstr = os.strerror(err)
-    except (NameError, OverflowError, ValueError):
+        assert errstr != 'Unknown error'
+    except (AssertionError, NameError, OverflowError, ValueError):
         if err in errno.errorcode:
             errstr = errno.errorcode[err]
-
+    
     return errstr
 
 
@@ -94,34 +108,33 @@ class _Channel(object):
     ==================  ============
     Keyword Arguments   Description
     ==================  ============
-    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
-    type                *Optional.* A supported socket type. By default, is :const:`socket.SOCK_STREAM`.
     socket              *Optional.* A pre-existing socket to wrap.
     ==================  ============
     """
     def __init__(self, **kwargs):
         # Keyword arguments
-        sock_family = kwargs.get("family", socket.AF_INET)
-        sock_type = kwargs.get("type", socket.SOCK_STREAM)
         sock = kwargs.get("socket", None)
-        if sock is None:
-            sock = socket.socket(sock_family, sock_type)
 
         # Socket
+        self.family = None
         self.fileno = None
         self._socket = None
-        self._socket_set(sock)
+        if sock:
+            self._socket_set(sock)
 
         # Socket state
         self._wait_for_read_event = True
         self._wait_for_write_event = True
+        self._closed = False
 
         # I/O attributes
         self._recv_amount = 4096
 
         # Events
         self._events = Engine.ALL_EVENTS
-        Engine.instance().add_channel(self)
+        
+        if self._socket:
+            Engine.instance().add_channel(self)
 
     ##### Control Methods #####################################################
 
@@ -224,6 +237,7 @@ class _Channel(object):
             raise ValueError("Unsupported socket type.")
 
         sock.setblocking(False)
+        self.family = sock.family
         self.fileno = sock.fileno()
         self._socket = sock
 
@@ -291,8 +305,10 @@ class _Channel(object):
         except (AttributeError, socket.error):
             return
         finally:
+            self.family = None
             self.fileno = None
             self._socket = None
+            self._closed = True
 
     def _socket_accept(self):
         """
@@ -465,6 +481,100 @@ class _Channel(object):
 
         return err, errstr
 
+    def _resolve_addr(self, addr, native_resolve, callback):
+        """
+        Resolve the given address into something that can be connected to
+        immediately.
+        """
+        global dns
+        if dns is None:
+            from pants.util import dns
+        
+        if isinstance(addr, str):
+            # This is a unix socket!
+            if not hasattr(socket, "AF_UNIX"):
+                callback(None, None, FAMILY_ERROR)
+                return
+        
+        # Check for INADDR_ANY or INADDR_BROADCAST.
+        if addr[0] == '' or addr[0] == '<broadcast>':
+            if socket.has_ipv6:
+                callback(addr, socket.AF_INET6)
+            elif len(addr) == 4:
+                callback(None, None, FAMILY_ERROR)
+            else:
+                callback(Addr, socket.AF_INET)
+            return
+
+        # It must be a tuple or list. Or, at least, assume it is.
+        # That means it's either an AF_INET or AF_INET6 address.
+        got_family = None
+        try:
+            assert len(addr) == 2
+            result = socket.inet_pton(socket.AF_INET, addr[0])
+            got_family = socket.AF_INET
+        except (AssertionError, socket.error):
+            try:
+                assert socket.has_ipv6
+                result = socket.inet_pton(socket.AF_INET6, addr[0])
+                got_family = socket.AF_INET6
+            except (AssertionError,socket.error), ex:
+                pass
+        
+        # Do it this way so any errors aren't gobbled up in those try thingies.
+        if got_family is not None:
+            callback(addr, got_family)
+            return
+
+        # Do we have to do it natively?
+        if native_resolve:
+            if len(addr) == 2:
+                fam = socket.AF_INET
+            else:
+                if not socket.has_ipv6:
+                    callback(None, None, FAMILY_ERROR)
+                    return
+
+                fam = socket.AF_INET6
+
+            try:
+                info = socket.getaddrinfo(addr[0], addr[1], fam)[0]
+            except socket.gaierror, ex:
+                callback(None, None, (ex.errno, ex.strerror))
+                return
+
+            callback(info[4], info[0])
+            return
+
+        # Guess we have to resolve it with Pants.
+        def dns_callback(status, cname, ttl, rdata):
+            if status == dns.DNS_NAMEERROR:
+                callback(None, None, NAME_ERROR)
+                return
+
+            if status != dns.DNS_OK or not rdata:
+                self._resolve_addr(addr, True, callback)
+                return
+
+            for i in rdata:
+                if ':' in i:
+                    if not socket.has_ipv6:
+                        continue
+                    callback((i,) + addr[1:], socket.AF_INET6)
+                    return
+                else:
+                    callback((i,) + addr[1:], socket.AF_INET)
+                    return
+            else:
+                callback(None, None, FAMILY_ERROR)
+
+        if len(addr) == 4:
+            qtype = dns.AAAA
+        else:
+            qtype = (dns.AAAA,dns.A)
+
+        dns.query(addr[0], qtype, callback=dns_callback)
+
     ##### Internal Event Handler Methods ######################################
 
     def _handle_events(self, events):
@@ -496,6 +606,11 @@ class _Channel(object):
 
         if events & Engine.ERROR:
             err, errstr = self._get_socket_error()
+            if self.connecting:
+                self.connecting = False
+                self._safely_call(self.on_connect_error, err, errstr)
+                return
+            
             if err != 0:
                 log.error("Error on %s #%d: %s (%d)" %
                         (self.__class__.__name__, self.fileno, errstr, err))
