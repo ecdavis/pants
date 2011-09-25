@@ -495,6 +495,8 @@ class _Channel(object):
             if not hasattr(socket, "AF_UNIX"):
                 callback(None, None, FAMILY_ERROR)
                 return
+            callback(addr, socket.AF_UNIX)
+            return
         
         # Check for INADDR_ANY or INADDR_BROADCAST.
         if addr[0] == '' or addr[0] == '<broadcast>':
