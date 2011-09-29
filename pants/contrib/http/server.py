@@ -531,6 +531,48 @@ class HTTPRequest(object):
 
         self.connection.write(CRLF.join(out))
 
+    def send_response(self, content, code=200, content_type='text/plain'):
+        """
+        Write a very simple response, in one easy function. This function is
+        for convenience, and allows you to send a basic response in one line.
+
+        Basically, rather than::
+
+            def request_handler(request):
+                output = "Hello, World!"
+
+                request.send_status(200)
+                request.send_headers({
+                    'Content-Type': 'text/plain',
+                    'Content-Length': len(output)
+                    })
+                request.send(output)
+                request.finish()
+
+        You can simply::
+
+            def request_handler(request):
+                request.send_response("Hello, World!")
+
+        =============  ===============  ============
+        Argument       Default          Description
+        =============  ===============  ============
+        content                         A string of content to send to the client.
+        code           ``200``          *Optional.* The HTTP status code to send to the client.
+        content_type   ``text/plain``   *Optional.* The Content-Type header to send.
+        =============  ===============  ============
+        """
+        if not isinstance(content, str):
+            content = str(content)
+
+        self.send_status(code)
+        self.send_headers({
+            'Content-Type': content_type,
+            'Content-Length': len(content)
+            })
+        self.send(content)
+        self.finish()
+
     def send_status(self, code=200):
         """
         Write an HTTP status line (the very first line of any response) to the
@@ -623,7 +665,7 @@ class HTTPServer(Server):
         return self._cookie_secret
 
     @cookie_secret.setter
-    def cookie_secret_setter(self, val):
+    def cookie_secret(self, val):
         self._cookie_secret = val
 
     def listen(self, port=None, host='', backlog=1024):
