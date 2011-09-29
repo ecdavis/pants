@@ -122,7 +122,13 @@ class HTTPConnection(Connection):
         the headers are valid, call the server's request handler.
         """
         try:
-            initial_line, data = data.split(CRLF, 1)
+            ind = data.find(CRLF)
+            if ind == -1:
+                initial_line = data
+                data = ''
+            else:
+                initial_line = data[:ind]
+                data = data[ind+2:]
             try:
                 method, uri, http_version = initial_line.split(' ')
                 if not http_version.startswith('HTTP/'):
@@ -133,7 +139,7 @@ class HTTPConnection(Connection):
                 raise BadRequest('Invalid HTTP request line.')
 
             # Parse the headers.
-            headers = read_headers(data)
+            headers = read_headers(data) if data else {}
 
             protocol = 'http'
 
@@ -269,14 +275,18 @@ class HTTPRequest(object):
             if remote_ip is None:
                 remote_ip = self.headers.get('X-Forwarded-For')
                 if remote_ip is None:
-                    remote_ip = connection.remote_addr[0]
+                    remote_ip = connection.remote_addr
+                    if not isinstance(remote_ip, str):
+                        remote_ip = remote_ip[0]
                 else:
                     remote_ip = remote_ip.split(',')[0].strip()
 
             self.remote_ip = remote_ip
             self.protocol = self.headers.get('X-Forwarded-Proto', protocol)
         else:
-            self.remote_ip  = connection.remote_addr[0]
+            self.remote_ip = connection.remote_addr
+            if not isinstance(self.remote_ip, str):
+                self.remote_ip = self.remote_ip[0]
             self.protocol   = protocol
 
         # Calculated Variables
