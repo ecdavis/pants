@@ -389,6 +389,7 @@ class _Channel(object):
             return self._socket.send(data)
         except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                print repr(err)
                 self._wait_for_write_event = True
                 return 0
             elif err[0] == errno.EPIPE:
@@ -580,6 +581,9 @@ class _Channel(object):
                 callback(None, None, FAMILY_ERROR)
 
         if len(addr) == 4:
+            if not socket.has_ipv6:
+                callback(None, None, FAMILY_ERROR)
+                return
             qtype = dns.AAAA
         else:
             qtype = (dns.AAAA, dns.A)
