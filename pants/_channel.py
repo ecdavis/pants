@@ -163,20 +163,6 @@ class _Channel(object):
         """
         pass
 
-    def on_connect_error(self, err, errstr):
-        """
-        Placeholder. Called when the channel has failed to connect to a
-        remote socket.
-
-        =========  ============
-        Argument   Description
-        =========  ============
-        err        The error number that was raised.
-        errstr     The error message.
-        =========  ============
-        """
-        pass
-
     def on_listen(self):
         """
         Placeholder. Called when the channel begins listening for new
@@ -203,6 +189,36 @@ class _Channel(object):
         Placeholder. Called after the channel has finished closing.
         """
         pass
+
+    def on_connect_error(self, err, errstr):
+        """
+        Placeholder. Called when the channel has failed to connect to a
+        remote socket.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        err        The error number that was raised.
+        errstr     The error message.
+        =========  ============
+        """
+        pass
+
+    def on_overflow_error(self, exception):
+        """
+        Placeholder. Called when an internal buffer on the channel
+        exceeds its size limit.
+        
+        By default, logs the exception and closes the channel.
+
+        ========== ============
+        Argument   Description
+        ========== ============
+        exception  The exception that was raised.
+        ========== ============
+        """
+        log.exception(exception)
+        self.close()
 
     ##### Socket Method Wrappers ##############################################
 

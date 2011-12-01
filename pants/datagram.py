@@ -226,6 +226,15 @@ class Datagram(_Channel):
 
             self._recv_buffer[addr] = self._recv_buffer.get(addr, '') + data
 
+            if len(self._recv_buffer[addr]) > self._recv_buffer_size_limit:
+                err = DatagramBufferOverflow(
+                        "Buffer length exceeded upper limit on %s #%d." %
+                        (self.__class__.__name___, self.fileno),
+                        addr
+                    )
+                self.on_overflow_error(err)
+                return
+
         self._process_recv_buffer()
 
     def _handle_write_event(self):
@@ -313,3 +322,16 @@ class Datagram(_Channel):
 
         if not self._send_buffer:
             self._safely_call(self.on_write)
+
+
+###############################################################################
+# DatagramBufferOverflow
+###############################################################################
+
+class DatagramBufferOverflow(Exception):
+    def __init__(self, errstr, addr):
+        self.errstr = errstr
+        self.addr = addr
+
+    def __repr__(self):
+        return self.errstr

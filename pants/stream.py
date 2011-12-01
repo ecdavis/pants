@@ -69,6 +69,7 @@ class Stream(_Channel):
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = ""
+        self._recv_buffer_size_limit = 2 ** 16 # 64kb
         self._send_buffer = []
 
         # Channel state
@@ -252,6 +253,14 @@ class Stream(_Channel):
                 break
             else:
                 self._recv_buffer += data
+
+                if len(self._recv_buffer) > self._recv_buffer_size_limit:
+                    err = StreamBufferOverflow(
+                            "Buffer length exceeded upper limit on %s #%d." %
+                            (self.__class__.__name___, self.fileno)
+                        )
+                    self.on_overflow_error(err)
+                    return
 
         self._process_recv_buffer()
 
@@ -510,3 +519,15 @@ class StreamServer(_Channel):
         """
         log.warning("Received write event for %s #%d." %
                     (self.__class__.__name__, self.fileno))
+
+
+###############################################################################
+# StreamBufferOverflow
+###############################################################################
+
+class StreamBufferOverflow(Exception):
+    def __init__(self, errstr):
+        self.errstr = errstr
+
+    def __repr__(self):
+        return self.errstr
