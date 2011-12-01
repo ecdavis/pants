@@ -255,11 +255,11 @@ class Stream(_Channel):
                 self._recv_buffer += data
 
                 if len(self._recv_buffer) > self._recv_buffer_size_limit:
-                    err = StreamBufferOverflow(
+                    e = StreamBufferOverflow(
                             "Buffer length exceeded upper limit on %s #%d." %
                             (self.__class__.__name___, self.fileno)
                         )
-                    self.on_overflow_error(err)
+                    self._safely_call(self.on_overflow_error, e)
                     return
 
         self._process_recv_buffer()
@@ -287,7 +287,8 @@ class Stream(_Channel):
             self._update_addr()
             self._safely_call(self.on_connect)
         else:
-            self._safely_call(self.on_connect_error, (err, errstr))
+            e = StreamConnectError(errstr, err)
+            self._safely_call(self.on_connect_error, e)
 
     ##### Internal Processing Methods #########################################
 
@@ -522,12 +523,25 @@ class StreamServer(_Channel):
 
 
 ###############################################################################
-# StreamBufferOverflow
+# StreamBufferOverflow Exception
 ###############################################################################
 
 class StreamBufferOverflow(Exception):
     def __init__(self, errstr):
         self.errstr = errstr
+
+    def __repr__(self):
+        return self.errstr
+
+
+###############################################################################
+# StreamConnectError Exception
+###############################################################################
+
+class StreamConnectError(Exception):
+    def __init__(self, errstr, err):
+        self.errstr = errstr
+        self.err = err
 
     def __repr__(self):
         return self.errstr

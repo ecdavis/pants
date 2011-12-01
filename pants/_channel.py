@@ -190,17 +190,16 @@ class _Channel(object):
         """
         pass
 
-    def on_connect_error(self, err, errstr):
+    def on_connect_error(self, exception):
         """
         Placeholder. Called when the channel has failed to connect to a
         remote socket.
 
-        =========  ============
-        Argument   Description
-        =========  ============
-        err        The error number that was raised.
-        errstr     The error message.
-        =========  ============
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
         """
         pass
 
@@ -208,14 +207,30 @@ class _Channel(object):
         """
         Placeholder. Called when an internal buffer on the channel
         exceeds its size limit.
-        
+
         By default, logs the exception and closes the channel.
 
-        ========== ============
-        Argument   Description
-        ========== ============
-        exception  The exception that was raised.
-        ========== ============
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
+
+    def on_error(self, exception):
+        """
+        Placeholder. Generic error handler for exceptions raised on the
+        channel. Called when no specific handler exists.
+        
+        By default, logs the exception and closes the channel.
+        
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
         """
         log.exception(exception)
         self.close()

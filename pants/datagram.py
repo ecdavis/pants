@@ -228,12 +228,12 @@ class Datagram(_Channel):
             self._recv_buffer[addr] = self._recv_buffer.get(addr, '') + data
 
             if len(self._recv_buffer[addr]) > self._recv_buffer_size_limit:
-                err = DatagramBufferOverflow(
+                e = DatagramBufferOverflow(
                         "Buffer length exceeded upper limit on %s #%d." %
                         (self.__class__.__name___, self.fileno),
                         addr
                     )
-                self.on_overflow_error(err)
+                self._safely_call(self.on_overflow_error, e)
                 return
 
         self._process_recv_buffer()
@@ -326,7 +326,7 @@ class Datagram(_Channel):
 
 
 ###############################################################################
-# DatagramBufferOverflow
+# DatagramBufferOverflow Exception
 ###############################################################################
 
 class DatagramBufferOverflow(Exception):
