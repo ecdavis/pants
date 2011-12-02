@@ -170,7 +170,7 @@ class Datagram(_Channel):
         if flush:
             self._process_send_buffer()
         else:
-            self._wait_for_write_event = True
+            self._start_waiting_for_write_event()
 
     def flush(self):
         """
@@ -180,7 +180,7 @@ class Datagram(_Channel):
         if not self._send_buffer:
             return
 
-        self._wait_for_write_event = False
+        self._stop_waiting_for_write_event()
         self._process_send_buffer()
 
 

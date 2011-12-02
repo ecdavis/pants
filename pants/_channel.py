@@ -112,10 +112,6 @@ class _Channel(object):
         self._socket = None
         self._socket_set(sock)
 
-        # Socket state
-        self._wait_for_read_event = True
-        self._wait_for_write_event = True
-
         # I/O attributes
         self._recv_amount = 4096
 
@@ -223,9 +219,9 @@ class _Channel(object):
         """
         Placeholder. Generic error handler for exceptions raised on the
         channel. Called when no specific handler exists.
-        
+
         By default, logs the exception and closes the channel.
-        
+
         ==========  ============
         Argument    Description
         ==========  ============
@@ -279,7 +275,7 @@ class _Channel(object):
             return True
 
         if result in (errno.EAGAIN, errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
-            self._wait_for_write_event = True
+            self._start_waiting_for_write_event()
             return False
 
         raise socket.error(result, strerror(result))
@@ -311,7 +307,6 @@ class _Channel(object):
             backlog = socket.SOMAXCONN
 
         self._socket.listen(backlog)
-        self._wait_for_read_event = True
 
     def _socket_close(self):
         """
@@ -337,7 +332,6 @@ class _Channel(object):
             return self._socket.accept()
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_read_event = True
                 return None, None
             else:
                 raise
@@ -353,7 +347,6 @@ class _Channel(object):
             data = self._socket.recv(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_read_event = True
                 return ''
             elif err[0] == errno.ECONNRESET:
                 return None
@@ -377,7 +370,6 @@ class _Channel(object):
             data, addr = self._socket.recvfrom(self._recv_amount)
         except socket.error, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET):
-                self._wait_for_read_event = True
                 return '', None
             else:
                 raise
@@ -403,7 +395,7 @@ class _Channel(object):
             return self._socket.send(data)
         except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_write_event = True
+                self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
                 self.close()
@@ -429,7 +421,7 @@ class _Channel(object):
             return self._socket.sendto(data, flags, addr)
         except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_write_event = True
+                self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
                 self.close()
@@ -439,6 +431,10 @@ class _Channel(object):
 
     def _socket_sendfile(self, sfile, offset, nbytes):
         """
+        Send data from a file to a remote socket.
+
+        Returns the number of bytes that were sent to the socket.
+
         =========  ============
         Argument   Description
         =========  ============
@@ -451,7 +447,7 @@ class _Channel(object):
             return sendfile(sfile, self, offset, nbytes)
         except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
-                self._wait_for_write_event = True
+                self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
                 self.close()
@@ -460,6 +456,24 @@ class _Channel(object):
                 raise
 
     ##### Internal Methods ####################################################
+
+    def _start_waiting_for_write_event(self):
+        """
+        Start waiting for a write event on the channel, and update the
+        engine accordingly.
+        """
+        if self._events != self._events | Engine.WRITE:
+            self._events = self._events | Engine.WRITE
+            Engine.instance().modify_channel(self)
+
+    def _stop_waiting_for_write_event(self):
+        """
+        Stop waiting for a write event on the channel, and update the
+        engine accordingly.
+        """
+        if self._events == self._events | Engine.WRITE:
+            self._events = self._events & (self._events ^ Engine.WRITE)
+            Engine.instance().modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -513,14 +527,16 @@ class _Channel(object):
                     (self.__class__.__name__, self.fileno))
             return
 
+        if self._events != Engine.BASE_EVENTS:
+            self._events = Engine.BASE_EVENTS
+            Engine.instance().modify_channel(self)
+
         if events & Engine.READ:
-            self._wait_for_read_event = False
             self._handle_read_event()
             if self._socket is None:
                 return
 
         if events & Engine.WRITE:
-            self._wait_for_write_event = False
             self._handle_write_event()
             if self._socket is None:
                 return
@@ -538,15 +554,6 @@ class _Channel(object):
                     (self.__class__.__name__, self.fileno))
             self.close()
             return
-
-        events = Engine.ERROR | Engine.HANGUP
-        if self._wait_for_read_event:
-            events |= Engine.READ
-        if self._wait_for_write_event:
-            events |= Engine.WRITE
-        if events != self._events:
-            self._events = events
-            Engine.instance().modify_channel(self)
 
     def _handle_read_event(self):
         """

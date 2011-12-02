@@ -57,7 +57,8 @@ class Engine(object):
     WRITE = 0x04
     ERROR = 0x08
     HANGUP = 0x10 | 0x2000
-    ALL_EVENTS = READ | WRITE | ERROR | HANGUP
+    BASE_EVENTS = READ | ERROR | HANGUP
+    ALL_EVENTS = BASE_EVENTS | WRITE
 
     def __init__(self):
         self.time = time.time()
