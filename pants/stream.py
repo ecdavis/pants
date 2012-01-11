@@ -25,6 +25,7 @@ Low-level implementations of stream-oriented channels.
 
 import os
 import socket
+import ssl
 
 from pants._channel import _Channel
 
@@ -54,6 +55,7 @@ class Stream(_Channel):
     """
     DATA_STRING = 0
     DATA_FILE = 1
+    DATA_SSL_ENABLE = 2
 
     def __init__(self, **kwargs):
         if kwargs.setdefault("type", socket.SOCK_STREAM) != socket.SOCK_STREAM:
@@ -76,7 +78,43 @@ class Stream(_Channel):
         self.connected = False
         self.connecting = False
 
+        # SSL state
+        self.ssl_enabled = False
+        self._ssl_enabling = False
+        self._ssl_socket_wrapped = False
+        self._ssl_handshake_done = False
+        if isinstance(kwargs.get("socket", None), ssl.SSLSocket):
+            self.startTLS()
+
     ##### Control Methods #####################################################
+
+    def startTLS(self, flush=True, **ssl_options):
+        """
+        Enable TLS/SSL on the channel and perform a handshake.
+
+        See :func:`ssl.wrap_socket` for a description of the keyword
+        arguments accepted by this method.
+
+        ============ ============
+        Arguments    Description
+        ============ ============
+        flush        If True, flush the internal write buffer.
+        ssl_options  SSL keyword arguments.
+        ============ ============
+        """
+        if self.ssl_enabled or self._ssl_enabling:
+            raise RuntimeError("startTLS() called on SSL-enabled %r" % self)
+
+        if self._socket is None:
+            raise RuntimeError("startTLS() called on closed %r" % self)
+
+        self._ssl_enabling = True
+        self._send_buffer.append((Stream.DATA_SSL_ENABLE, ssl_options))
+
+        if flush:
+            self._process_send_buffer()
+        else:
+            self._start_waiting_for_write_event()
 
     def connect(self, addr):
         """
@@ -124,6 +162,10 @@ class Stream(_Channel):
 
         self.connected = False
         self.connecting = False
+
+        self.ssl_enabled = False
+        self._ssl_enabling = False
+        self._ssl_handshake_done = False
 
         self._update_addr()
 
@@ -236,6 +278,10 @@ class Stream(_Channel):
         """
         Handle a read event raised on the channel.
         """
+        if self.ssl_enabled and not self._ssl_handshake_done:
+            self._ssl_do_handshake()
+            return
+
         while True:
             try:
                 data = self._socket_recv()
@@ -268,6 +314,10 @@ class Stream(_Channel):
         """
         Handle a write event raised on the channel.
         """
+        if self.ssl_enabled and not self._ssl_handshake_done:
+            self._ssl_do_handshake()
+            return
+
         if not self.connected:
             self._handle_connect_event()
 
@@ -342,6 +392,8 @@ class Stream(_Channel):
                 bytes_sent = self._process_send_data_string(data)
             elif data_type == Stream.DATA_FILE:
                 bytes_sent = self._process_send_data_file(*data)
+            elif data_type == Stream.DATA_SSL_ENABLE:
+                bytes_sent = self._process_send_data_ssl_enable(data)
 
             if bytes_sent == 0:
                 break
@@ -389,6 +441,108 @@ class Stream(_Channel):
 
         return bytes_sent
 
+    def _process_send_data_ssl_enable(self, ssl_options):
+        self._ssl_enabling = False
+
+        if not self._ssl_socket_wrapped:
+            self._socket = ssl.wrap_socket(self._socket, do_handshake_on_connect=False, **ssl_options)
+            self._ssl_socket_wrapped = True
+
+        self.ssl_enabled = True
+
+        return self._ssl_do_handshake()
+
+    ##### SSL Implementation ##################################################
+
+    def _socket_recv(self):
+        """
+        Receive data from the socket.
+
+        Returns a string of data read from the socket. The data is None if
+        the socket has been closed.
+        """
+        if not self.ssl_enabled:
+            return _Channel._socket_recv(self)
+
+        try:
+            data = self._socket.recv(self._recv_amount)
+        except ssl.SSLError, err:
+            if err[0] == ssl.SSL_ERROR_WANT_READ:
+                return ''
+            else:
+                raise
+        except socket.error, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                return ''
+            elif err[0] == errno.ECONNRESET:
+                return None
+            else:
+                raise
+
+        if not data:
+            return None
+        else:
+            return data
+
+    def _socket_send(self, data):
+        """
+        Send data to the socket.
+
+        Returns the number of bytes that were sent to the socket.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       The string of data to send.
+        =========  ============
+        """
+        if not self.ssl_enabled:
+            return _Channel._socket_send(self, data)
+
+        try:
+            return self._socket.send(data)
+        except ssl.SSLError, err:
+            if err[0] == ssl.SSL_ERROR_WANT_WRITE:
+                self._start_waiting_for_write_event()
+                return 0
+            else:
+                raise
+        except Exception, err:
+            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+                self._start_waiting_for_write_event()
+                return 0
+            elif err[0] == errno.EPIPE:
+                self.close()
+                return 0
+            else:
+                raise
+
+    def _ssl_do_handshake(self):
+        """
+        Perform an asynchronous SSL handshake.
+        """
+        try:
+            self._socket.do_handshake()
+        except ssl.SSLError, err:
+            if err[0] == ssl.SSL_ERROR_WANT_READ:
+                return 0
+            elif err[0] == ssl.SSL_ERROR_WANT_WRITE:
+                self._start_waiting_for_write_event()
+                return 0
+            elif err[0] in (ssl.SSL_ERROR_EOF, ssl.SSL_ERROR_ZERO_RETURN):
+                self.close()
+                return 0
+            elif err[0] == ssl.SSL_ERROR_SSL:
+                log.warning("SSL error on %s #%d" % (self.__class__.__name__, self.fileno))
+                self.close()
+                return 0
+            else:
+                raise
+        else:
+            self._ssl_handshake_done = True
+            # TODO notify user code here
+            return None
+
 
 ###############################################################################
 # StreamServer Class
@@ -419,7 +573,20 @@ class StreamServer(_Channel):
         # Channel state
         self.listening = False
 
+        # SSL state
+        self.ssl_enabled = False
+
     ##### Control Methods #####################################################
+
+    def startTLS(self, ssl_options={}):
+        if self.ssl_enabled:
+            raise RuntimeError("startTLS() called on TLS-enabled %r" % self)
+
+        if self._socket is None:
+            raise RuntimeError("startTLS() called on closed %r" % self)
+
+        self._socket = ssl.wrap_socket(self._socket, **ssl_options)
+        self.ssl_enabled = True
 
     def listen(self, addr, backlog=1024):
         """
@@ -469,6 +636,8 @@ class StreamServer(_Channel):
             return
 
         self.listening = False
+
+        self.ssl_enabled = False
 
         self._update_addr()
 
