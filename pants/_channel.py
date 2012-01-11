@@ -115,8 +115,10 @@ class _Channel(object):
         # I/O attributes
         self._recv_amount = 4096
 
-        # Events
+        # Internal state
         self._events = Engine.ALL_EVENTS
+        self._currently_active = False
+
         Engine.instance().add_channel(self)
 
     ##### Control Methods #####################################################
@@ -130,6 +132,9 @@ class _Channel(object):
 
         Engine.instance().remove_channel(self)
         self._socket_close()
+        self._events = Engine.ALL_EVENTS
+        self._currently_active = False
+
         self._safely_call(self.on_close)
 
     ##### Public Event Handlers ###############################################
@@ -464,7 +469,8 @@ class _Channel(object):
         """
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
-            Engine.instance().modify_channel(self)
+            if not self._currently_active:
+                Engine.instance().modify_channel(self)
 
     def _stop_waiting_for_write_event(self):
         """
@@ -473,7 +479,8 @@ class _Channel(object):
         """
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
-            Engine.instance().modify_channel(self)
+            if not self._currently_active:
+                Engine.instance().modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -527,9 +534,11 @@ class _Channel(object):
                     (self.__class__.__name__, self.fileno))
             return
 
+        self._currently_active = True
+
+        previous_events = self._events
         if self._events != Engine.BASE_EVENTS:
             self._events = Engine.BASE_EVENTS
-            Engine.instance().modify_channel(self)
 
         if events & Engine.READ:
             self._handle_read_event()
@@ -554,6 +563,11 @@ class _Channel(object):
                     (self.__class__.__name__, self.fileno))
             self.close()
             return
+
+        if self._events != previous_events:
+            Engine.instance().modify_channel(self)
+
+        self._currently_active = False
 
     def _handle_read_event(self):
         """
