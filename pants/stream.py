@@ -85,6 +85,7 @@ class Stream(_Channel):
         self._ssl_socket_wrapped = False
         self._ssl_handshake_done = False
         if isinstance(kwargs.get("socket", None), ssl.SSLSocket):
+            self._ssl_socket_wrapped = True
             self.startTLS()
 
     ##### Control Methods #####################################################
@@ -259,6 +260,15 @@ class Stream(_Channel):
 
         self._stop_waiting_for_write_event()
         self._process_send_buffer()
+
+    ##### Public Event Handlers ###############################################
+
+    def on_ssl_handshake_complete(self):
+        """
+        Placeholder. Called after the channel has finished its SSL
+        handshake.
+        """
+        pass
 
     ##### Internal Methods ####################################################
 
@@ -455,7 +465,14 @@ class Stream(_Channel):
 
         self.ssl_enabled = True
 
-        return self._ssl_do_handshake()
+        bytes_sent = self._ssl_do_handshake()
+
+        if self._ssl_handshake_done:
+            self._safely_call(self.on_ssl_handshake_complete)
+        else:
+            self._send_buffer.insert(0, (Stream.DATA_SSL_ENABLE, ssl_options))
+
+        return bytes_sent
 
     ##### SSL Implementation ##################################################
 
@@ -583,7 +600,7 @@ class StreamServer(_Channel):
 
     ##### Control Methods #####################################################
 
-    def startTLS(self, ssl_options={}):
+    def startTLS(self, **ssl_options):
         if self.ssl_enabled:
             raise RuntimeError("startTLS() called on TLS-enabled %r" % self)
 
