@@ -16,7 +16,7 @@
 #
 ###############################################################################
 """
-A convenient collection of high-level network channels.
+A convenient collection of high-level streaming channels.
 """
 
 ###############################################################################
@@ -123,7 +123,7 @@ class Server(StreamServer):
         """
         if isinstance(addr, (int, long)):
             addr = ('', addr)
-        
+
         return StreamServer.listen(self, addr, backlog)
 
     ##### Public Event Handlers ###############################################

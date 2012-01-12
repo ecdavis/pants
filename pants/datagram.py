@@ -70,6 +70,7 @@ class Datagram(_Channel):
 
         # Channel state
         self.listening = False
+        self._closing = False
 
     ##### Control Methods #####################################################
 
@@ -89,7 +90,7 @@ class Datagram(_Channel):
             raise RuntimeError("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
-        if self._socket is None:
+        if self._socket is None or self._closing:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
 
@@ -122,6 +123,7 @@ class Datagram(_Channel):
         self._send_buffer = []
 
         self.listening = False
+        self._closing = False
 
         self._update_addr()
 
@@ -131,13 +133,13 @@ class Datagram(_Channel):
         """
         Close the channel after writing is finished.
         """
-        if self._socket is None:
+        if self._socket is None or self._closing:
             return
 
         if not self._send_buffer:
             self.close()
         else:
-            self.on_write = self.close
+            self._closing = True
 
     ##### I/O Methods #########################################################
 
@@ -153,7 +155,7 @@ class Datagram(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None:
+        if self._socket is None or self._closing:
             log.warning("Attempted to write to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -323,6 +325,9 @@ class Datagram(_Channel):
 
         if not self._send_buffer:
             self._safely_call(self.on_write)
+
+            if self._closing:
+                self.close()
 
 
 ###############################################################################

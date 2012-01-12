@@ -77,6 +77,7 @@ class Stream(_Channel):
         # Channel state
         self.connected = False
         self.connecting = False
+        self._closing = False
 
         # SSL state
         self.ssl_enabled = False
@@ -105,7 +106,7 @@ class Stream(_Channel):
         if self.ssl_enabled or self._ssl_enabling:
             raise RuntimeError("startTLS() called on SSL-enabled %r" % self)
 
-        if self._socket is None:
+        if self._socket is None or self._closing:
             raise RuntimeError("startTLS() called on closed %r" % self)
 
         self._ssl_enabling = True
@@ -132,7 +133,7 @@ class Stream(_Channel):
             raise RuntimeError("connect() called on active %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
-        if self._socket is None:
+        if self._socket is None or self._closing:
             raise RuntimeError("connect() called on closed %s."
                     % self.__class__.__name__)
 
@@ -162,6 +163,7 @@ class Stream(_Channel):
 
         self.connected = False
         self.connecting = False
+        self._closing = False
 
         self.ssl_enabled = False
         self._ssl_enabling = False
@@ -175,13 +177,13 @@ class Stream(_Channel):
         """
         Close the channel after writing is finished.
         """
-        if self._socket is None:
+        if self._socket is None or self._closing:
             return
 
         if not self._send_buffer:
             self.close()
         else:
-            self.on_write = self.close
+            self._closing = True
 
     ##### I/O Methods #########################################################
 
@@ -196,7 +198,7 @@ class Stream(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None:
+        if self._socket is None or self._closing:
             log.warning("Attempted to write to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -230,7 +232,7 @@ class Stream(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None:
+        if self._socket is None or self._closing:
             log.warning("Attempted to write file to closed %s #%d." %
                     (self.__class__.__name__, self.fileno))
             return
@@ -400,6 +402,9 @@ class Stream(_Channel):
 
         if not self._send_buffer:
             self._safely_call(self.on_write)
+
+            if self._closing:
+                self.close()
 
     def _process_send_data_string(self, data):
         try:
