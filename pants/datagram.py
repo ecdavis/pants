@@ -65,7 +65,7 @@ class Datagram(_Channel):
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = {}
-        self._recv_buffer_size_limit = 2 ** 16 # 64kb
+        self._recv_buffer_size_limit = 2 ** 16  # 64kb
         self._send_buffer = []
 
         # Channel state
@@ -184,7 +184,6 @@ class Datagram(_Channel):
 
         self._stop_waiting_for_write_event()
         self._process_send_buffer()
-
 
     ##### Private Methods #####################################################
 

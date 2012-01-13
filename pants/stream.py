@@ -71,7 +71,7 @@ class Stream(_Channel):
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = ""
-        self._recv_buffer_size_limit = 2 ** 16 # 64kb
+        self._recv_buffer_size_limit = 2 ** 16  # 64kb
         self._send_buffer = []
 
         # Channel state

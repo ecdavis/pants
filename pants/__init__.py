@@ -44,7 +44,7 @@ __authors__ = ["Christopher Davis", "Stendec"]
 __version__ = "0.10.1"
 
 __all__ = [
-    "engine", # Core
+    "engine",  # Core
     "callback", "loop", "cycle", "defer",  # Scheduling
     "Datagram", "Stream", "StreamServer",  # Low-level networking
     "Client", "Connection", "Server",  # High-level networking
@@ -52,7 +52,7 @@ __all__ = [
 
 if "UnixClient" in globals():
     __all__.extend([
-        "UnixClient", "UnixConnection", "UnixServer", # High-level networking
+        "UnixClient", "UnixConnection", "UnixServer",  # High-level networking
     ])
 
 ###############################################################################
