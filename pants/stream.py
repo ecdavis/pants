@@ -23,6 +23,7 @@ Low-level implementations of stream-oriented channels.
 # Imports
 ###############################################################################
 
+import errno
 import os
 import socket
 import ssl
