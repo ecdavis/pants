@@ -284,7 +284,7 @@ class Engine(object):
         timer = _Timer(callback, False)
         self._callbacks.append(timer)
 
-        return functools.partial(self._remove_timer, timer)
+        return timer
 
     def loop(self, function, *args, **kwargs):
         """
@@ -307,7 +307,7 @@ class Engine(object):
         timer = _Timer(loop, True)
         self._callbacks.append(timer)
 
-        return functools.partial(self._remove_timer, timer)
+        return timer
 
     def defer(self, delay, function, *args, **kwargs):
         """
@@ -331,7 +331,7 @@ class Engine(object):
         timer = _Timer(deferred, False, delay, self.time + delay)
         bisect.insort(self._deferreds, timer)
 
-        return functools.partial(self._remove_timer, timer)
+        return timer
 
     def cycle(self, interval, function, *args, **kwargs):
         """
@@ -356,7 +356,7 @@ class Engine(object):
         timer = _Timer(cycle, True, interval, self.time + interval)
         bisect.insort(self._deferreds, timer)
 
-        return functools.partial(self._remove_timer, timer)
+        return timer
 
     def _remove_timer(self, timer):
         """
@@ -536,6 +536,9 @@ class _Timer(object):
         self.requeue = requeue
         self.delay = delay
         self.end = end
+
+    def __call__(self):
+        Engine.instance()._remove_timer(self)
 
     def __cmp__(self, to):
         return cmp(self.end, to.end)
