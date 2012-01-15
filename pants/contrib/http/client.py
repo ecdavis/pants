@@ -483,7 +483,7 @@ class HTTPClient(object):
 
         length = int(data.strip(), 16)
 
-        if length == 0:
+        if not length:
             resp = self.current_response
             if resp._decompressor:
                 resp.body += resp._decompressor.flush()

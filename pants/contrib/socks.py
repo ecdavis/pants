@@ -74,7 +74,7 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
     
     # Build our on_read.
     def on_read(data):
-        if self._socks_state == 0:
+        if not self._socks_state:
             if data[0] != SOCKS_VERSION:
                 if error_callback:
                     self._safely_call(error_callback,
@@ -96,7 +96,7 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
             
             else:
                 self._socks_state = 1
-                self.on_read("%s\x00" % (SOCKS_VERSION))
+                self.on_read("%s\x00" % SOCKS_VERSION)
         
         elif self._socks_state == 1:
             if data[0] != SOCKS_VERSION:

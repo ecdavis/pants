@@ -20,8 +20,6 @@
 # Imports
 ###############################################################################
 
-import functools
-
 from pants.engine import Engine
 
 try:

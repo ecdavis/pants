@@ -319,7 +319,7 @@ class HTTPRequest(object):
         for i in ('headers','get','post'):
             if getattr(self,i):
                 out += u'    %-8s = {\n %s\n        }\n\n' % (
-                    i, pprint.pformat(getattr(self, i), 8, 80)[1:-1])
+                    i, pprint.pformat(getattr(self, i), 8)[1:-1])
             else:
                 out += u'    %-8s = {}\n\n' % i
 
@@ -332,7 +332,7 @@ class HTTPRequest(object):
             out += u'    cookies  = {}\n\n'
 
         out += u'    files    = %s\n)</pre>' % \
-            pprint.pformat(self.files.keys(), 0, 80)
+            pprint.pformat(self.files.keys(), 0)
         return out
 
     ##### Properties ##########################################################
@@ -397,7 +397,7 @@ class HTTPRequest(object):
         Additional arguments, such as ``path`` and ``httponly`` may be set by
         providing them as keyword arguments.
         """
-        ts = str(int(curtime()))
+        ts = str(int(time()))
         v = base64.b64encode(str(value))
         signature = generate_signature(
                         self.connection.server.cookie_secret, expires, ts, v)
@@ -428,7 +428,7 @@ class HTTPRequest(object):
         v = base64.b64encode(str(value))
         sig = generate_signature(self.connection.server.cookie_secret, expires, ts, v)
 
-        if signature != sig or ts < curtime() - expires or ts > curtime() + expires:
+        if signature != sig or ts < time() - expires or ts > time() + expires:
             return None
 
         return value
@@ -522,7 +522,7 @@ class HTTPRequest(object):
             append('Server: %s' % SERVER)
 
         if cookies and hasattr(self, '_cookies'):
-            self.send_cookies(end_headers=False)
+            self.send_cookies()
 
         if end_headers:
             append(CRLF)

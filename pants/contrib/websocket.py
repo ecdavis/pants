@@ -243,7 +243,7 @@ class WebSocketConnection(object):
         if self._connection is None:
             return
 
-        if self.version == 0:
+        if not self.version:
             self._connection.end()
         else:
             # Look up the reason.
@@ -337,7 +337,7 @@ class WebSocketConnection(object):
         if not binary and '\xFF' in data:
             raise ValueError("Invalid character 0xFF in data to be sent.")
 
-        if self.version == 0:
+        if not self.version:
             self._connection.write("\x00%s\xFF" % data)
         else:
             if frame is None:

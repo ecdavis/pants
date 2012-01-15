@@ -440,7 +440,7 @@ def _human_readable_size(size, precision=2):
         if size >= f:
             break
 
-    ip, dp = `size/float(f)`.split('.')
+    ip, dp = str(size/float(f)).split('.')
     if int(dp[:precision]):
         return  u'%s.%s%s' % (ip,dp[:precision],s)
     return u'%s%s' % (ip,s)
