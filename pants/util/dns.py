@@ -791,12 +791,12 @@ class Resolver(object):
             message.id = self._last_id
         
         # Timeout in timeout seconds.
-        df_timeout = pants.engine.defer(timeout, self._msg_timeout, message.id)
+        m_timeout = pants.engine.defer(timeout, self._msg_timeout, message.id)
         serv_timeout = pants.engine.defer(2, self._msg_next_server, message.id)
         
         # Build the message string and store info about it in our dict.
         msg = str(message)
-        self._messages[message.id] = [callback, msg, message, df_timeout,
+        self._messages[message.id] = [callback, msg, message, m_timeout,
                                       serv_timeout, self.servers[0]]
         
         # Make sure we have a socket, then send the message.
@@ -810,11 +810,8 @@ class Resolver(object):
         if not id in self._messages:
             return
         
-        callback, msg, message, df_timeout, serv_timeout, last_server = self._messages[id]
+        callback, msg, message, m_timeout, serv_timeout, last_server = self._messages[id]
         del self._messages[id]
-        
-        # Clear the remaining timeout.
-        serv_timeout()
         
         if callback:
             self._safely_call(callback, DNS_TIMEOUT, None)
@@ -829,8 +826,10 @@ class Resolver(object):
             # Cycle the list since it hasn't been modified yet.
             self.servers.append(self.servers.pop(0))
         
-        # Make a new deferred, cancelling the old one.
-        message[4]()
+        # Store the last server.
+        message[-1] = self.servers[0]
+        
+        # Make a new deferred.
         message[4] = pants.engine.defer(4, self._msg_next_server, id)
         
         # Send the message to the new server.
@@ -855,7 +854,7 @@ class Resolver(object):
         if not data.id in self._messages:
             return
         
-        callback, msg, message, df_timeout, serv_timeout, last_server = self._messages[data.id]
+        callback, msg, message, m_timeout, serv_timeout, last_server = self._messages[data.id]
         del self._messages[data.id]
         
         if not data.server:
@@ -863,10 +862,6 @@ class Resolver(object):
                 data.server = '%s:%d' % self._socket.remote_addr
             else:
                 data.server = '%s:%d' % (last_server, DNS_PORT)
-        
-        # Cancel the timeouts.
-        df_timeout()
-        serv_timeout()
         
         # Call our callback.
         if callback:
