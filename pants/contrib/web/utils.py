@@ -171,7 +171,7 @@ PAGE = u"""<!DOCTYPE html>
 <html><head><title>%%s</title><style>%s</style></head><body>
 <div class="column"><div class="spacer"></div><div class="thingy">
 %%s
-</div><div class="footer"><i><a href="%s">%s</a><br>%%%%s</i>
+</div><div class="footer"><i><a href="%s">%s</a><br><a class="faint" href="http://%%%%s/">%%%%s</a></i>
 <div class="debug">%%%%s</div></div>
 <div class="spacer"></div></div></body></html>""".replace('\n','') % (
     PAGE_CSS, SERVER_URL, SERVER)

@@ -656,7 +656,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
         time = u''
 
     result = ERROR_PAGE % (status, title, status, title.replace(u' ',u'&nbsp;'),
-        haiku, message, request.host, time)
+        haiku, message, request.host, request.host, time)
 
     return result, status, headers
 

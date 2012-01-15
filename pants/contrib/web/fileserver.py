@@ -414,7 +414,8 @@ class FileServer(object):
         else:
             rtime = u''
 
-        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host, rtime), \
+        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host,
+                                 request.host, rtime), \
             200, {
                 'Content-Type':'text/html; charset=utf-8'
             }
