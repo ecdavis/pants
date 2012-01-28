@@ -54,7 +54,7 @@ Want a stupid fast web server? Got you covered:
 
 ```python
 from pants import engine
-from pants..web import Application, HTTPServer
+from pants.web import Application, HTTPServer
 
 app = Application()
 
