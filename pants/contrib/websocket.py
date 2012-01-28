@@ -192,8 +192,7 @@ class WebSocketConnection(object):
             request.send(challenge_response(
                 request.headers, key3))
         except ValueError:
-            log.warning("Malformed WebSocket challenge to %s #%d." %
-                (self.__class__.__name__, self.fileno))
+            log.warning("Malformed WebSocket challenge to %r." % self)
             self.close()
             return
 
@@ -317,13 +316,11 @@ class WebSocketConnection(object):
         ==========  ========  ============
         """
         if self._connection is None:
-            log.warning("Attempted to write to closed %s #%d." %
-                (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write to closed %r." % self)
             return
 
         if not self.connected:
-            log.warning("Attempted to write to disconnected %s #%d." %
-                (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write to disconnected %r." % self)
             return
 
         if binary and self.version == 0:
@@ -378,8 +375,7 @@ class WebSocketConnection(object):
         try:
             return thing_to_call(*args, **kwargs)
         except Exception:
-            log.exception("Exception raised on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.exception("Exception raised on %r." % self)
 
     def _update_addr(self):
         """
@@ -546,8 +542,7 @@ class WebSocketConnection(object):
                 self._safely_call(self.on_read, data)
 
             else:
-                log.warning("Invalid read_delimiter on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+                log.warning("Invalid read_delimiter on %r." % self)
                 break
 
             if self._connection is None or not self.connected:

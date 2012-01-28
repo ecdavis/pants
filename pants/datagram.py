@@ -159,15 +159,14 @@ class Datagram(_Channel):
         ==========  ============
         """
         if self._socket is None or self._closing:
-            log.warning("Attempted to write to closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write to closed %r." % self)
             return
 
         if addr is None:
             addr = self.remote_addr
             if addr is None:
-                log.warning("Attempted to write to %s #%d with no remote "
-                    "address." % (self.__class__.__name__, self.fileno))
+                log.warning("Attempted to write to %r with no remote "
+                    "address." % self)
                 return
 
         self._send_buffer.append((data, addr))
@@ -207,21 +206,18 @@ class Datagram(_Channel):
         Handle a read event raised on the channel.
         """
         if self._socket is None:
-            log.warning("Received read event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Received read event for closed %r." % self)
             return
 
         if not self.listening:
-            log.warning("Received read event for non-listening %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Received read event for non-listening %r." % self)
             return
 
         while True:
             try:
                 data, addr = self._socket_recvfrom()
             except socket.error:
-                log.exception("Exception raised by recvfrom() on %s #%d." %
-                        (self.__class__.__name__, self.fileno))
+                log.exception("Exception raised by recvfrom() on %r." % self)
                 # TODO Close this Datagram here?
                 self.close()
                 return
@@ -247,8 +243,7 @@ class Datagram(_Channel):
         Handle a write event raised on the channel.
         """
         if self._socket is None:
-            log.warning("Received write event for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Received write event for closed %r." % self)
             return
 
         self._process_send_buffer()
@@ -287,8 +282,7 @@ class Datagram(_Channel):
                     self._safely_call(self.on_read, data)
 
                 else:
-                    log.warning("Invalid read_delimiter on %s #%d." %
-                            (self.__class__.__name__, self.fileno))
+                    log.warning("Invalid read_delimiter on %r." % self)
                     break
 
                 if self._socket is None:

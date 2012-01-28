@@ -134,6 +134,10 @@ class _Channel(object):
         if self._socket:
             Engine.instance().add_channel(self)
 
+    def __repr__(self):
+        return "%s #%d (%s)" % (self.__class__.__name__, self.fileno,
+                object.__repr__(self))
+
     ##### Control Methods #####################################################
 
     def close(self):
@@ -516,8 +520,7 @@ class _Channel(object):
         try:
             return thing_to_call(*args, **kwargs)
         except Exception:
-            log.exception("Exception raised on %s #%d." %
-                    (self.__class__.__name__, self.fileno or -1))
+            log.exception("Exception raised in callback on %r." % self)
 
     def _get_socket_error(self):
         """
@@ -653,8 +656,7 @@ class _Channel(object):
         =========  ============
         """
         if self._socket is None:
-            log.warning("Received events for closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Received events for closed %r." % self)
             return
 
         self._currently_active = True
@@ -676,14 +678,12 @@ class _Channel(object):
         if events & Engine.ERROR:
             err, errstr = self._get_socket_error()
             if err != 0:
-                log.error("Error on %s #%d: %s (%d)" %
-                        (self.__class__.__name__, self.fileno, errstr, err))
+                log.error("Error on %r: %s (%d)" % (self, errstr, err))
             self.close()
             return
 
         if events & Engine.HANGUP:
-            log.debug("Hang up on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.debug("Hang up on %r." % self)
             self.close()
             return
 

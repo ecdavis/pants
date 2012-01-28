@@ -234,13 +234,11 @@ class Stream(_Channel):
         ==========  ============
         """
         if self._socket is None or self._closing:
-            log.warning("Attempted to write to closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write to closed %r." % self)
             return
 
         if not self.connected:
-            log.warning("Attempted to write to disconnected %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write to disconnected %r." % self)
             return
 
         if self._send_buffer and self._send_buffer[-1][0] == Stream.DATA_STRING:
@@ -268,13 +266,11 @@ class Stream(_Channel):
         ==========  ============
         """
         if self._socket is None or self._closing:
-            log.warning("Attempted to write file to closed %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write file to closed %r." % self)
             return
 
         if not self.connected:
-            log.warning("Attempted to write file to disconnected %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.warning("Attempted to write file to disconnected %r." % self)
             return
 
         self._send_buffer.append((Stream.DATA_FILE, (sfile, offset, nbytes)))
@@ -332,8 +328,7 @@ class Stream(_Channel):
             try:
                 data = self._socket_recv()
             except socket.error:
-                log.exception("Exception raised by recv() on %s #%d." %
-                        (self.__class__.__name__, self.fileno))
+                log.exception("Exception raised by recv() on %r." % self)
                 # TODO Close this Stream here?
                 self.close()
                 return
@@ -348,8 +343,7 @@ class Stream(_Channel):
 
                 if len(self._recv_buffer) > self._recv_buffer_size_limit:
                     e = StreamBufferOverflow(
-                            "Buffer length exceeded upper limit on %s #%d." %
-                            (self.__class__.__name___, self.fileno)
+                            "Buffer length exceeded upper limit on %r." % self
                         )
                     self._safely_call(self.on_overflow_error, e)
                     return
@@ -417,8 +411,7 @@ class Stream(_Channel):
                 self._safely_call(self.on_read, data)
 
             else:
-                log.warning("Invalid read_delimiter on %s #%d." %
-                        (self.__class__.__name__, self.fileno))
+                log.warning("Invalid read_delimiter on %r." % self)
                 break
 
             if self._socket is None or not self.connected:
@@ -454,8 +447,7 @@ class Stream(_Channel):
         try:
             bytes_sent = self._socket_send(data)
         except socket.error:
-            log.exception("Exception raised in send() on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.exception("Exception raised in send() on %r." % self)
             self.close()
             return 0
 
@@ -468,8 +460,7 @@ class Stream(_Channel):
         try:
             bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
         except socket.error:
-            log.exception("Exception raised in sendfile() on %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+            log.exception("Exception raised in sendfile() on %r." % self)
             self.close()
             return 0
 
@@ -589,7 +580,7 @@ class Stream(_Channel):
                 self.close()
                 return 0
             elif err[0] == ssl.SSL_ERROR_SSL:
-                log.warning("SSL error on %s #%d" % (self.__class__.__name__, self.fileno))
+                log.warning("SSL error on %r" %  self)
                 self.close()
                 return 0
             else:
@@ -681,8 +672,8 @@ class StreamServer(_Channel):
         got. Or, if addr is None, it's a bad address, so do an error thing.
         """
         if not addr:
-            log.error("Error listening on %s #%d" %
-                        (self.__class__.__name__, self.fileno))
+            err, errstr = error
+            log.error("Error listening on %r: %s (%d)" % (self, errstr, err))
             return
 
         # If we already have a socket, we shouldn't. Toss it!
@@ -767,8 +758,7 @@ class StreamServer(_Channel):
             try:
                 sock, addr = self._socket_accept()
             except socket.error:
-                log.exception("Exception raised by accept() on %s #%d." %
-                        (self.__class__.__name__, self.fileno))
+                log.exception("Exception raised by accept() on %r." % self)
                 try:
                     sock.close()
                 except socket.error:
@@ -786,8 +776,7 @@ class StreamServer(_Channel):
         """
         Handle a write event raised on the channel.
         """
-        log.warning("Received write event for %s #%d." %
-                    (self.__class__.__name__, self.fileno))
+        log.warning("Received write event for %r." % self)
 
 
 ###############################################################################

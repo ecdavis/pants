@@ -212,8 +212,7 @@ class Engine(object):
             except (KeyboardInterrupt, SystemExit):
                 raise
             except Exception:
-                log.exception("Error while handling I/O events on %s #%d." %
-                        (channel.__class__.__name__, fileno))
+                log.exception("Error while handling events on %r." % channel)
 
     ##### Channel Methods #####################################################
 
@@ -257,8 +256,7 @@ class Engine(object):
         try:
             self._poller.remove(channel.fileno, channel._events)
         except (IOError, OSError):
-            log.exception("Error while removing %s #%d." %
-                    (channel.__class__.__name__, channel.fileno))
+            log.exception("Error while removing %r." % channel)
 
     ##### Timer Methods #######################################################
 
