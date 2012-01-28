@@ -110,7 +110,7 @@ class Stream(_Channel):
         if self.ssl_enabled or self._ssl_enabling:
             raise RuntimeError("startTLS() called on SSL-enabled %r" % self)
 
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             raise RuntimeError("startTLS() called on closed %r" % self)
 
         self._ssl_enabling = True
@@ -168,10 +168,9 @@ class Stream(_Channel):
                 self._closed = False
 
         # Create our socket.
-        if self._socket is None:
-            sock = socket.socket(family, socket.SOCK_STREAM)
-            self._socket_set(sock)
-            Engine.instance().add_channel(self)
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        self._socket_set(sock)
+        Engine.instance().add_channel(self)
 
         # Now, connect!
         try:
@@ -189,7 +188,7 @@ class Stream(_Channel):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self._closed:
             return
 
         self.read_delimiter = None
@@ -212,7 +211,7 @@ class Stream(_Channel):
         """
         Close the channel after writing is finished.
         """
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             return
 
         if not self._send_buffer:
@@ -233,7 +232,7 @@ class Stream(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             log.warning("Attempted to write to closed %r." % self)
             return
 
@@ -265,7 +264,7 @@ class Stream(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             log.warning("Attempted to write file to closed %r." % self)
             return
 
@@ -414,7 +413,7 @@ class Stream(_Channel):
                 log.warning("Invalid read_delimiter on %r." % self)
                 break
 
-            if self._socket is None or not self.connected:
+            if self._closed or not self.connected:
                 break
 
     def _process_send_buffer(self):
@@ -630,10 +629,13 @@ class StreamServer(_Channel):
 
     def startTLS(self, **ssl_options):
         if self.ssl_enabled:
-            raise RuntimeError("startTLS() called on TLS-enabled %r" % self)
+            raise RuntimeError("startTLS() called on TLS-enabled %r." % self)
 
-        if self._socket is None:
-            raise RuntimeError("startTLS() called on closed %r" % self)
+        if self._closed:
+            raise RuntimeError("startTLS() called on closed %r." % self)
+
+        if not self.listening:
+            raise RuntimeError("startTLS() called on non-listening %r." % self)
 
         self._socket = ssl.wrap_socket(self._socket, **ssl_options)
         self.ssl_enabled = True
@@ -684,10 +686,9 @@ class StreamServer(_Channel):
                 self._closed = False
 
         # Create our socket.
-        if self._socket is None:
-            sock = socket.socket(family, socket.SOCK_STREAM)
-            self._socket_set(sock)
-            Engine.instance().add_channel(self)
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        self._socket_set(sock)
+        Engine.instance().add_channel(self)
 
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -719,7 +720,7 @@ class StreamServer(_Channel):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self._closed:
             return
 
         self.listening = False

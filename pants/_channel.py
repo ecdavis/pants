@@ -144,7 +144,7 @@ class _Channel(object):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self._closed:
             return
 
         Engine.instance().remove_channel(self)
@@ -655,7 +655,7 @@ class _Channel(object):
         events     The events in the form of an integer.
         =========  ============
         """
-        if self._socket is None:
+        if self._closed:
             log.warning("Received events for closed %r." % self)
             return
 
@@ -667,12 +667,12 @@ class _Channel(object):
 
         if events & Engine.READ:
             self._handle_read_event()
-            if self._socket is None:
+            if self._closed:
                 return
 
         if events & Engine.WRITE:
             self._handle_write_event()
-            if self._socket is None:
+            if self._closed:
                 return
 
         if events & Engine.ERROR:

@@ -139,7 +139,7 @@ class TelnetConnection(Connection):
                 log.warning("Invalid read_delmiter on %r." % self)
                 break
 
-            if self._socket is None or not self.connected:
+            if self._closed or not self.connected:
                 break
 
     def _on_telnet_iac(self, data):

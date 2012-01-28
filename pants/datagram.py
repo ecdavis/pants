@@ -93,7 +93,7 @@ class Datagram(_Channel):
             raise RuntimeError("listen() called on listening %s #%d."
                     % (self.__class__.__name__, self.fileno))
 
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             raise RuntimeError("listen() called on closed %s."
                     % self.__class__.__name__)
 
@@ -118,7 +118,7 @@ class Datagram(_Channel):
         """
         Close the channel.
         """
-        if self._socket is None:
+        if self._closed:
             return
 
         self.read_delimiter = None
@@ -136,7 +136,7 @@ class Datagram(_Channel):
         """
         Close the channel after writing is finished.
         """
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             return
 
         if not self._send_buffer:
@@ -158,7 +158,7 @@ class Datagram(_Channel):
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
-        if self._socket is None or self._closing:
+        if self._closed or self._closing:
             log.warning("Attempted to write to closed %r." % self)
             return
 
@@ -205,7 +205,7 @@ class Datagram(_Channel):
         """
         Handle a read event raised on the channel.
         """
-        if self._socket is None:
+        if self._closed:
             log.warning("Received read event for closed %r." % self)
             return
 
@@ -242,7 +242,7 @@ class Datagram(_Channel):
         """
         Handle a write event raised on the channel.
         """
-        if self._socket is None:
+        if self._closed:
             log.warning("Received write event for closed %r." % self)
             return
 
@@ -285,7 +285,7 @@ class Datagram(_Channel):
                     log.warning("Invalid read_delimiter on %r." % self)
                     break
 
-                if self._socket is None:
+                if self._closed:
                     break
 
             self.remote_addr = None
@@ -295,7 +295,7 @@ class Datagram(_Channel):
             else:
                 del self._recv_buffer[addr]
 
-            if self._socket is None:
+            if self._closed:
                 break
 
     def _process_send_buffer(self):
