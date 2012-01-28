@@ -25,7 +25,7 @@ import urllib
 import urlparse
 import zlib
 
-from pants.contrib.http.utils import *
+from pants.http.utils import *
 
 ###############################################################################
 # HTTPClient Class

@@ -23,8 +23,8 @@
 import mimetypes
 import time
 
-from pants.contrib.web.application import abort, Application, redirect
-from pants.contrib.web.utils import *
+from pants.web.application import abort, Application, redirect
+from pants.web.utils import *
 
 ###############################################################################
 # Cross Platform Hidden File Detection

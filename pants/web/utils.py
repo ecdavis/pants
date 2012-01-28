@@ -28,7 +28,7 @@ import urllib
 
 from datetime import datetime, timedelta
 
-from pants.contrib.http import date, HTTP, SERVER, SERVER_URL
+from pants.http import date, HTTP, SERVER, SERVER_URL
 
 ###############################################################################
 # Logging

@@ -20,5 +20,5 @@
 # Imports
 ###############################################################################
 
-from client import *
-from server import *
+from pants.http.client import *
+from pants.http.server import *

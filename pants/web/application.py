@@ -23,8 +23,8 @@
 import inspect
 import traceback
 
-from pants.contrib.http import HTTPServer
-from pants.contrib.web.utils import *
+from pants.http import HTTPServer
+from pants.web.utils import *
 
 try:
     import simplejson as json

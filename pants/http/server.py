@@ -27,7 +27,7 @@ import urlparse
 
 from datetime import datetime
 
-from pants.contrib.http.utils import *
+from pants.http.utils import *
 
 ###############################################################################
 # HTTPConnection Class

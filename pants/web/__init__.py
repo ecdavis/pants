@@ -20,5 +20,5 @@
 # Imports
 ###############################################################################
 
-from application import *
-from fileserver import *
+from pants.web.application import *
+from pants.web.fileserver import *

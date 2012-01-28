@@ -25,8 +25,8 @@ import re
 import sys
 import traceback
 
-from pants.contrib.http import log
-from pants.contrib.web import error
+from pants.http import log
+from pants.web import error
 
 ###############################################################################
 # WSGIConnector Class
