@@ -1,9 +1,7 @@
 [Pants](http://pantsweb.org/)
 =============================
 Pants is a lightweight framework for writing asynchronous network applications
-in Python. It is a simple, efficient and versatile networking solution which
-makes no assumptions about your use-case, provides no superfluous features and
-is very good-looking.
+in Python. Pants is simple, fast and very good-looking.
 
 Pants is available under the [Apache License, Version 2.0]
 (http://www.apache.org/licenses/LICENSE-2.0.html)
@@ -34,8 +32,8 @@ Pants has a small but active community of developers who congregate in the IRC
 channel [#pantsmud](http://webchat.freenode.net/?channels=pantsmud) on
 irc.freenode.net.
 
-Hello World
-===========
+Examples
+========
 Here's an absurdly simple example - Hello World:
 
 ```python

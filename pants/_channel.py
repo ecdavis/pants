@@ -48,20 +48,27 @@ log = logging.getLogger("pants")
 # Constants
 ###############################################################################
 
-#: The socket families supported by Pants.
+SUPPORTED_FAMILIES = [socket.AF_INET]
 try:
-    SUPPORTED_FAMILIES = (socket.AF_INET, socket.AF_UNIX)
+    SUPPORTED_FAMILIES.append(socket.AF_UNIX)
 except AttributeError:
-    # Silly Windows.
-    SUPPORTED_FAMILIES = (socket.AF_INET, )
+    # Unix sockets not supported.
+    pass
 
 if socket.has_ipv6:
-    SUPPORTED_FAMILIES = SUPPORTED_FAMILIES + (socket.AF_INET6, )
+    SUPPORTED_FAMILIES.append(socket.AF_INET6)
 
-#: The socket types supported by Pants.
+    if sys.platform == "win32":
+        # IPv6 support may not be installed on Windows XP.
+        try:
+            socket.socket(socket.AF_INET6)
+        except socket.error:
+            SUPPORTED_FAMILIES.remove(socket.AF_INET6)
+
+SUPPORTED_FAMILIES = tuple(SUPPORTED_FAMILIES)
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
-if sys.platform == 'win32':
+if sys.platform == "win32":
     FAMILY_ERROR = (10047, "WSAEAFNOSUPPORT")
     NAME_ERROR = (11001, "WSAHOST_NOT_FOUND")
 else:
@@ -73,20 +80,21 @@ else:
 # Functions
 ###############################################################################
 
-def strerror(err):
-    """
-    Given an error number, returns the appropriate error message.
-    """
-    errstr = 'Unknown error %d' % err
-    try:
-        errstr = os.strerror(err)
-    except (NameError, OverflowError, ValueError):
-        pass
-
-    if errstr.startswith('Unknown error') and err in errno.errorcode:
-        errstr = errno.errorcode[err]
-
-    return errstr
+# os.strerror() is buggy on Windows, so we have to look up the error
+# string manually.
+if sys.platform == "win32":
+    def strerror(err):
+        if err in socket.errorTab:
+            errstr = socket.errorTab[err]
+        elif err in errno.errorcode:
+            errstr = socket.errorcode[err]
+        else:
+            errstr = os.strerror(err)
+            if errstr == "Unknown error":
+                errstr += ": %d" % err
+        return errstr
+else:
+    strerror = os.strerror
 
 
 ###############################################################################
@@ -130,7 +138,7 @@ class _Channel(object):
 
         # Internal state
         self._events = Engine.ALL_EVENTS
-        self._currently_active = False
+        self._processing_events = False
         if self._socket:
             Engine.instance().add_channel(self)
 
@@ -150,7 +158,7 @@ class _Channel(object):
         Engine.instance().remove_channel(self)
         self._socket_close()
         self._events = Engine.ALL_EVENTS
-        self._currently_active = False
+        self._processing_events = False
 
         self._safely_call(self.on_close)
 
@@ -325,7 +333,7 @@ class _Channel(object):
         backlog    The size of the connection queue.
         =========  ============
         """
-        if os.name == "nt" and backlog > 5:
+        if sys.platform == "win32" and backlog > 5:
             log.warning("Setting backlog to SOMAXCONN due to OS constraints.")
             backlog = socket.SOMAXCONN
 
@@ -489,7 +497,7 @@ class _Channel(object):
         """
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
-            if not self._currently_active:
+            if not self._processing_events:
                 Engine.instance().modify_channel(self)
 
     def _stop_waiting_for_write_event(self):
@@ -499,7 +507,7 @@ class _Channel(object):
         """
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
-            if not self._currently_active:
+            if not self._processing_events:
                 Engine.instance().modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
@@ -659,7 +667,7 @@ class _Channel(object):
             log.warning("Received events for closed %r." % self)
             return
 
-        self._currently_active = True
+        self._processing_events = True
 
         previous_events = self._events
         if self._events != Engine.BASE_EVENTS:
@@ -690,7 +698,7 @@ class _Channel(object):
         if self._events != previous_events:
             Engine.instance().modify_channel(self)
 
-        self._currently_active = False
+        self._processing_events = False
 
     def _handle_read_event(self):
         """

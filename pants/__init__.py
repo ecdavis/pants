@@ -40,6 +40,7 @@ __authors__ = ["Christopher Davis", "Stendec"]
 __version__ = "0.10.1"
 
 __all__ = [
+    "__authors__", "__version__",  # Metadata
     "engine",  # Core
     "callback", "loop", "cycle", "defer",  # Scheduling
     "Datagram", "Stream", "StreamServer",  # Low-level networking
