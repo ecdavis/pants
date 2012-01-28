@@ -75,23 +75,29 @@ if __name__ == '__main__':
     while args:
         host = args.pop(0)
         if args:
-            qtype = args.pop(0)
+            qt = args.pop(0)
         else:
-            qtype = 'A'
-
-        qtype = qtype.upper()
-        if qtype in QTYPES:
-            qtype = QTYPES.index(qtype) + 1
-        else:
-            try:
-                qtype = int(qtype)
-            except ValueError:
-                print 'Invalid QTYPE, %r.' % qtype
-                sys.exit(1)
+            qt = 'A'
+        
+        qtype = []
+        for t in qt.split(','):
+            t = t.upper()
+            if t in QTYPES:
+                t = QTYPES.index(t) + 1
+            else:
+                try:
+                    t = int(t)
+                except ValueError:
+                    print 'Invalid QTYPE, %r.' % t
+                    sys.exit(1)
+            qtype.append(t)
+        qtype = tuple(qtype)
 
         # Build a Message
         m = DNSMessage()
-        m.questions.append((host, qtype, IN))
+        
+        for t in qtype:
+            m.questions.append((host, t, IN))
 
         print ''
 

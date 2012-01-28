@@ -121,9 +121,6 @@ class Server(StreamServer):
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
-        if isinstance(addr, (int, long)):
-            addr = ('', addr)
-
         return StreamServer.listen(self, addr, backlog)
 
     ##### Public Event Handlers ###############################################

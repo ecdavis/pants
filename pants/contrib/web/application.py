@@ -64,7 +64,7 @@ class Application(object):
         self.default_domain = default_domain
         self.debug = debug
 
-    def run(self, port=None, host='', ssl_options=None):
+    def run(self, addr=None, ssl_options=None):
         """
         This function exists for convenience, and when called creates a
         :class:`~pants.contrib.http.HTTPServer` instance with its request
@@ -81,7 +81,7 @@ class Application(object):
         ============  ============
         """
         from pants import engine
-        HTTPServer(self, ssl_options=ssl_options).listen(port, host)
+        HTTPServer(self, ssl_options=ssl_options).listen(addr)
         engine.start()
 
     ##### Route Management Methods ############################################

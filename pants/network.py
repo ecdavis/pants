@@ -108,7 +108,7 @@ class Server(StreamServer):
 
     ##### Control Methods #####################################################
 
-    def listen(self, port=8080, host='', backlog=1024):
+    def listen(self, addr=8080, backlog=1024):
         """
         Begin listening for connections made to the channel.
 
@@ -117,12 +117,11 @@ class Server(StreamServer):
         ==========  ============
         Arguments   Description
         ==========  ============
-        port        *Optional.* The port to listen for connection on. By default, is 8080.
-        host        *Optional.* The local host to bind to. By default, is ''.
+        addr        *Optional.* The local address to listen for connections on. By default, is ('', 8080).
         backlog     *Optional.* The size of the connection queue. By default, is 1024.
         ==========  ============
         """
-        return StreamServer.listen(self, (host, port), backlog)
+        return StreamServer.listen(self, addr, backlog)
 
     ##### Public Event Handlers ###############################################
 

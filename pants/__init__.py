@@ -27,14 +27,10 @@ imports from the top-level package.
 import logging
 
 from pants.engine import Engine
+from pants.basic import Client, Connection, Server
 from pants.datagram import Datagram
-from pants.network import Client, Connection, Server
 from pants.stream import Stream, StreamServer
 
-try:
-    from pants.unix import UnixClient, UnixConnection, UnixServer
-except ImportError:
-    pass
 
 ###############################################################################
 # Exports
@@ -50,10 +46,6 @@ __all__ = [
     "Client", "Connection", "Server",  # High-level networking
     ]
 
-if "UnixClient" in globals():
-    __all__.extend([
-        "UnixClient", "UnixConnection", "UnixServer",  # High-level networking
-    ])
 
 ###############################################################################
 # Properties

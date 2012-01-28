@@ -30,6 +30,7 @@ import os
 import random
 import socket
 import struct
+import sys
 import time
 
 import pants.engine
@@ -137,7 +138,7 @@ for k,v in RDATA_TYPES.iteritems():
             keys.extend(fn.split('|'))
         else:
             keys.append(fn)
-    
+
     RDATA_TUPLES[k] = collections.namedtuple(nm, keys)
 
 ###############################################################################
@@ -665,6 +666,54 @@ def readRDATA(data, full_data, qtype):
 
     return tup(*values)
 
+###############################################################################
+# _DNSStream Class
+###############################################################################
+
+class _DNSStream(Stream):
+    """
+    A subclass of Stream that makes things way easier inside Resolver.
+    """
+    def __init__(self, resolver, id, **kwargs):
+        Stream.__init__(self, **kwargs)
+        self.resolver = resolver
+        self.id = id
+
+        self.response = ''
+
+    def on_connect(self):
+        if not self.id in self.resolver._messages:
+            if self.id in self.resolver._tcp:
+                del self.resolver._tcp[self.id]
+            self.close()
+            return
+
+        message = str(self.resolver._messages[self.id][1])
+        self._wait_for_write_event = True
+        self.write(message)
+
+    def on_read(self, data):
+        if not self.id in self.resolver._messages:
+            if self.id in self.resolver._tcp:
+                del self.resolver._tcp[self.id]
+            self.close()
+            return
+
+        self.response += data
+
+        try:
+            m = DNSMessage.from_string(self.response)
+        except TooShortError:
+            return
+
+        if self.remote_addr and isinstance(self.remote_addr, tuple):
+            m.server = '%s:%d' % self.remote_addr
+
+        if self.id in self.resolver._tcp:
+            del self.resolver._tcp[self.id]
+        self.close()
+
+        self.resolver.receive_message(m)
 
 ###############################################################################
 # Resolver Class
@@ -672,37 +721,68 @@ def readRDATA(data, full_data, qtype):
 
 class Resolver(object):
     """
-    The Resolver class makes DNS queries and extracts useful information from
-    the responses. It caches that information and returns it to provided
-    callback functions. The bulk of the heavy lifting is done in the
-    :class:`DNSMessage` class and the RDATA handling functions.
-    
-    =========  =========  ============
-    Argument   Default    Description
-    =========  =========  ============
-    servers    ``None``   *Optional.* A list of DNS servers to query. If a list isn't provided, Pants will query the operating system for a list of servers, falling back to a list of default servers if none are available.
-    cache      ``None``   *Optional.* An object to use for caching DNS records. If one isn't provided, an empty dictionary will be used.
-    =========  =========  ============
+    The Resolver class generates DNS messages, sends them to remote servers,
+    and processes any responses. The bulk of the heavy lifting is done in
+    DNSMessage and the RDATA handling functions, however.
+
+    =========  ============
+    Argument   Description
+    =========  ============
+    servers    *Optional.* A list of DNS servers to query. If a list isn't provided, Pants will attempt to retrieve a list of servers from the OS, falling back to a list of default servers if none are available.
+    =========  ============
     """
-    def __init__(self, servers=None, cache=None):
-        # Somewhat Public State
+    def __init__(self, servers=None):
         self.servers = servers or list_dns_servers()
-        self.cache = cache or {}
-        
+
         # Internal State
         self._messages = {}
-        self._socket = None
+        self._cache = {}
+        self._queries = {}
+        self._tcp = {}
+        self._udp = None
         self._last_id = -1
-    
-    def _initialize_udp(self):
-        """ Create a new Datagram instance and listen on a socket. """
-        self._socket = Datagram()
-        self._socket.on_read = self.receive_message
-        
+
+    def _safely_call(self, callback, *args, **kwargs):
+        try:
+            callback(*args, **kwargs)
+        except Exception:
+            log.exception('Error calling callback for DNS result.')
+
+    def _error(self, message, err=DNS_TIMEOUT):
+        if not message in self._messages:
+            return
+
+        if message in self._tcp:
+            try:
+                self._tcp[message].close()
+            except Exception:
+                pass
+            del self._tcp[message]
+
+        callback, message, df_timeout, media, data = self._messages[message]
+        del self._messages[message.id]
+
+        try:
+            df_timeout.cancel()
+        except Exception:
+            pass
+
+        if err == DNS_TIMEOUT and data:
+            self._safely_call(callback, DNS_OK, data)
+        else:
+            self._safely_call(callback, err, None)
+
+    def _init_udp(self):
+        """
+        Create a new Datagram instance and listen on a socket.
+        """
+        self._udp = Datagram()
+        self._udp.on_read = self.receive_message
+
         start = port = random.randrange(10005, 65535)
         while True:
             try:
-                self._socket.listen(('',port))
+                self._udp.listen(('',port))
                 break
             except Exception:
                 port += 1
@@ -710,131 +790,76 @@ class Resolver(object):
                     port = 10000
                 if port == start:
                     raise Exception("Can't listen on any port.")
-    
-    def _safely_call(self, callback, *args, **kwargs):
-        try:
-            callback(*args, **kwargs)
-        except Exception:
-            log.exception('Error in DNS callback.')
-    
-    ##### Cache Control ########################################################
-    
-    def get_cached(self, name, qtype, qclass):
+
+    def send_message(self, message, callback=None, timeout=10, media=None):
         """
-        Attempt to return a value from the cache. If an entry doesn't exist, or
-        if it's old, return None.
-        """
-        key = (qtype, qclass)
-        
-        if name in self.cache and key in self.cache[name]:
-            death, ttl, rdata = self.cache[name][key]
-            
-            if death < time.time():
-                # Clear out the old record
-                del self.cache[name][key]
-                if not self.cache[name]:
-                    del self.cache[name]
-            else:
-                return ttl, rdata
-        
-        return None
-    
-    def _set_cached(self, name, qtype, qclass, ttl, rdata):
-        """
-        Insert a value into the cache.
-        """
-        key = (qtype, qclass)
-        
-        if not name in self.cache:
-            self.cache[name] = {}
-        
-        self.cache[name][key] = time.time() + ttl, ttl, rdata
-    
-    def update_cached(self, name, qtype, qclass, ttl, rdata):
-        """
-        Update a value in the cache.
-        """
-        cached = self.get_cached(name, qtype, qclass)
-        if cached:
-            ttl = min(ttl, cached[0])
-            if cached[1] and rdata:
-                for v in cached[1]:
-                    if not v in rdata:
-                        rdata.append(v)
-            elif cached[1]:
-                rdata = cached[1]
-        
-        self._set_cached(name, qtype, qclass, ttl, rdata)
-    
-    ##### Message Handling #####################################################
-    
-    def send_message(self, message, callback=None, timeout=15):
-        """
-        Send an instance of DNSMessage to a DNS server and call the provided
+        Send an instance of DNSMessage to a DNS server, and call the provided
         callback when a response is received, or if the action times out.
-        
-        =========  =========  ============
-        Argument   Default    Description
-        =========  =========  ============
-        message               The :class:`DNSMessage` instance to send to the server.
-        callback   ``None``   *Optional.* A function to call when a response for the query has been received, or when the query has timed out.
-        timeout    ``15``     *Optional.* How long, in seconds, to wait before timing out.
-        =========  =========  ============
+
+        =========  ========  ============
+        Argument   Default   Description
+        =========  ========  ============
+        message              The :class:`DNSMessage` instance to send to the server.
+        callback   None      *Optional.* The function to call once the response has been received or the attempt has timed out.
+        timeout    10        *Optional.* How long, in seconds, to wait before timing out.
+        media      None      *Optional.* Whether to use UDP or TCP. UDP is used by default.
+        =========  ========  ============
         """
-        start_id = self._last_id if self._last_id >= 0 else 65535
         while message.id is None or message.id in self._messages:
             self._last_id += 1
             if self._last_id > 65535:
                 self._last_id = 0
-            if self._last_id == start_id:
-                raise Exception("Too many pending DNS queries.")
             message.id = self._last_id
-        
+
         # Timeout in timeout seconds.
-        m_timeout = pants.engine.defer(timeout, self._msg_timeout, message.id)
-        serv_timeout = pants.engine.defer(2, self._msg_next_server, message.id)
-        
-        # Build the message string and store info about it in our dict.
+        df_timeout = pants.engine.defer(timeout, self._error, message.id)
+
+        # Send the Message
         msg = str(message)
-        self._messages[message.id] = [callback, msg, message, m_timeout,
-                                      serv_timeout, self.servers[0]]
-        
-        # Make sure we have a socket, then send the message.
-        if not self._socket:
-            self._initialize_udp()
-        
-        self._socket.write(msg, (self.servers[0], DNS_PORT))
-        
-    def _msg_timeout(self, id):
-        """ Act upon a timed-out query. """
-        if not id in self._messages:
+        if media is None:
+            media = 'udp'
+            #if len(msg) > 512:
+            #    media = 'tcp'
+            #else:
+            #    media = 'udp'
+
+        # Store Info
+        self._messages[message.id] = callback, message, df_timeout, media, None
+
+        if media == 'udp':
+            if self._udp is None:
+                self._init_udp()
+            try:
+                self._udp.write(msg, (self.servers[0], DNS_PORT))
+            except Exception:
+                # Pants gummed up. Try again.
+                self._next_server(message.id)
+
+            pants.engine.defer(0.5, self._next_server, message.id)
+
+        else:
+            tcp = self._tcp[message.id] = _DNSStream(self, message.id)
+            tcp.connect((self.servers[0], DNS_PORT))
+
+    def _next_server(self, id):
+        if not id in self._messages or id in self._tcp:
             return
-        
-        callback, msg, message, m_timeout, serv_timeout, last_server = self._messages[id]
-        del self._messages[id]
-        
-        if callback:
-            self._safely_call(callback, DNS_TIMEOUT, None)
-    
-    def _msg_next_server(self, id):
-        """ Rotate servers. """
-        if not id in self._messages:
-            return
-        
-        message = self._messages[id]
-        if message[-1] == self.servers[0]:
-            # Cycle the list since it hasn't been modified yet.
-            self.servers.append(self.servers.pop(0))
-        
-        # Store the last server.
-        message[-1] = self.servers[0]
-        
-        # Make a new deferred.
-        message[4] = pants.engine.defer(4, self._msg_next_server, id)
-        
-        # Send the message to the new server.
-        self._socket.write(message[1], (self.servers[0], DNS_PORT))
-    
+
+        # Cycle the list.
+        self.servers.append(self.servers.pop(0))
+
+        msg = str(self._messages[id][1])
+        try:
+            self._udp.write(msg, (self.servers[0], DNS_PORT))
+        except Exception:
+            try:
+                self._udp.close()
+            except Exception:
+                pass
+            del self._udp
+            self._init_udp()
+            self._udp.write(msg, (self.servers[0], DNS_PORT))
+
     def receive_message(self, data):
         if not isinstance(data, DNSMessage):
             try:
@@ -842,190 +867,149 @@ class Resolver(object):
             except TooShortError:
                 if len(data) < 2:
                     return
-                
+
                 id = struct.unpack("!H", data[:2])
                 if not id in self._messages:
                     return
-                
-                # Rotate servers, since that one gave a bad response.
-                self._msg_next_server(id)
+
+                self._error(id, err=DNS_BADRESPONSE)
                 return
-        
+
         if not data.id in self._messages:
             return
-        
-        callback, msg, message, m_timeout, serv_timeout, last_server = self._messages[data.id]
-        del self._messages[data.id]
-        
+
+        callback, message, df_timeout, media, _ = self._messages[data.id]
+
+        #if data.tc and media == 'udp':
+        #    self._messages[data.id] = callback, message, df_timeout, 'tcp', data
+        #    tcp = self._tcp[data.id] = _DNSStream(self, message.id)
+        #    tcp.connect((self.servers[0], DNS_PORT))
+        #    return
+
         if not data.server:
-            if self._socket and isinstance(self._socket.remote_addr, tuple):
-                data.server = '%s:%d' % self._socket.remote_addr
+            if self._udp and isinstance(self._udp.remote_addr, tuple):
+                data.server = '%s:%d' % self._udp.remote_addr
             else:
-                data.server = '%s:%d' % (last_server, DNS_PORT)
-        
-        # Call our callback.
-        if callback:
-            self._safely_call(callback, DNS_OK, data)
-    
-    ##### Query Sending ########################################################
-    
-    def query(self, name, qtypes=(A,), qclass=IN, callback=None, timeout=15, use_cache=True, use_hosts=True):
+                data.server = '%s:%d' % (self.servers[0], DNS_PORT)
+
+        try:
+            df_timeout.cancel()
+        except Exception:
+            pass
+
+        del self._messages[data.id]
+        self._safely_call(callback, DNS_OK, data)
+
+    def query(self, name, qtype=A, qclass=IN, callback=None, timeout=10, allow_cache=True, allow_hosts=True):
         """
-        Make a DNS query for the given name, for records with the given qtypes
-        and qclass.
-        
-        ==========  ==========  ============
-        Argument    Default     Description
-        ==========  ==========  ============
+        Make a DNS request of the given QTYPE for the given name.
+
+        ============  ========  ============
+        Argument      Default   Description
+        ============  ========  ============
         name                    The name to query.
-        qtypes      ``(A, )``   *Optional.* A list of QTYPES to query.
-        qclass      ``IN``      *Optional.* The QCLASS to query.
-        callback    ``None``    *Optional.* A function to call when a response for the query has been received, or when the query has timed out.
-        timeout     ``15``      *Optional.* The time, in seconds, to wait before timing out.
-        use_cache   ``True``    *Optional.* Whether or not to use the cache.
-        use_hosts   ``True``    *Optional.* Whether or not to use the operating system's hosts file.
-        ==========  ==========  ============
+        qtype         A         *Optional.* The QTYPE to query.
+        qclass        IN        *Optional.* The QCLASS to query.
+        callback      None      *Optional.* The function to call when a response for the query has been received, or when the request has timed out.
+        timeout       10        *Optional.* The time, in seconds, to wait before timing out.
+        allow_cache   True      *Optional.* Whether or not to use the cache. If you expect to be performing thousands of requests, you may want to disable the cache to avoid excess memory usage.
+        allow_hosts   True      *Optional.* Whether or not to use any records gathered from the OS hosts file.
+        ============  ========  ============
         """
-        lname = name.lower()
-        results = []
+        if not isinstance(qtype, (list,tuple)):
+            qtype = (qtype)
         
-        if use_hosts:
-            # Hosts are preferred over everything else, so if even one qtype is
-            # present, just return that.
+        if allow_hosts:
             if host_time + 30 < time.time():
                 load_hosts()
-            
-            
-            for qt in qtypes:
-                if qt in hosts and lname in hosts[qt]:
-                    results.append(hosts[qt][lname])
-            
-            if results:
-                if callback:
-                    self._safely_call(callback, DNS_OK, None, None, results)
-                return
-        
-        # Build a list we can alter.
-        wanted = list(qtypes)
-        shortest_ttl = 1000000
-        
-        if use_cache:
-            # Attempt to use as many cached values as we can.
-            for qt in qtypes:
-                cached = self.get_cached(lname, qt, qclass)
-                if cached:
-                    shortest_ttl = min(cached[0], shortest_ttl)
-                    if cached[1]:
-                        results.append(cached[1])
-                    wanted.remove(qt)
-        
-        # Try getting a cname.
-        cached = self.get_cached(lname, CNAME, qclass)
-        if cached:
-            cname = cached[1]
-        else:
+
             cname = None
-        
-        # Do we have all the results we need?
-        if not wanted:
+            if name in self._cache and CNAME in self._cache[name]:
+                cname = self._cache[name][CNAME]
+
+            result = []
+
+            if AAAA in qtype and name in hosts[AAAA]:
+                result.append(hosts[AAAA][name])
+
+            if A in qtype and name in hosts[A]:
+                result.append(hosts[A][name])
+
+            if result:
+                if callback:
+                    self._safely_call(callback, DNS_OK, cname, None, tuple(result))
+                return
+
+        if allow_cache and name in self._cache:
+            cname = self._cache[name].get(CNAME, None)
+
+            tm = time.time()
+            result = []
+            min_ttl = sys.maxint
+
+            for t in qtype:
+                death, ttl, rdata = self._cache[name][(t, qclass)]
+                if death < tm:
+                    del self._cache[name][(t, qclass)]
+                    continue
+
+                min_ttl = min(ttl, min_ttl)
+                if rdata:
+                    result.extend(rdata)
+
             if callback:
-                self._safely_call(callback, DNS_OK, cname, shortest_ttl, results)
-            return
-        
-        # Make a list for this particular query.
-        q = [name, qtypes, qclass, callback, timeout, use_cache, use_hosts, results, wanted, shortest_ttl, cname, DNS_OK]
-        
-        # Queue a timeout.
-        df_timeout = pants.engine.defer(timeout, self._query_timeout, q)
-        
-        # Create the function for handling responses.
-        def handle_response(rstatus, response):
-            if rstatus > q[-1]:
-                q[-1] = rstatus
-            
-            if not response:
-                return
-            
-            # If it's a name error, we can end right now.
-            if response.rcode == DNS_NAMEERROR:
-                df_timeout()
-                if callback:
-                    self._safely_call(callback, DNS_NAMEERROR, None, None, None)
-                return
-            
-            # Read all of the answers into a dict.
-            answers = {}
-            
-            for (aname, atype, aclass, attl, ardata) in response.answers:
-                if not aclass == qclass:
-                    continue
-                
-                if not atype in answers:
-                    answers[atype] = []
-                
-                if len(ardata) == 1:
-                    answers[atype].append(ardata[0])
-                    if use_cache:
-                        self.update_cached(lname, atype, aclass, attl, [ardata[0]])
-                elif isinstance(ardata, tuple) and hasattr(ardata, '_fields'):
-                    answers[atype].append(ardata)
-                    if use_cache:
-                        self.update_cached(lname, atype, aclass, attl, [ardata])
-                else:
-                    answers[atype].extend(ardata)
-                    if use_cache:
-                        self.update_cached(lname, atype, aclass, attl, list(ardata))
-                
-                if atype in wanted:
-                    if not attl:
-                        attl = 30
-                    q[-3] = min(q[-3], attl)
-            
-            for (aname, atype, aclass) in response.questions:
-                if not aclass == qclass or atype in answers:
-                    continue
-                if atype in wanted:
-                    wanted.remove(atype)
-            
-            if CNAME in answers:
-                q[-2] = answers[CNAME][0]
-            
-            for qt in wanted[:]:
-                if qt in answers:
-                    results.extend(answers[qt])
-                    wanted.remove(qt)
-            
-            if not wanted:
-                # Make sure we don't timeout at this point.
-                df_timeout()
-                
-                if callback:
-                    if results:
-                        q[-1] = DNS_OK
-                    self._safely_call(callback, q[-1], q[-2], q[-3], results)
-                return
-        
-        # Send all the queries now.
-        for qt in wanted:
-            m = DNSMessage()
-            m.questions.append((name, qt, qclass))
-            self.send_message(m, handle_response)
-    
-    def _query_timeout(self, query):
-        """ Handle a query timing out. """
-        (name, qtypes, qclass, callback, timeout, use_cache, use_hosts, results,
-        wanted, ttl, cname, status) = query
-        
-        if not callback:
+                self._safely_call(callback, DNS_OK, cname, min_ttl,
+                                    tuple(result))
             return
 
-        if results:
-            status = DNS_OK
-            self._safely_call(callback, status, cname, ttl, results)
-        else:
-            if status == 0:
-                status = DNS_TIMEOUT
-            self._safely_call(callback, status, cname, ttl, None)
+        # Build a message and add our question.
+        m = DNSMessage()
+
+        m.questions.append((name, qtype[0], qclass))
+
+        # Make the function for handling our response.
+        def handle_response(status, data):
+            cname = None
+            # TTL is 30 by default, so answers with no records we want will be
+            # repeated, but not too often.
+            ttl = sys.maxint
+
+            if not data:
+                self._safely_call(callback, status, None, None, None)
+                return
+
+            rdata = {}
+            final_rdata = []
+            for (aname, atype, aclass, attl, ardata) in data.answers:
+                if atype == CNAME:
+                    cname = ardata[0]
+
+                if atype in qtype and aclass == qclass:
+                    ttl = min(attl, ttl)
+                    if len(ardata) == 1:
+                        rdata.setdefault(atype, []).append(ardata[0])
+                        final_rdata.append(ardata[0])
+                    else:
+                        rdata.setdefault(atype, []).append(ardata)
+                        final_rdata.append(ardata)
+            final_rdata = tuple(final_rdata)
+            ttl = min(30, ttl)
+
+            if allow_cache:
+                if not name in self._cache:
+                    self._cache[name] = {}
+                    if cname:
+                        self._cache[name][CNAME] = cname
+                    for t in qtype:
+                        self._cache[name][(t, qclass)] = time.time() + ttl, ttl, rdata.get(t, [])
+
+            if data.rcode != DNS_OK:
+                status = data.rcode
+
+            self._safely_call(callback, status, cname, ttl, final_rdata)
+
+        # Send it, so we get an ID.
+        self.send_message(m, handle_response)
 
 resolver = Resolver()
 
@@ -1093,7 +1077,7 @@ def gethostbyaddr(ip_address, callback, timeout=10):
         except Exception:
             log.exception('Error calling callback for gethostbyaddr.')
 
-    resolver.query(name, qtypes=(PTR,), callback=handle_response, timeout=timeout)
+    resolver.query(name, qtype=PTR, callback=handle_response, timeout=timeout)
 
 def gethostbyname(hostname, callback, timeout=10):
     """
@@ -1121,7 +1105,7 @@ def gethostbyname(hostname, callback, timeout=10):
         except Exception:
             log.exception('Error calling callback for gethostbyname.')
 
-    resolver.query(hostname, qtypes=(A,), callback=handle_response, timeout=timeout)
+    resolver.query(hostname, qtype=A, callback=handle_response, timeout=timeout)
 
 def gethostbyname_ex(hostname, callback, timeout=10):
     """
@@ -1153,7 +1137,7 @@ def gethostbyname_ex(hostname, callback, timeout=10):
         except Exception:
             log.exception('Error calling callback for gethostbyname_ex.')
 
-    resolver.query(hostname, qtypes=(A,), callback=handle_response, timeout=timeout)
+    resolver.query(hostname, qtype=A, callback=handle_response, timeout=timeout)
 
 ###############################################################################
 # Synchronous Support

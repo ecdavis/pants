@@ -56,6 +56,9 @@ class Datagram(_Channel):
             raise TypeError("Cannot create a %s with a type other than "
                 "SOCK_DGRAM." % self.__class__.__name__)
 
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        kwargs['socket'] = sock
+
         _Channel.__init__(self, **kwargs)
 
         # Socket
