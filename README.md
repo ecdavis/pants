@@ -50,11 +50,11 @@ Server(Hello).listen(4000)
 engine.start()
 ```
 
-Want an absurdly fast web server? Got you covered:
+Want a stupid fast web server? Got you covered:
 
 ```python
-from pants.contrib.web import Application, HTTPServer
 from pants import engine
+from pants..web import Application, HTTPServer
 
 app = Application()
 
