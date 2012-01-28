@@ -178,7 +178,7 @@ class Stream(_Channel):
             connected = self._socket_connect(addr)
         except socket.error, err:
             self.close()
-            e = StreamConnectError(err.strerror, err.errno)
+            e = StreamConnectError(err.errno, err.strerror)
             self._safely_call(self.on_connect_error, e)
             return
 
@@ -383,7 +383,7 @@ class Stream(_Channel):
             self._update_addr()
             self._safely_call(self.on_connect)
         else:
-            e = StreamConnectError(errstr, err)
+            e = StreamConnectError(err, errstr)
             self._safely_call(self.on_connect_error, e)
 
     ##### Internal Processing Methods #########################################
@@ -852,9 +852,9 @@ class StreamBufferOverflow(Exception):
 ###############################################################################
 
 class StreamConnectError(Exception):
-    def __init__(self, errstr, err):
-        self.errstr = errstr
+    def __init__(self, err, errstr):
         self.err = err
+        self.errstr = errstr
 
     def __repr__(self):
         return self.errstr
