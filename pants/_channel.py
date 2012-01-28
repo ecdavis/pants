@@ -562,7 +562,7 @@ class _Channel(object):
             elif len(addr) == 4:
                 callback(None, None, FAMILY_ERROR)
             else:
-                callback(Addr, socket.AF_INET)
+                callback(addr, socket.AF_INET)
             return
 
         # It must be a tuple or list. Or, at least, assume it is.
@@ -674,6 +674,7 @@ class _Channel(object):
                 return
 
         if events & Engine.ERROR:
+            err, errstr = self._get_socket_error()
             if err != 0:
                 log.error("Error on %s #%d: %s (%d)" %
                         (self.__class__.__name__, self.fileno, errstr, err))

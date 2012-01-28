@@ -681,8 +681,8 @@ class StreamServer(_Channel):
         got. Or, if addr is None, it's a bad address, so do an error thing.
         """
         if not addr:
-            log.error("Error listening on %s #%d: %s (%d)" %
-                        (self.__class__.__name__, self.fileno, errstr, err))
+            log.error("Error listening on %s #%d" %
+                        (self.__class__.__name__, self.fileno))
             return
 
         # If we already have a socket, we shouldn't. Toss it!
