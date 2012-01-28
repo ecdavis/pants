@@ -624,6 +624,7 @@ class StreamServer(_Channel):
 
         # SSL state
         self.ssl_enabled = False
+        self._ssl_options = None
 
     ##### Control Methods #####################################################
 
@@ -637,8 +638,11 @@ class StreamServer(_Channel):
         if not self.listening:
             raise RuntimeError("startTLS() called on non-listening %r." % self)
 
-        self._socket = ssl.wrap_socket(self._socket, **ssl_options)
+        if ssl_options.setdefault("server_side", True) is not True:
+            raise RuntimeError("SSL option 'server_side' must be True.")
+
         self.ssl_enabled = True
+        self._ssl_options = ssl_options
 
     def listen(self, addr, backlog=1024, native_resolve=True, slave=True):
         """
@@ -770,6 +774,9 @@ class StreamServer(_Channel):
 
             if sock is None:
                 return
+
+            if self.ssl_enabled:
+                sock = ssl.wrap_socket(sock, **self._ssl_options)
 
             self._safely_call(self.on_accept, sock, addr)
 
