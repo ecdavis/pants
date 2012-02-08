@@ -691,3 +691,6 @@ class HTTPServer(Server):
                 addr = tuple(addr[0] + (port,) + addr[2:])
 
         Server.listen(self, addr, backlog)
+
+        if self.ssl_options:
+            self.startTLS(**self.ssl_options)
