@@ -502,7 +502,7 @@ class Stream(_Channel):
             return _Channel._socket_recv(self)
 
         try:
-            data = self._socket.recv(self._recv_amount)
+            data = self._socket.read(self._recv_amount)
         except ssl.SSLError, err:
             if err[0] == ssl.SSL_ERROR_WANT_READ:
                 return ''
@@ -771,7 +771,9 @@ class StreamServer(_Channel):
 
             if self.ssl_enabled:
                 try:
+                    sock.setblocking(False)
                     sock = ssl.wrap_socket(sock, **self._ssl_options)
+                    sock.setblocking(False)
                 except ssl.SSLError:
                     log.exception("Exception raised while SSL-wrapping socket on %r." % self)
 
