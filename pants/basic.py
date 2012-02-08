@@ -37,10 +37,10 @@ class Client(Stream):
     """
     A simple streaming client.
     """
-    def __init__(self, family=socket.AF_INET):
+    def __init__(self, ssl_options=None, family=socket.AF_INET):
         # This dummy method prevents keyword arguments from finding
         # their way up to the Stream/_Channel constructors.
-        Stream.__init__(self, family=family)
+        Stream.__init__(self, ssl_options=ssl_options, family=family)
 
     ##### Control Methods #####################################################
 
@@ -97,8 +97,8 @@ class Server(StreamServer):
     #: A :obj:`pants.simple.Connection` subclass with which to wrap newly connected sockets.
     ConnectionClass = Connection
 
-    def __init__(self, ConnectionClass=None, family=socket.AF_INET):
-        StreamServer.__init__(self, family=family)
+    def __init__(self, ConnectionClass=None, ssl_options=None, family=socket.AF_INET):
+        StreamServer.__init__(self, ssl_options=ssl_options, family=family)
 
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:

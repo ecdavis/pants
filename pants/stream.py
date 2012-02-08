@@ -87,9 +87,12 @@ class Stream(_Channel):
         self._ssl_enabling = False
         self._ssl_socket_wrapped = False
         self._ssl_handshake_done = False
+        self._ssl_call_on_connect = False
         if isinstance(kwargs.get("socket", None), ssl.SSLSocket):
             self._ssl_socket_wrapped = True
             self.startSSL()
+        elif kwargs.get("ssl_options", None) is not None:
+            self.startSSL(**kwargs["ssl_options"])
 
     ##### Control Methods #####################################################
 
@@ -371,9 +374,11 @@ class Stream(_Channel):
         if err == 0:
             self.connected = True
             self._update_addr()
-            self._safely_call(self.on_connect)
             if self._ssl_enabling:
+                self._ssl_call_on_connect = True
                 self._process_send_buffer()
+            else:
+                self._safely_call(self.on_connect)
         else:
             e = StreamConnectError(err, errstr)
             self._safely_call(self.on_connect_error, e)
@@ -581,6 +586,8 @@ class Stream(_Channel):
         else:
             self._ssl_handshake_done = True
             self._safely_call(self.on_ssl_handshake_complete)
+            if self._ssl_call_on_connect:
+                self._safely_call(self.on_connect)
             return None
 
 
@@ -619,6 +626,8 @@ class StreamServer(_Channel):
         # SSL state
         self.ssl_enabled = False
         self._ssl_options = None
+        if kwargs.get("ssl_options", None) is not None:
+            self.startSSL(**kwargs["ssl_options"])
 
     ##### Control Methods #####################################################
 
@@ -628,9 +637,6 @@ class StreamServer(_Channel):
 
         if self._closed:
             raise RuntimeError("startSSL() called on closed %r." % self)
-
-        if not self.listening:
-            raise RuntimeError("startSSL() called on non-listening %r." % self)
 
         if ssl_options.setdefault("server_side", True) is not True:
             raise RuntimeError("SSL option 'server_side' must be True.")
