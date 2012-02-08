@@ -422,7 +422,6 @@ class HTTPRequest(object):
             expires = int(expires)
             ts = int(ts)
         except (AttributeError, ValueError):
-            print 'boo'
             return None
 
         v = base64.b64encode(str(value))

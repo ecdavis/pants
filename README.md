@@ -44,7 +44,7 @@ class Hello(Connection):
         self.write("Hello, World!\r\n")
         self.end()
 
-Server(Hello).listen(4000)
+Server(Hello).listen()
 engine.start()
 ```
 
@@ -60,6 +60,6 @@ app = Application()
 def hello():
     return "Hello, World!"
 
-HTTPServer(app).listen(80)
+HTTPServer(app).listen()
 engine.start()
 ```
