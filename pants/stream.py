@@ -115,7 +115,8 @@ class Stream(_Channel):
 
         self._ssl_enabling = True
         self._send_buffer.append((Stream.DATA_SSL_ENABLE, ssl_options))
-        self._process_send_buffer()
+        if self.connected:
+            self._process_send_buffer()
 
     def connect(self, addr, native_resolve=True):
         """
@@ -371,6 +372,8 @@ class Stream(_Channel):
             self.connected = True
             self._update_addr()
             self._safely_call(self.on_connect)
+            if self._ssl_enabling:
+                self._process_send_buffer()
         else:
             e = StreamConnectError(err, errstr)
             self._safely_call(self.on_connect_error, e)
