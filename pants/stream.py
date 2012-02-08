@@ -89,13 +89,13 @@ class Stream(_Channel):
         self._ssl_handshake_done = False
         if isinstance(kwargs.get("socket", None), ssl.SSLSocket):
             self._ssl_socket_wrapped = True
-            self.startTLS()
+            self.startSSL()
 
     ##### Control Methods #####################################################
 
-    def startTLS(self, flush=True, **ssl_options):
+    def startSSL(self, flush=True, **ssl_options):
         """
-        Enable TLS/SSL on the channel and perform a handshake.
+        Enable SSL on the channel and perform a handshake.
 
         See :func:`ssl.wrap_socket` for a description of the keyword
         arguments accepted by this method.
@@ -108,10 +108,10 @@ class Stream(_Channel):
         ============ ============
         """
         if self.ssl_enabled or self._ssl_enabling:
-            raise RuntimeError("startTLS() called on SSL-enabled %r" % self)
+            raise RuntimeError("startSSL() called on SSL-enabled %r" % self)
 
         if self._closed or self._closing:
-            raise RuntimeError("startTLS() called on closed %r" % self)
+            raise RuntimeError("startSSL() called on closed %r" % self)
 
         self._ssl_enabling = True
         self._send_buffer.append((Stream.DATA_SSL_ENABLE, ssl_options))
@@ -622,15 +622,15 @@ class StreamServer(_Channel):
 
     ##### Control Methods #####################################################
 
-    def startTLS(self, **ssl_options):
+    def startSSL(self, **ssl_options):
         if self.ssl_enabled:
-            raise RuntimeError("startTLS() called on TLS-enabled %r." % self)
+            raise RuntimeError("startSSL() called on SSL-enabled %r." % self)
 
         if self._closed:
-            raise RuntimeError("startTLS() called on closed %r." % self)
+            raise RuntimeError("startSSL() called on closed %r." % self)
 
         if not self.listening:
-            raise RuntimeError("startTLS() called on non-listening %r." % self)
+            raise RuntimeError("startSSL() called on non-listening %r." % self)
 
         if ssl_options.setdefault("server_side", True) is not True:
             raise RuntimeError("SSL option 'server_side' must be True.")

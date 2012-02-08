@@ -278,7 +278,7 @@ class HTTPClient(object):
             self._is_secure = request[2].scheme.lower() == 'https'
             if self._is_secure:
                 raise Exception("SSL has not yet been implemented in this version of Pants.")
-                self._stream.startTLS()
+                self._stream.startSSL()
 
             self._stream.connect((request[2].hostname, port))
             return

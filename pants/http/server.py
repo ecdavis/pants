@@ -692,4 +692,4 @@ class HTTPServer(Server):
         Server.listen(self, addr, backlog)
 
         if self.ssl_options:
-            self.startTLS(**self.ssl_options)
+            self.startSSL(**self.ssl_options)
