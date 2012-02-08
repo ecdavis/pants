@@ -143,7 +143,7 @@ class _Channel(object):
             Engine.instance().add_channel(self)
 
     def __repr__(self):
-        return "%s #%d (%s)" % (self.__class__.__name__, self.fileno,
+        return "%s #%r (%s)" % (self.__class__.__name__, self.fileno,
                 object.__repr__(self))
 
     ##### Control Methods #####################################################

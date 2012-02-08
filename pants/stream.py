@@ -115,11 +115,7 @@ class Stream(_Channel):
 
         self._ssl_enabling = True
         self._send_buffer.append((Stream.DATA_SSL_ENABLE, ssl_options))
-
-        if flush:
-            self._process_send_buffer()
-        else:
-            self._start_waiting_for_write_event()
+        self._process_send_buffer()
 
     def connect(self, addr, native_resolve=True):
         """
@@ -491,11 +487,6 @@ class Stream(_Channel):
 
         bytes_sent = self._ssl_do_handshake()
 
-        if self._ssl_handshake_done:
-            self._safely_call(self.on_ssl_handshake_complete)
-        else:
-            self._send_buffer.insert(0, (Stream.DATA_SSL_ENABLE, ssl_options))
-
         return bytes_sent
 
     ##### SSL Implementation ##################################################
@@ -586,7 +577,7 @@ class Stream(_Channel):
                 raise
         else:
             self._ssl_handshake_done = True
-            # TODO notify user code here
+            self._safely_call(self.on_ssl_handshake_complete)
             return None
 
 
@@ -640,6 +631,9 @@ class StreamServer(_Channel):
 
         if ssl_options.setdefault("server_side", True) is not True:
             raise RuntimeError("SSL option 'server_side' must be True.")
+
+        if ssl_options.setdefault("do_handshake_on_connect", False) is not False:
+            raise RuntimeError("SSL option 'do_handshake_on_connect' must be False.")
 
         self.ssl_enabled = True
         self._ssl_options = ssl_options
@@ -776,7 +770,10 @@ class StreamServer(_Channel):
                 return
 
             if self.ssl_enabled:
-                sock = ssl.wrap_socket(sock, **self._ssl_options)
+                try:
+                    sock = ssl.wrap_socket(sock, **self._ssl_options)
+                except ssl.SSLError:
+                    log.exception("Exception raised while SSL-wrapping socket on %r." % self)
 
             self._safely_call(self.on_accept, sock, addr)
 
