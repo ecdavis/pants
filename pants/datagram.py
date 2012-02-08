@@ -311,6 +311,8 @@ class Datagram(_Channel):
 
             while data:
                 bytes_sent = self._socket_sendto(data, addr)
+                self.listening = True
+                self._update_addr()
                 if bytes_sent == 0:
                     break
                 data = data[bytes_sent:]
