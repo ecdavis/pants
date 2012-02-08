@@ -92,11 +92,11 @@ class Stream(_Channel):
             self._ssl_socket_wrapped = True
             self.startSSL()
         elif kwargs.get("ssl_options", None) is not None:
-            self.startSSL(**kwargs["ssl_options"])
+            self.startSSL(kwargs["ssl_options"])
 
     ##### Control Methods #####################################################
 
-    def startSSL(self, flush=True, **ssl_options):
+    def startSSL(self, flush=True, ssl_options={}):
         """
         Enable SSL on the channel and perform a handshake.
 
@@ -627,11 +627,11 @@ class StreamServer(_Channel):
         self.ssl_enabled = False
         self._ssl_options = None
         if kwargs.get("ssl_options", None) is not None:
-            self.startSSL(**kwargs["ssl_options"])
+            self.startSSL(kwargs["ssl_options"])
 
     ##### Control Methods #####################################################
 
-    def startSSL(self, **ssl_options):
+    def startSSL(self, ssl_options={}):
         if self.ssl_enabled:
             raise RuntimeError("startSSL() called on SSL-enabled %r." % self)
 
