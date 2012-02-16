@@ -58,13 +58,6 @@ except AttributeError:
 if socket.has_ipv6:
     SUPPORTED_FAMILIES.append(socket.AF_INET6)
 
-    if sys.platform == "win32":
-        # IPv6 support may not be installed on Windows XP.
-        try:
-            socket.socket(socket.AF_INET6)
-        except socket.error:
-            SUPPORTED_FAMILIES.remove(socket.AF_INET6)
-
 SUPPORTED_FAMILIES = tuple(SUPPORTED_FAMILIES)
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
@@ -333,8 +326,8 @@ class _Channel(object):
         backlog    The size of the connection queue.
         =========  ============
         """
-        if sys.platform == "win32" and backlog > 5:
-            log.warning("Setting backlog to SOMAXCONN due to OS constraints.")
+        if sys.platform == "win32" and backlog > socket.SOMAXCONN:
+            log.warning("Setting backlog to SOMAXCONN on %r." % self)
             backlog = socket.SOMAXCONN
 
         self._socket.listen(backlog)
@@ -546,9 +539,11 @@ class _Channel(object):
 
     def _resolve_addr(self, addr, native_resolve, callback):
         """
-        Resolve the given address into something that can be connected to
-        immediately.
+        Resolve the given address into something that can be connected
+        to immediately.
         """
+        # This is here to prevent an import-loop. pants.util.dns depends
+        # on pants._channel.
         global dns
         if dns is None:
             from pants.util import dns
@@ -561,12 +556,10 @@ class _Channel(object):
             callback(addr, socket.AF_UNIX)
             return
 
-        # Check for a port only.
-        if isinstance(addr, int):
+        if isinstance(addr, (int, long)):
             # INADDR_ANY-atize it!
             addr = ('', addr)
 
-        # Check for INADDR_ANY or INADDR_BROADCAST.
         if addr[0] in ('', '<broadcast>'):
             if socket.has_ipv6:
                 callback(addr, socket.AF_INET6)
@@ -583,23 +576,25 @@ class _Channel(object):
         if socket.has_ipv6:
             try:
                 result = socket.inet_pton(socket.AF_INET6, addr[0])
-                got_family = socket.AF_INET6
             except socket.error:
                 pass
+            else:
+                got_family = socket.AF_INET6
 
         if got_family is None and len(addr) == 2:
             try:
                 result = socket.inet_pton(socket.AF_INET, addr[0])
-                got_family = socket.AF_INET
             except socket.error:
                 pass
+            else:
+                got_family = socket.AF_INET
 
-        # Do it this way so any errors aren't gobbled up in those try thingies.
+        # Do it this way so any errors aren't gobbled up in those try
+        # thingies.
         if got_family is not None:
             callback(addr, got_family)
             return
 
-        # Do we have to do it natively?
         if native_resolve:
             if len(addr) == 2:
                 fam = socket.AF_INET
@@ -612,14 +607,14 @@ class _Channel(object):
 
             try:
                 info = socket.getaddrinfo(addr[0], addr[1], fam)[0]
-            except socket.gaierror, ex:
-                callback(None, None, (ex.errno, ex.strerror))
+            except socket.gaierror, err:
+                callback(None, None, (err.errno, err.strerror))
                 return
 
             callback(info[4], info[0])
             return
 
-        # Guess we have to resolve it with Pants.
+        # Resolve it with Pants.
         def dns_callback(status, cname, ttl, rdata):
             if status == dns.DNS_NAMEERROR:
                 callback(None, None, NAME_ERROR)
@@ -670,8 +665,7 @@ class _Channel(object):
         self._processing_events = True
 
         previous_events = self._events
-        if self._events != Engine.BASE_EVENTS:
-            self._events = Engine.BASE_EVENTS
+        self._events = Engine.BASE_EVENTS
 
         if events & Engine.READ:
             self._handle_read_event()
