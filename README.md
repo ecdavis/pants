@@ -48,7 +48,7 @@ Server(Hello).listen()
 engine.start()
 ```
 
-Want a stupid fast web server? Got you covered:
+Want a stupidly fast web server? Got you covered:
 
 ```python
 from pants import engine
