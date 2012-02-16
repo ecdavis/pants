@@ -455,7 +455,7 @@ class _Channel(object):
             else:
                 raise
 
-    def _socket_sendfile(self, sfile, offset, nbytes):
+    def _socket_sendfile(self, sfile, offset, nbytes, fallback=False):
         """
         Send data from a file to a remote socket.
 
@@ -467,10 +467,11 @@ class _Channel(object):
         sfile      The file to send.
         offset     The number of bytes to offset writing by.
         nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        fallback   If True, the pure-Python sendfile function will be used. 
         =========  ============
         """
         try:
-            return sendfile(sfile, self, offset, nbytes)
+            return sendfile(sfile, self, offset, nbytes, fallback)
         except Exception, err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()

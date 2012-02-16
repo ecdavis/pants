@@ -44,7 +44,7 @@ SENDFILE_AMOUNT = 2 ** 16
 # Implementations
 ###############################################################################
 
-def sendfile_fallback(sfile, channel, offset, nbytes):
+def sendfile_fallback(sfile, channel, offset, nbytes, fallback):
     """
     Fallback implementation of ``sendfile()``.
 
@@ -60,6 +60,7 @@ def sendfile_fallback(sfile, channel, offset, nbytes):
     channel    The channel to write to.
     offset     The number of bytes to offset writing by.
     nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+    fallback   If True, the pure-Python sendfile function will be used.
     =========  ============
     """
     if nbytes == 0:
@@ -75,7 +76,7 @@ def sendfile_fallback(sfile, channel, offset, nbytes):
 
     return channel._socket_send(data)
 
-def sendfile_linux(sfile, channel, offset, nbytes):
+def sendfile_linux(sfile, channel, offset, nbytes, fallback):
     """
     Linux 2.x implementation of ``sendfile()``.
 
@@ -86,8 +87,12 @@ def sendfile_linux(sfile, channel, offset, nbytes):
     channel    The channel to write to.
     offset     The number of bytes to offset writing by.
     nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+    fallback   If True, the pure-Python sendfile function will be used.
     =========  ============
     """
+    if fallback:
+        return sendfile_fallback(sfile, channel, offset, nbytes, fallback)
+
     # TODO Linux doesn't support an argument of 0 for nbytes. Implement
     #      a better solution.
     if nbytes == 0:
@@ -103,7 +108,7 @@ def sendfile_linux(sfile, channel, offset, nbytes):
 
     return result
 
-def sendfile_darwin(sfile, channel, offset, nbytes):
+def sendfile_darwin(sfile, channel, offset, nbytes, fallback):
     """
     Darwin implementation of ``sendfile()``.
 
@@ -114,8 +119,12 @@ def sendfile_darwin(sfile, channel, offset, nbytes):
     channel    The channel to write to.
     offset     The number of bytes to offset writing by.
     nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+    fallback   If True, the pure-Python sendfile function will be used.
     =========  ============
     """
+    if fallback:
+        return sendfile_fallback(sfile, channel, offset, nbytes, fallback)
+
     _nbytes = ctypes.c_uint64(nbytes)
 
     result = _sendfile(sfile.fileno(), channel.fileno, offset, _nbytes,
@@ -127,7 +136,7 @@ def sendfile_darwin(sfile, channel, offset, nbytes):
 
     return _nbytes.value
 
-def sendfile_bsd(sfile, channel, offset, nbytes):
+def sendfile_bsd(sfile, channel, offset, nbytes, fallback):
     """
     FreeBSD/Dragonfly implementation of ``sendfile()``.
 
@@ -138,8 +147,12 @@ def sendfile_bsd(sfile, channel, offset, nbytes):
     channel    The channel to write to.
     offset     The number of bytes to offset writing by.
     nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+    fallback   If True, the pure-Python sendfile function will be used.
     =========  ============
     """
+    if fallback:
+        return sendfile_fallback(sfile, channel, offset, nbytes, fallback)
+
     _nbytes = ctypes.c_uint64()
 
     result = _sendfile(sfile.fileno(), channel.fileno, offset, nbytes,

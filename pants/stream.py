@@ -562,6 +562,25 @@ class Stream(_Channel):
             else:
                 raise
 
+    def _socket_sendfile(self, sfile, offset, nbytes):
+        """
+        Send data from a file to a remote socket.
+
+        Returns the number of bytes that were sent to the socket.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        sfile      The file to send.
+        offset     The number of bytes to offset writing by.
+        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
+        =========  ============
+        """
+        if self.ssl_enabled:
+            return _Channel._socket_sendfile(self, sfile, offset, nbytes, True)
+        else:
+            return _Channel._socket_sendfile(self, sfile, offset, nbytes, False)
+
     def _ssl_do_handshake(self):
         """
         Perform an asynchronous SSL handshake.
