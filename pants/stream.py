@@ -135,12 +135,10 @@ class Stream(_Channel):
         ===============  ============
         """
         if self.connected or self.connecting:
-            raise RuntimeError("connect() called on active %s #%d."
-                    % (self.__class__.__name__, self.fileno))
+            raise RuntimeError("connect() called on active %r." % self)
 
         if self._closed or self._closing:
-            raise RuntimeError("connect() called on closed %s."
-                    % self.__class__.__name__)
+            raise RuntimeError("connect() called on closed %r." % self)
 
         self.connecting = True
 
@@ -201,7 +199,9 @@ class Stream(_Channel):
 
         self.ssl_enabled = False
         self._ssl_enabling = False
+        self._ssl_socket_wrapped = False
         self._ssl_handshake_done = False
+        self._ssl_call_on_connect = False
 
         self._update_addr()
 
@@ -576,10 +576,7 @@ class Stream(_Channel):
         nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
         =========  ============
         """
-        if self.ssl_enabled:
-            return _Channel._socket_sendfile(self, sfile, offset, nbytes, True)
-        else:
-            return _Channel._socket_sendfile(self, sfile, offset, nbytes, False)
+        return _Channel._socket_sendfile(self, sfile, offset, nbytes, self._ssl_enabled)
 
     def _ssl_do_handshake(self):
         """
@@ -682,12 +679,10 @@ class StreamServer(_Channel):
         ===============  ============
         """
         if self.listening:
-            raise RuntimeError("listen() called on active %s #%d."
-                    % (self.__class__.__name__, self.fileno))
+            raise RuntimeError("listen() called on active %r." % self)
 
         if self._closed:
-            raise RuntimeError("listen() called on closed %s."
-                    % self.__class__.__name__)
+            raise RuntimeError("listen() called on closed %r." % self)
 
         # Resolve our address.
         self._resolve_addr(addr, native_resolve, functools.partial(self._do_listen, backlog, slave))
