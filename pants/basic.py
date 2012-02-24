@@ -42,22 +42,6 @@ class Client(Stream):
         # their way up to the Stream/_Channel constructors.
         Stream.__init__(self, ssl_options=ssl_options, family=family)
 
-    ##### Control Methods #####################################################
-
-    def connect(self, addr):
-        """
-        Connect the channel to a remote socket.
-
-        Returns the channel.
-
-        ==========  ============
-        Arguments   Description
-        ==========  ============
-        addr        The remote address to connect to. Should be a valid address for the chosen socket family.
-        ==========  ============
-        """
-        return Stream.connect(self, addr)
-
 
 ###############################################################################
 # Connection Class
