@@ -536,7 +536,10 @@ class _Timer(object):
         self.end = end
 
     def __call__(self):
-        Engine.instance()._remove_timer(self)
+        self.cancel()
 
     def __cmp__(self, to):
         return cmp(self.end, to.end)
+
+    def cancel(self):
+        Engine.instance()._remove_timer(self)
