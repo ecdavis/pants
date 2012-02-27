@@ -218,7 +218,6 @@ class Datagram(_Channel):
                 data, addr = self._socket_recvfrom()
             except socket.error:
                 log.exception("Exception raised by recvfrom() on %r." % self)
-                # TODO Close this Datagram here?
                 self.close()
                 return
 
