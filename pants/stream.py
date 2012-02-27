@@ -57,7 +57,7 @@ class Stream(_Channel):
     """
     DATA_STRING = 0
     DATA_FILE = 1
-    DATA_SSL_ENABLE = 2
+    WORK_SSL_ENABLE = 2
 
     def __init__(self, **kwargs):
         sock = kwargs.get("socket", None)
@@ -117,7 +117,7 @@ class Stream(_Channel):
             raise RuntimeError("startSSL() called on closed %r" % self)
 
         self._ssl_enabling = True
-        self._send_buffer.append((Stream.DATA_SSL_ENABLE, ssl_options))
+        self._send_buffer.append((Stream.WORK_SSL_ENABLE, ssl_options))
         if self.connected:
             self._process_send_buffer()
 
@@ -449,8 +449,8 @@ class Stream(_Channel):
                 bytes_sent = self._process_send_data_string(data)
             elif data_type == Stream.DATA_FILE:
                 bytes_sent = self._process_send_data_file(*data)
-            elif data_type == Stream.DATA_SSL_ENABLE:
-                bytes_sent = self._process_send_data_ssl_enable(data)
+            elif data_type == Stream.WORK_SSL_ENABLE:
+                bytes_sent = self._process_do_work_ssl_enable(data)
 
             if bytes_sent == 0:
                 break
@@ -499,7 +499,7 @@ class Stream(_Channel):
 
         return bytes_sent
 
-    def _process_send_data_ssl_enable(self, ssl_options):
+    def _process_do_work_ssl_enable(self, ssl_options):
         self._ssl_enabling = False
 
         if not self._ssl_socket_wrapped:
