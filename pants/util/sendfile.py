@@ -63,6 +63,7 @@ def sendfile_fallback(sfile, channel, offset, nbytes, fallback):
     fallback   If True, the pure-Python sendfile function will be used.
     =========  ============
     """
+    # TODO Implement a better solution for the "send all bytes" argument.
     if nbytes == 0:
         to_read = SENDFILE_AMOUNT
     else:
