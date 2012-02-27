@@ -36,7 +36,7 @@ from pants.stream import Stream, StreamServer
 # Exports
 ###############################################################################
 
-__authors__ = ["Christopher Davis", "Stendec"]
+__authors__ = ["ecdavis", "Stendec"]
 __version__ = "0.10.1"
 
 __all__ = [
