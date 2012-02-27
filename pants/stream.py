@@ -96,7 +96,7 @@ class Stream(_Channel):
 
     ##### Control Methods #####################################################
 
-    def startSSL(self, flush=True, ssl_options={}):
+    def startSSL(self, ssl_options={}, flush=True):
         """
         Enable SSL on the channel and perform a handshake.
 
@@ -328,7 +328,6 @@ class Stream(_Channel):
                 data = self._socket_recv()
             except socket.error:
                 log.exception("Exception raised by recv() on %r." % self)
-                # TODO Close this Stream here?
                 self.close()
                 return
 
@@ -784,9 +783,7 @@ class StreamServer(_Channel):
                 try:
                     sock.close()
                 except socket.error:
-                    # TODO What do we do here?
                     pass
-                # TODO Close this Stream here?
                 return
 
             if sock is None:
@@ -796,7 +793,6 @@ class StreamServer(_Channel):
                 try:
                     sock.setblocking(False)
                     sock = ssl.wrap_socket(sock, **self._ssl_options)
-                    sock.setblocking(False)
                 except ssl.SSLError:
                     log.exception("Exception raised while SSL-wrapping socket on %r." % self)
 
