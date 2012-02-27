@@ -299,6 +299,22 @@ class Stream(_Channel):
         """
         pass
 
+    def on_ssl_error(self, exception):
+        """
+        Placeholder. Called when an error occurs in the underlying SSL
+        implementation.
+
+        By default, logs the exception and closes the channel.
+
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
+
     ##### Internal Methods ####################################################
 
     def _update_addr(self):
@@ -487,8 +503,14 @@ class Stream(_Channel):
         self._ssl_enabling = False
 
         if not self._ssl_socket_wrapped:
-            self._socket = ssl.wrap_socket(self._socket, do_handshake_on_connect=False, **ssl_options)
-            self._ssl_socket_wrapped = True
+            try:
+                self._socket = ssl.wrap_socket(self._socket, do_handshake_on_connect=False, **ssl_options)
+            except ssl.SSLError, e:
+                self._ssl_enabling = True
+                self._safely_call(self.on_ssl_error)
+                return 0
+            else:
+                self._ssl_socket_wrapped = True
 
         self.ssl_enabled = True
 
@@ -795,6 +817,11 @@ class StreamServer(_Channel):
                     sock = ssl.wrap_socket(sock, **self._ssl_options)
                 except ssl.SSLError:
                     log.exception("Exception raised while SSL-wrapping socket on %r." % self)
+                    try:
+                        sock.close()
+                    except socket.error:
+                        pass
+                    continue
 
             self._safely_call(self.on_accept, sock, addr)
 
