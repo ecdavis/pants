@@ -141,11 +141,10 @@ class HTTPConnection(Connection):
             # Parse the headers.
             headers = read_headers(data) if data else {}
 
+            # If we're secure, we're HTTPs.
             protocol = 'http'
-
-            # SSL has not yet been implemented.
-            # if self.is_secure():
-            #     protocol = 'https'
+            if self.ssl_enabled:
+                 protocol = 'https'
 
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
