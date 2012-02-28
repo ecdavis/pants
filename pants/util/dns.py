@@ -24,7 +24,6 @@ Implementation of the DNS protocol for use in Pants.
 ###############################################################################
 
 import collections
-import functools
 import itertools
 import os
 import random
@@ -917,7 +916,7 @@ class Resolver(object):
         ============  ========  ============
         """
         if not isinstance(qtype, (list,tuple)):
-            qtype = (qtype)
+            qtype = (qtype, )
         
         if allow_hosts:
             if host_time + 30 < time.time():

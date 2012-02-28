@@ -597,7 +597,7 @@ class Stream(_Channel):
         nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
         =========  ============
         """
-        return _Channel._socket_sendfile(self, sfile, offset, nbytes, self._ssl_enabled)
+        return _Channel._socket_sendfile(self, sfile, offset, nbytes, self.ssl_enabled)
 
     def _ssl_do_handshake(self):
         """
