@@ -13,16 +13,48 @@ SSL_OPTIONS = {
     'keyfile': 'cert.pem'
     }
 
+class GoogleClient(pants.Client):
+    def on_ssl_handshake(self):
+        self.on_ssl_handshake_called = True
+
+    def on_connect(self):
+        self.on_connect_called = True
+        self.read_delimiter = '\r\n\r\n'
+        self.write("HEAD / HTTP/1.1\r\n\r\n")
+
+    def on_read(self, data):
+        self.on_read_called = True
+        self.close()
+
+    def on_close(self):
+        self.on_close_called = True
+        pants.engine.stop()
+
+class TestSSLClient(PantsTestCase):
+    def setUp(self):
+        self.client = GoogleClient(ssl_options={}).connect(('google.com', 443))
+        PantsTestCase.setUp(self)
+
+    def test_ssl_client(self):
+        self._engine_thread.join(5.0) # Give it plenty of time to talk to Google.
+        self.assertTrue(self.client.on_ssl_handshake_called)
+        self.assertTrue(self.client.on_connect_called)
+        self.assertTrue(self.client.on_read_called)
+        self.assertTrue(self.client.on_close_called)
+
+    def tearDown(self):
+        self.client.close()
+
 class Echo(pants.Connection):
     def on_read(self, data):
         self.write(data)
 
-class TestSSLEcho(PantsTestCase):
+class TestSSLServer(PantsTestCase):
     def setUp(self):
         self.server = pants.Server(Echo, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
-    def test_ssl_echo(self):
+    def test_ssl_server(self):
         sock = socket.socket()
         sock.settimeout(1.0)
         ssl_sock = ssl.wrap_socket(sock)
