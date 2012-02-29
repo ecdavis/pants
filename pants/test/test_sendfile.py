@@ -9,7 +9,10 @@ from pants.test._pants_util import *
 class FileSender(pants.Connection):
     def on_connect(self):
         with open(os.path.dirname(__file__) + "/data.txt", 'r') as test_file:
-            self.write_file(test_file)
+            # The file is flushed here to get around an awkward issue
+            # that was only happening with the unit test. sendfile() was
+            # blocking for some strange reason.
+            self.write_file(test_file, flush=True)
 
 class TestSendfile(PantsTestCase):
     def setUp(self):
