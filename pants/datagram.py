@@ -90,12 +90,10 @@ class Datagram(_Channel):
         ==========  ============
         """
         if self.listening:
-            raise RuntimeError("listen() called on listening %s #%d."
-                    % (self.__class__.__name__, self.fileno))
+            raise RuntimeError("listen() called on listening %r." % self)
 
         if self._closed or self._closing:
-            raise RuntimeError("listen() called on closed %s."
-                    % self.__class__.__name__)
+            raise RuntimeError("listen() called on closed %r." % self)
 
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -228,8 +226,7 @@ class Datagram(_Channel):
 
             if len(self._recv_buffer[addr]) > self._recv_buffer_size_limit:
                 e = DatagramBufferOverflow(
-                        "Buffer length exceeded upper limit on %s #%d." %
-                        (self.__class__.__name__, self.fileno),
+                        "Buffer length exceeded upper limit on %r." % self,
                         addr
                     )
                 self._safely_call(self.on_overflow_error, e)

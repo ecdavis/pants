@@ -426,8 +426,8 @@ class WebSocketConnection(object):
             self._recv_buffer = self._recv_buffer[1:]
 
             if self._frame & 0x80 == 0x80:
-                log.error("Unsupported frame type for old-style WebSockets %02X on %s #%d." %
-                    (self._frame, self.__class__.__name__, self.fileno))
+                log.error("Unsupported frame type for old-style WebSockets %02X on %r." %
+                    (self._frame, self))
                 self.close()
                 return
 
