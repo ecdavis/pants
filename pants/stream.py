@@ -292,12 +292,28 @@ class Stream(_Channel):
 
     ##### Public Event Handlers ###############################################
 
-    def on_ssl_handshake_complete(self):
+    def on_ssl_handshake(self):
         """
         Placeholder. Called after the channel has finished its SSL
         handshake.
         """
         pass
+
+    def on_ssl_handshake_error(self, exception):
+        """
+        Placeholder. Called when an error occurs during the SSL
+        handshake.
+
+        By default, logs the exception and closes the channel.
+
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
 
     def on_ssl_error(self, exception):
         """
@@ -514,7 +530,10 @@ class Stream(_Channel):
 
         self.ssl_enabled = True
 
-        bytes_sent = self._ssl_do_handshake()
+        try:
+            bytes_sent = self._ssl_do_handshake()
+        except Exception, err:
+            self._safely_call(self.on_ssl_handshake_error, err)
 
         return bytes_sent
 
@@ -635,7 +654,7 @@ class Stream(_Channel):
                 raise
         else:
             self._ssl_handshake_done = True
-            self._safely_call(self.on_ssl_handshake_complete)
+            self._safely_call(self.on_ssl_handshake)
             if self._ssl_call_on_connect:
                 self._safely_call(self.on_connect)
             return None
