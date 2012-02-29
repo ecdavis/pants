@@ -224,8 +224,8 @@ class _Channel(object):
 
     def on_overflow_error(self, exception):
         """
-        Placeholder. Called when an internal buffer on the channel
-        exceeds its size limit.
+        Placeholder. Called when an internal buffer on the channel has
+        exceeded its size limit.
 
         By default, logs the exception and closes the channel.
 
@@ -241,7 +241,8 @@ class _Channel(object):
     def on_error(self, exception):
         """
         Placeholder. Generic error handler for exceptions raised on the
-        channel. Called when no specific handler exists.
+        channel. Called when an error occurs and no specific
+        error-handling callback exists.
 
         By default, logs the exception and closes the channel.
 

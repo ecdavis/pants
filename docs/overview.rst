@@ -86,30 +86,30 @@ Example: Echo
 
 ::
 
-    from pants.network import Connection, Server
-    from pants import engine
+    from pants import Connection, engine, Server
 
     class Echo(Connection):
         def on_read(self, data):
             self.write(data)
 
-    Server(Echo).listen(4000)
+    Server(Echo).listen(4040)
     engine.start()
 
 The above code is an example of a very simple Pants application. A
-:obj:`~pants.network.Connection` subclass is defined with a single
-callback. A :obj:`~pants.network.Server` is then created and told to
-use the :class:`Echo` class for new connections. The server is told to
-listen on port 4000 and the :obj:`~pants.engine.Engine` is started.
+:class:`~pants.basic.Connection` subclass called :class:`Echo` is defined with
+a single callback (:func:`on_read`). A :class:`~pants.basic.Server` is then
+created and told to use the :class:`Echo` class for new connections. The
+server is told to start listening for connections on port 4040 and the
+:obj:`~pants.engine.Engine` is started.
 
-When a new connection is made to the server on port 4000, an instance of
+When a new connection is made to the server on port 4040, an instance of
 the :class:`Echo` class will be created to wrap that connection. When
 data arrives on the connection it will be read automatically and passed
-to the :meth:`~pants.network.Connection.on_read` method, which will then pass
-it to the :meth:`~pants.network.Connection.write` method, causing the data to
-be sent back to the end user.
+to the :meth:`~pants.basic.Connection.on_read` method, which will then pass it
+to the :meth:`~pants.basic.Connection.write` method, causing the data to be
+sent back to the end user.
 
 You can try this out yourself - run this script in a terminal window and,
-in another window, use the ``telnet localhost 4000`` command to connect to
+in another window, use the ``telnet localhost 4040`` command to connect to
 the server. Anything you type into the window will be sent back to your
 client and echoed in your terminal.

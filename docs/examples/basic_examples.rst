@@ -14,10 +14,10 @@ The ultra-simple Hello World server using Pants::
             self.write("Hello, World!")
             self.end()
 
-    Server(HelloWorld).listen(4000)
+    Server(HelloWorld).listen(4040)
     engine.start()
 
-The server listens for connections on port 4000. When a connection is
+The server listens for connections on port 4040. When a connection is
 established, it writes "Hello, World!" to the socket and then closes the
 connection.
 
@@ -48,7 +48,7 @@ A simple server that understands a basic, variable-length message protocol::
             self.read_delimiter = 2
             self.on_read = self.on_read_header
 
-    Server(MessageOriented).listen(4000)
+    Server(MessageOriented).listen(4040)
     engine.start()
 
 This example reads messages preceded by an unsigned short containing the

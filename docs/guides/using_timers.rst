@@ -72,7 +72,8 @@ the :meth:`Engine.callback() <pants.engine.Engine.callback>` method::
     cancel_callback = engine.callback(my_function, foo, bar=baz)
 
 In the above example, :func:`my_function` will be executed the next time
-:meth:`Engine.poll <pants.engine.Engine.poll>` is called.
+:meth:`Engine.poll <pants.engine.Engine.poll>` is called. That is, on the
+next iteration of the main loop.
 
 
 Loops
@@ -86,7 +87,8 @@ method::
     cancel_loop = engine.loop(my_function, foo, bar=baz)
 
 In the above example, :func:`my_function` will be executed every time
-:meth:`Engine.poll <pants.engine.Engine.poll>` is called.
+:meth:`Engine.poll <pants.engine.Engine.poll>` is called. That is, on every
+subsequent iteration of the main loop.
 
 
 Deferreds

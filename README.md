@@ -8,17 +8,11 @@ Pants is available under the [Apache License, Version 2.0]
 
 Install
 =======
-Pants can be obtained in several ways. You can use [pip]
-(http://http://pypi.python.org/pypi/pip):
+Pants can be installed using [pip](http://http://pypi.python.org/pypi/pip):
 
     pip install pants
 
-Or [setuptools](http://pypi.python.org/pypi/setuptools), if that's how you
-roll:
-
-    easy_install pants
-
-Or for the bleeding edge version, you can clone the [git](http://git-scm.com/)
+You can also grab the latest code from the [git](http://git-scm.com/)
 repository:
 
     git clone git://github.com/ecdavis/pants

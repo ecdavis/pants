@@ -15,14 +15,14 @@ Channels are created by simply instantiating one of Pants' channel classes::
 
     channel = Client()
 
-The above code, for instance, will create a new :class:`~pants.network.Client`
+The above code, for instance, will create a new :class:`~pants.basic.Client`
 channel.
 
 Channel classes have a number of methods - specified in their APIs - that
 allow you to do things like connect to remote servers or start listening for
 incoming packets::
 
-    channel.connect('example.com', 80)
+    channel.connect(('example.com', 80))
 
 Once you've finished working with a channel, you should make sure it is closed
 properly, to ensure that it is cleaned up and removed from the engine::
@@ -39,24 +39,33 @@ instance, when data is read or a new client connects to the socket.
 
 When you want to define custom behaviour for a channel, you should subclass
 one of the existing channel classes and define one or more callback methods on
-it. There are seven callback methods used in Pants:
+it. There are six core callback methods used in Pants:
 
 * :meth:`on_read` - Called when data is read from the channel.
 * :meth:`on_write` - Called after the channel has finished writing data.
 * :meth:`on_connect` - Called after the channel has connected to a remote socket.
-* :meth:`on_connect_error` - Called when the channel has failed to connect to a remote socket.
-* :meth:`on_listen` - Called when the channel begins listening for new connections or packets. 
+* :meth:`on_listen` - Called when the channel begins listening for new connections or packets.
 * :meth:`on_accept` - Called after the channel has accepted a new connection.
 * :meth:`on_close` - Called after the channel has finished closing.
 
-Most channel classes do not use all seven callbacks - server channels do not
-read or write data, for instance, and packet-oriented channels do not create
-or accept connections. The callbacks used by a particular channel class are
-documented in their respective APIs.
+There are also several error-handling callbacks. These callbacks are invoked
+when errors occur on the channel, allowing you to handle those errors in the
+manner most suited to your use case. The basic error callbacks are:
+
+* :meth:`on_connect_error` - Called when the channel has failed to connect to a remote socket.
+* :meth:`on_overflow_error` - Called when an internal buffer on the channel has exceeded its size limit.
+* :meth:`on_error` - Called when an error occurs and no specific error-handling callback exists.
+
+Some channel classes will define custom callback methods used in more specific
+situations (SSL-enabled channels, for instance). Most channel classes do not
+use all available callbacks - server channels do not read or write data, for
+instance, and packet-oriented channels do not open or accept connections. The
+callbacks used by a particular channel class are documented in their
+respective APIs.
 
 After you've defined a callback method on your channel subclass, it will be
 invoked whenever the relevant event occurs on your channel. For instance, here
-is a :class:`~pants.network.Connection` that prints any data it receives::
+is a :class:`~pants.basic.Connection` that prints any data it receives::
 
     class Printer(Connection):
         def on_read(self, data):
@@ -94,7 +103,7 @@ significantly simpler. Here is a line-oriented protocol::
     class LineOriented(Connection):
         def on_connect(self):
             self.read_delimiter = '\r\n'
-        
+
         def on_read(self, line):
             print line
 
@@ -108,11 +117,9 @@ Pants provides a number of channel classes that range in their level of
 abstraction from low to high. The lower-level channel classes are
 :class:`~pants.stream.Stream`, :class:`~pants.stream.StreamServer` and
 :class:`~pants.datagram.Datagram`. The higher-level channel classes are
-:class:`~pants.network.Client`, :class:`~pants.network.Connection`,
-:class:`~pants.network.Server`, :class:`~pants.unix.UnixClient`,
-:class:`~pants.unix.UnixConnection` and :class:`~pants.unix.UnixServer`. The
-different channel classes all have different use-cases, and you should select
-the one most suitable for your application.
+:class:`~pants.basic.Client`, :class:`~pants.basic.Connection`, and
+:class:`~pants.basic.Server`. The different channel classes all have different
+use-cases, and you should select the one most suitable for your application.
 
 
 Types & Families
@@ -124,14 +131,14 @@ channel classes implement functionality for different socket types, while the
 higher-level channel classes subclass the lower-level ones and implement
 family-specific functionality.
 
-Pants supports the two main families of socket - network 
-(:const:`~socket.AF_INET`) and Unix (:const:`~socket.AF_UNIX`). Network
-channels - as the name implies - are used for communication over a network
-such as the Internet. Unix channels, on the other hand, are used for
-inter-process communication between Unix processes. Unix channels are only
-supported on certain platforms.
+Pants supports the two main families of socket - network
+(:const:`~socket.AF_INET` and :const:`~socket.AF_INET6`) and Unix
+(:const:`~socket.AF_UNIX`). Network channels - as the name implies - are used
+for communication over a network such as the Internet. Unix channels, on the
+other hand, are used for inter-process communication between Unix processes.
+Unix channels are only supported on certain platforms.
 
-When it comes to types, Pants supports stream-oriented 
+When it comes to types, Pants supports stream-oriented
 (:const:`~socket.SOCK_STREAM`) and packet-oriented
 (:const:`~socket.SOCK_DGRAM`)
 channels. These are explained in further detail below.
@@ -147,27 +154,33 @@ servers. At the lower level, the :class:`~pants.stream.Stream` and
 channels. There are higher-level classes to represent clients, servers and
 connections of the network and Unix families.
 
+Packet-Oriented
+---------------
+
+Packet-oriented channels are connectionless. Channels represented by
+:class:`~pants.datagram.Datagram` are used to send and receive packets to and
+from remote packet-oriented sockets. Typically, only one packet-oriented
+channel is required for each protocol you intend to implement.
 
 Clients
 ^^^^^^^
 
 Client channels represent connections from the application to a remote host.
-The :class:`~pants.network.Client` and :class:`~pants.unix.UnixClient` classes
-represent network and Unix socket clients, respectively. You will need to
-subclass one of the core client classes in order to implement your client's
+The :class:`~pants.basic.Client` class represents a client. You will need to
+subclass :class:`~pants.basic.Client` in order to implement your client's
 functionality.
 
 Servers
 ^^^^^^^
 
 Server channels represent local sockets listening for new connections. The
-:class:`~pants.network.Server` and :class:`~pants.unix.UnixServer` classes
-represent network and Unix socket servers, respectively. When a remote client
+:class:`~pants.basic.Server` class represents a server. When a remote client
 connects to a server channel, a new instance of a specified
 :ref:`connection <connections>` class will be automatically created to
-represent that remote connection. It is often not necessary to subclass the
-core server classes - it is possible to specify a connection class for the
-server to use simply by passing it as an argument to the server's constructor.
+represent that remote connection. It is often not necessary to subclass
+:class:`~pants.basic.Server` - it is possible to specify a connection class
+for the server to use simply by passing it as an argument to the server's
+constructor.
 
 .. _connections:
 
@@ -175,12 +188,11 @@ Connections
 ^^^^^^^^^^^
 
 Connection channels represent connections from a remote host to a server
-running in the application. The :class:`~pants.network.Connection` and
-:class:`~pants.unix.UnixConnection` classes represent network and Unix socket
-connections, respectively. Connection channels can be used in much the same as
-client channels can, with the simple exception that you do not need to tell
-them to connect to a remote host - they are already connected when they are
-created.
+running in the application. The :class:`~pants.basic.Connection` class
+represents a socket connection. Connection channels can be used in much the
+same as client channels can, with the simple exception that you do not need to
+tell them to connect to a remote host - they are already connected when they
+are created.
 
 Using a Stream
 ^^^^^^^^^^^^^^
@@ -212,14 +224,6 @@ Finally, streaming servers can - of course - be closed::
 
     stream_server.close()
 
-
-Packet-Oriented
----------------
-
-Packet-oriented channels are connectionless. Channels represented by
-:class:`~pants.datagram.Datagram` are used to send and receive packets to and
-from remote packet-oriented sockets. Typically, only one packet-oriented
-channel is required for each protocol you intend to implement.
 
 Using a Packet Channel
 ^^^^^^^^^^^^^^^^^^^^^^
