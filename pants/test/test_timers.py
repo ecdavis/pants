@@ -6,6 +6,8 @@ import pants
 class TestTimers(unittest.TestCase):
     def setUp(self):
         self.times_called = []
+        pants.engine._callbacks = []
+        pants.engine._deferreds = []
 
     def timer(self):
         self.times_called.append(time.time())
