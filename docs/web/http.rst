@@ -1,7 +1,7 @@
-``pants.contrib.http``
-**********************
+``pants.http``
+**************
 
-.. automodule:: pants.contrib.http
+.. automodule:: pants.http
 
 Server
 ======

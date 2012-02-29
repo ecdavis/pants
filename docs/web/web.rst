@@ -1,7 +1,7 @@
-``pants.contrib.web``
-*********************
+``pants.web``
+*************
 
-.. automodule:: pants.contrib.web
+.. automodule:: pants.web
 
 
 Applications

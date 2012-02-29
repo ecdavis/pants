@@ -1,7 +1,7 @@
-``pants.contrib.http.client``
-*****************************
+``pants.http.client``
+*********************
 
-.. automodule:: pants.contrib.http.client
+.. automodule:: pants.http.client
 
 
 HTTPClient

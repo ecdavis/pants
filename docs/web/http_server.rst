@@ -1,7 +1,7 @@
-``pants.contrib.http.server``
-*****************************
+``pants.http.server``
+*********************
 
-.. automodule:: pants.contrib.http.server
+.. automodule:: pants.http.server
 
 
 HTTPServer

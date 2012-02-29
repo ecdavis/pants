@@ -31,12 +31,6 @@ High-Level Networking
 
 .. autoclass:: Server
 
-.. autoclass:: UnixClient
-
-.. autoclass:: UnixConnection
-
-.. autoclass:: UnixServer
-
 
 Low-Level Networking
 ====================

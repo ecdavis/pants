@@ -6,7 +6,6 @@ Core
     
     pants
     engine
-    network
-    unix
+    basic
     stream
     datagram
