@@ -325,6 +325,9 @@ class Engine(object):
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
+        if delay <= 0:
+            raise ValueError("Delay must be greater than 0 seconds.")
+
         deferred = functools.partial(function, *args, **kwargs)
         timer = _Timer(deferred, False, delay, self.time + delay)
         bisect.insort(self._deferreds, timer)
@@ -350,6 +353,9 @@ class Engine(object):
         kwargs     The keyword arguments to be passed to the callable.
         =========  ============
         """
+        if interval <= 0:
+            raise ValueError("Interval must be greater than 0 seconds.")
+
         cycle = functools.partial(function, *args, **kwargs)
         timer = _Timer(cycle, True, interval, self.time + interval)
         bisect.insort(self._deferreds, timer)
