@@ -621,7 +621,14 @@ class Stream(_Channel):
                 self.close()
                 return 0
             elif err[0] == ssl.SSL_ERROR_SSL:
-                log.warning("SSL error on %r" %  self)
+                log.debug("SSL error during handshake on %r" % self,
+                    exc_info=err)
+                self.close()
+                return 0
+            else:
+                raise
+        except socket.error, err:
+            if err[0] in (errno.ECONNRESET, errno.EPIPE):
                 self.close()
                 return 0
             else:
