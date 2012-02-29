@@ -322,12 +322,8 @@ class FileServer(object):
         else:
             length = 0
 
-        def on_write():
-            del request.connection.handle_write_file
-            request.finish()
-
-        request.connection.handle_write_file = on_write
         request.connection.write_file(f, nbytes=length, offset=range[0])
+        request.connection._finished = True
 
     def list_directory(self, request, path):
         """
