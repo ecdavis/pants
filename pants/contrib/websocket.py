@@ -31,17 +31,24 @@ import struct
 
 CLOSE_REASONS = {
     1000: 'Normal Closure',
-    1001: 'Server Going Away',
+    1001: 'Endpoint Going Away',
     1002: 'Protocol Error',
     1003: 'Unacceptable Data Type',
-    1004: 'Frame Too Large',
     1005: 'No Status Code',
     1006: 'Abnormal Close',
-    1007: 'Invalid UTF-8 Data'
+    1007: 'Invalid UTF-8 Data',
+    1008: 'Message Violates Policy',
+    1009: 'Message Too Big',
+    1010: 'Extensions Not Present',
+    1011: 'Unexpected Condition Prevented Fulfillment',
+    1015: 'TLS Handshake Error'
 }
 
 # Handshake Key
 WEBSOCKET_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+# Supported WebSocket Versions
+WEBSOCKET_VERSIONS = (13, 8, 0)
 
 # Frame Opcodes
 FRAME_CONTINUATION = 0
@@ -82,6 +89,7 @@ class WebSocketConnection(object):
     =========  ============
     """
     protocols = None
+    read_delimiter = EntireMessage
 
     def __init__(self, request):
         # Store the request and play nicely with web.
@@ -91,7 +99,6 @@ class WebSocketConnection(object):
         # Base State
         self.fileno = self._connection.fileno
 
-        self.read_delimiter = EntireMessage
         self._recv_buffer = ""
         self._read_buffer = u""
 
@@ -101,7 +108,7 @@ class WebSocketConnection(object):
         self._update_addr()
 
         # First up, make sure we're dealing with an actual WebSocket request.
-        # If we aren't, return a simple 403 forbidden page.
+        # If we aren't, return a simple 426 Upgrade Required page.
         fail = False
         headers = {}
 
@@ -130,6 +137,10 @@ class WebSocketConnection(object):
 
                 self.version = int(request.headers['Sec-WebSocket-Version'])
 
+                if self.version not in WEBSOCKET_VERSIONS:
+                    headers['Sec-WebSocket-Version'] = False
+                    fail = True
+
         else:
             # Old WebSockets. Wut?
             self.version = 0
@@ -143,13 +154,23 @@ class WebSocketConnection(object):
             return
 
         if fail:
-            request.send_status(403)
-            headers.update({
-                'Content-Type': 'text/plain',
-                'Content-Length': '13'
+            if 'Sec-WebSocket-Version' in headers:
+                request.send_status(400)
+                request.send_headers({
+                    'Content-Type': 'text/plain',
+                    'Content-Length': 15,
+                    'Sec-WebSocket-Version': ', '.join(str(x) for x in
+                                                        WEBSOCKET_VERSIONS)
                 })
-            request.send_headers(headers)
-            request.send("403 Forbidden")
+                request.send('400 Bad Request')
+            else:
+                request.send_status(426)
+                headers = {
+                    'Content-Type': 'text/plain',
+                    'Content-Length': '20'
+                    }
+                request.send_headers(headers)
+                request.send("426 Upgrade Required")
             request.finish()
             return
 
@@ -228,7 +249,7 @@ class WebSocketConnection(object):
         self._connection.close()
         self._connection = None
 
-    def end(self, reason=1000):
+    def end(self, reason=1000, message=None):
         """
         Close the WebSocket connection nicely, waiting for any remaining data
         to be sent and sending a close frame before ending.
@@ -237,6 +258,7 @@ class WebSocketConnection(object):
         Argument   Default    Description
         =========  =========  ============
         reason     ``1000``   *Optional.* The reason the socket is closing, from the ``CLOSE_REASONS`` dictionary.
+        message    ``None``   *Optional.* A message string to send with the reason code, rather than the default.
         =========  =========  ============
         """
         if self._connection is None:
@@ -246,8 +268,9 @@ class WebSocketConnection(object):
             self._connection.end()
         else:
             # Look up the reason.
-            rdesc = CLOSE_REASONS.get(reason, 'Unknown Close')
-            reason = struct.pack("!H", reason) + rdesc
+            if not message:
+                message = CLOSE_REASONS.get(reason, 'Unknown Close')
+            reason = struct.pack("!H", reason) + message
 
             self.write(reason, frame=FRAME_CLOSE)
             self._connection.end()
@@ -478,7 +501,14 @@ class WebSocketConnection(object):
 
         # Control Frame Nonsense!
         if opcode == FRAME_CLOSE:
-            self.end()
+            if data:
+                reason, = struct.unpack("!H", data[:2])
+                message = data[2:]
+            else:
+                reason = 1000
+                message = None
+
+            self.end(reason, message)
             return
 
         elif opcode == FRAME_PING:
