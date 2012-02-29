@@ -417,6 +417,8 @@ class _Channel(object):
         data       The string of data to send.
         =========  ============
         """
+        # TODO Find out if socket.send() can return 0 rather than raise
+        # an exception if it needs a write event.
         try:
             return self._socket.send(data)
         except Exception, err:
@@ -467,7 +469,7 @@ class _Channel(object):
         sfile      The file to send.
         offset     The number of bytes to offset writing by.
         nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
-        fallback   If True, the pure-Python sendfile function will be used. 
+        fallback   If True, the pure-Python sendfile function will be used.
         =========  ============
         """
         try:

@@ -566,7 +566,7 @@ class Stream(_Channel):
             return _Channel._socket_send(self, data)
 
         try:
-            return self._socket.send(data)
+            bytes_sent = self._socket.send(data)
         except ssl.SSLError, err:
             if err[0] == ssl.SSL_ERROR_WANT_WRITE:
                 self._start_waiting_for_write_event()
@@ -582,6 +582,12 @@ class Stream(_Channel):
                 return 0
             else:
                 raise
+
+        # SSLSocket.send() can return 0 rather than raise an exception
+        # if it needs a write event.
+        if bytes_sent == 0:
+            self._start_waiting_for_write_event()
+        return bytes_sent
 
     def _socket_sendfile(self, sfile, offset, nbytes):
         """
