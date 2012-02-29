@@ -11,3 +11,4 @@
 # System cruft
 Thumbs.db
 .DS_Store
+/.idea/
