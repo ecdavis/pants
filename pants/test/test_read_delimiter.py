@@ -12,17 +12,9 @@ class LineOriented(pants.Connection):
     def on_read(self, data):
         self.write(data * 2)
 
-class ChunkOriented(pants.Connection):
-    def on_connect(self):
-        self.read_delimiter = 4
-
-    def on_read(self, data):
-        self.write(data * 2)
-
-class TestReadDelimiter(PantsTestCase):
+class TestReadDelimiterString(PantsTestCase):
     def setUp(self):
-        self.line_server = pants.Server(LineOriented).listen(('127.0.0.1', 4040))
-        self.chunk_server = pants.Server(ChunkOriented).listen(('127.0.0.1', 5050))
+        self.server = pants.Server(LineOriented).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_read_delimiter_string(self):
@@ -35,10 +27,26 @@ class TestReadDelimiter(PantsTestCase):
         self.assertEquals(response, "line1line1line2line2")
         sock.close()
 
+    def tearDown(self):
+        PantsTestCase.tearDown(self)
+        self.server.close()
+
+class ChunkOriented(pants.Connection):
+    def on_connect(self):
+        self.read_delimiter = 4
+
+    def on_read(self, data):
+        self.write(data * 2)
+
+class TestReadDelimiterChunk(PantsTestCase):
+    def setUp(self):
+        self.server = pants.Server(ChunkOriented).listen(('127.0.0.1', 4040))
+        PantsTestCase.setUp(self)
+
     def test_read_delimiter_number(self):
         sock = socket.socket()
         sock.settimeout(1.0)
-        sock.connect(('127.0.0.1', 5050))
+        sock.connect(('127.0.0.1', 4040))
         request = ('1' * 4) + ('2' * 4)
         sock.send(request)
         response = sock.recv(1024)
@@ -47,5 +55,4 @@ class TestReadDelimiter(PantsTestCase):
 
     def tearDown(self):
         PantsTestCase.tearDown(self)
-        self.line_server.close()
-        self.chunk_server.close()
+        self.server.close()
