@@ -20,20 +20,23 @@
 # Imports
 ###############################################################################
 
+import base64
 import hashlib
 import hmac
 import logging
 import mimetypes
 import os
 
+from datetime import datetime
+
 if os.name == 'nt':
     from time import clock as time
 else:
     from time import time
 
-from pants import callback, Connection, Server, __version__ as pants_version
+from pants import callback, Client, Connection, Server
+from pants import __version__ as pants_version
 from pants.engine import Engine
-from pants.stream import Stream
 
 ###############################################################################
 # Logging
@@ -111,6 +114,44 @@ class BadRequest(Exception):
         self.code = code
 
 ###############################################################################
+# Case-Insensitive Dict
+###############################################################################
+
+class CaseInsensitiveDict(dict):
+    """
+    A case-insensitive dictionary for storing HTTP headers.
+    """
+
+    _caseless_keys = None
+
+    @property
+    def caseless_keys(self):
+        if not self._caseless_keys:
+            self._caseless_keys = dict((x.lower(), x) for x in self.keys())
+        return self._caseless_keys
+
+    def __setitem__(self, key, value):
+        key = self.caseless_keys.get(key.lower(), key)
+        dict.__setitem__(self, key, value)
+        self._caseless_keys = None
+
+    def __delitem__(self, key):
+        key = self.caseless_keys.get(key.lower(), key)
+        dict.__delitem__(self, key)
+        self._caseless_keys = None
+
+    def __contains__(self, key):
+        return key.lower() in self.caseless_keys
+
+    def get(self, key, default=None):
+        key = key.lower()
+        if key in self.caseless_keys:
+            return dict.__getitem__(self, self._caseless_keys[key])
+        return default
+
+    __getitem__ = get
+
+###############################################################################
 # Support Functions
 ###############################################################################
 
@@ -126,7 +167,8 @@ def content_type(filename):
 def encode_multipart(vars, files=None, boundary=None):
     """
     Encode a set of variables and/or files into a ``multipart/form-data``
-    request body.
+    request body, and returns a list of strings and files that can be sent to
+    the server, along with the used boundary.
 
     =========  ============
     Argument   Description
@@ -143,24 +185,21 @@ def encode_multipart(vars, files=None, boundary=None):
     out = []
 
     for k, v in vars.iteritems():
-        out.append('--%s' % boundary)
-        out.append(CRLF.join([
-            'Content-Disposition: form-data; name="%s"' % k,
-            '', str(v)]))
+        out.append('--%s%sContent-Disposition: form-data; name="%s"%s%s%s' % (boundary, CRLF, k, DOUBLE_CRLF, v, CRLF))
     if files:
-        for k, (fn, v) in files.iteritems():
-            out.append('--%s' % boundary)
-            out.append(CRLF.join([
-                'Content-Disposition: form-data; name="%s"; filename="%s"' % (
-                    k, fn),
-                'Content-Type: %s' % content_type(fn),
-                '',
-                str(v)]))
+        for k, v in files.iteritems():
+            if isinstance(v, (list,tuple)):
+                fn, v = v
+            else:
+                fn = k
 
-    out.append('--%s--' % boundary)
-    out.append('')
+            out.append('--%s%sContent-Disposition: form-data; name="%s"; filename="%s"%sContent-Type: %s%sContent-Transfer-Encoding: binary%s' % (boundary, CRLF, k, fn, CRLF, content_type(fn), CRLF, DOUBLE_CRLF))
+            out.append(v)
+            out.append(CRLF)
 
-    return boundary, CRLF.join(out)
+    out.append('--%s--%s' % (boundary, CRLF))
+
+    return boundary, out
 
 def parse_multipart(request, boundary, data):
     """
@@ -233,7 +272,7 @@ def read_headers(data, target=None):
     =========  ============
     """
     if target is None:
-        target = {}
+        target = CaseInsensitiveDict()
 
     data = data.rstrip(CRLF)
     key = None

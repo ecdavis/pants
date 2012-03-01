@@ -20,12 +20,9 @@
 # Imports
 ###############################################################################
 
-import base64
 import Cookie
 import pprint
 import urlparse
-
-from datetime import datetime
 
 from pants.http.utils import *
 
