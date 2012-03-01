@@ -26,6 +26,7 @@ A convenient collection of high-level streaming channels.
 import socket
 import weakref
 
+from pants.engine import Engine
 from pants.stream import Stream, StreamServer
 
 
@@ -37,10 +38,10 @@ class Client(Stream):
     """
     A simple streaming client.
     """
-    def __init__(self, ssl_options=None, family=socket.AF_INET):
+    def __init__(self, ssl_options=None, family=socket.AF_INET, engine=Engine.instance()):
         # This dummy method prevents keyword arguments from finding
         # their way up to the Stream/_Channel constructors.
-        Stream.__init__(self, ssl_options=ssl_options, family=family)
+        Stream.__init__(self, ssl_options=ssl_options, family=family, engine=engine)
 
 
 ###############################################################################
@@ -58,8 +59,8 @@ class Connection(Stream):
     server     The server to which this channel is connected.
     =========  ============
     """
-    def __init__(self, socket, server):
-        Stream.__init__(self, socket=socket)
+    def __init__(self, socket, server, engine):
+        Stream.__init__(self, socket=socket, engine=engine)
 
         self.server = server
 
@@ -81,8 +82,8 @@ class Server(StreamServer):
     #: A :obj:`pants.simple.Connection` subclass with which to wrap newly connected sockets.
     ConnectionClass = Connection
 
-    def __init__(self, ConnectionClass=None, ssl_options=None, family=socket.AF_INET):
-        StreamServer.__init__(self, ssl_options=ssl_options, family=family)
+    def __init__(self, ConnectionClass=None, ssl_options=None, family=socket.AF_INET, engine=Engine.instance()):
+        StreamServer.__init__(self, ssl_options=ssl_options, family=family, engine=engine)
 
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
@@ -123,7 +124,7 @@ class Server(StreamServer):
         addr       The new socket's address.
         =========  ============
         """
-        connection = self.ConnectionClass(socket, self)
+        connection = self.ConnectionClass(socket, self, self.engine)
         self.channels[connection.fileno] = connection
         connection._handle_connect_event()
 
