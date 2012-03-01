@@ -17,10 +17,6 @@ HTTPClient
 
 .. autoclass:: HTTPClient
 
-    .. attribute:: StreamClass
-
-        The :class:`HTTPStream` subclass to use for communications.
-
     .. automethod:: on_response
     .. automethod:: on_progress
     .. automethod:: on_ssl_error
