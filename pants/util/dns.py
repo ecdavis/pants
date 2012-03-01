@@ -871,7 +871,7 @@ class Resolver(object):
                 if not id in self._messages:
                     return
 
-                self._error(id, err=DNS_BADRESPONSE)
+                self._error(id, err=DNS_FORMATERROR)
                 return
 
         if not data.id in self._messages:

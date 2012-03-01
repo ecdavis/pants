@@ -1168,11 +1168,11 @@ class HTTPResponse(object):
                                         location)
             parts = urlparse.urlparse(location)
             if not parts.scheme in ("http", "https"):
-                raise MalformedRequest
+                raise MalformedResponse
 
             # Do special stuff for certain codes.
             if status == 301 and not method in ('GET', 'HEAD'):
-                raise MalformedRequest
+                raise MalformedResponse
             elif status in (302, 303):
                 method = 'GET'
                 body = None
@@ -1194,7 +1194,7 @@ class HTTPResponse(object):
             client._requests.insert(0, request)
             client._process()
             return
-        except MalformedRequest:
+        except MalformedResponse:
             return self
 
     handle_302 = handle_303 = handle_307 = handle_301
