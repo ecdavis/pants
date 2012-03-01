@@ -54,6 +54,9 @@ class RequestTimedOut(Exception):
 class MalformedResponse(Exception):
     pass
 
+class RequestClosed(Exception):
+    pass
+
 ###############################################################################
 # Content Encoding
 ###############################################################################
@@ -92,6 +95,31 @@ def _load_cookies(cookies, session):
         _load_cookies(cookies, session.parent)
 
 ###############################################################################
+# Getting Hostname and Port on Python <2.7
+###############################################################################
+
+def _hostname(parts):
+    # This code is borrowed from Python 2.7's argparse.
+    netloc = parts.netloc.split('@')[-1]
+    if '[' in netloc and ']' in netloc:
+        return netloc.split(']')[0][1:].lower()
+    elif ':' in netloc:
+        return netloc.split(':')[0].lower()
+    elif not netloc:
+        return None
+    else:
+        return netloc.lower()
+
+def _port(parts):
+    # This code is borrowed from Python 2.7's argparse.
+    netloc = parts.netloc.split('@')[-1].split(']')[-1]
+    if ':' in netloc:
+        port = netloc.split(':')[1]
+        return int(port, 10)
+    else:
+        return None
+
+###############################################################################
 # HTTPStream Class
 ###############################################################################
 
@@ -113,6 +141,9 @@ class HTTPStream(Client):
         # Increase the buffer size, hopefully preventing a buffer overflow
         # from taking place.
         self._recv_buffer_size_limit = 10 * (2 ** 20)
+
+        # This should be true when connected to certain proxies.
+        self.need_full_url = False
 
     def can_fetch(self, host, is_secure):
         """
@@ -170,8 +201,6 @@ class HTTPClient(object):
     See :class:`Session` for more details.
     """
 
-    StreamClass = HTTPStream
-
     def __init__(self, *args, **kwargs):
         """ Initialize the HTTPClient and start the first session. """
 
@@ -181,6 +210,9 @@ class HTTPClient(object):
         self._requests = []
         self._sessions = []
         self._ssl_options = None
+        self._reading_forever = False
+        self._want_close = False
+        self._no_process = False
 
         # Create the first Session
         ses = Session(self, *args, **kwargs)
@@ -298,6 +330,8 @@ class HTTPClient(object):
             # Stop processing and close any connection since we've not got any
             # requests left.
             if self._stream:
+                self._want_close = True
+                self._no_process = True
                 self._stream.close()
                 self._stream = None
             self._processing = False
@@ -316,18 +350,21 @@ class HTTPClient(object):
             request = request.auth(request)
 
         # Now, determine what we should be connected to.
-        port = request.url.port
+        port = _port(request.url)
         is_secure = request.url.scheme == 'https'
         if not port:
             port = 443 if is_secure else 80
-        host = '%s:%d' % (request.url.hostname, port)
+        host = '%s:%d' % (_hostname(request.url), port)
 
         # If we have a stream, and it's not connected to that host, kill it
         # to make a new one.
         if self._stream:
-            if self._ssl_options != request.session.ssl_options or \
+            if not self._stream.connected:
+                self._stream = None
+            elif self._ssl_options != request.session.ssl_options or \
                     not self._stream.can_fetch(host, is_secure):
                 log.debug("Closing unusable stream for %r." % self)
+                self._want_close = True
                 self._stream.end()
                 return
 
@@ -337,7 +374,7 @@ class HTTPClient(object):
 
         # Create a stream.
         if not self._stream:
-            self._stream = self.StreamClass(self)
+            self._stream = HTTPStream(self)
 
         # If we're secure, and the stream isn't, secure it.
         if is_secure and not self._stream.ssl_enabled:
@@ -345,7 +382,7 @@ class HTTPClient(object):
             self._stream.startSSL(self._ssl_options or {})
 
         # Connect the stream to await further orders.
-        self._stream.connect((request.url.hostname, port))
+        self._stream.connect((_hostname(request.url), port))
 
     def _timed_out(self, request):
         """ Called when a request times out. """
@@ -359,6 +396,8 @@ class HTTPClient(object):
 
         # Now, close the connection, and keep processing.
         if self._stream:
+            self._want_close = True
+            self._no_process = True
             self._stream.close()
             self._stream = None
         self._process()
@@ -389,7 +428,7 @@ class HTTPClient(object):
             # We care!
             cert = self._stream._socket.getpeercert()
             try:
-                match_hostname(cert, request.url.hostname)
+                match_hostname(cert, _hostname(request.url))
             except CertificateError, err:
                 if not self._safely_call(request.session.on_ssl_error,
                         request.response, cert, err):
@@ -397,8 +436,13 @@ class HTTPClient(object):
                     return
 
         # Write the request.
-        self._stream.write("%s %s HTTP/1.1%s" % (request.method, request.path,
-                                                 CRLF))
+        if self._stream.need_full_url:
+            path = "%s://%s%s" % (request.url.scheme, request.url.netloc,
+                                  request.path)
+        else:
+            path = request.path
+
+        self._stream.write("%s %s HTTP/1.1%s" % (request.method, path, CRLF))
 
         # Headers
         for key, val in request.headers.iteritems():
@@ -435,6 +479,13 @@ class HTTPClient(object):
         # Do the error method.
         self._safely_call(request.session.on_error, request.response, err)
 
+        # Kill the stream.
+        if self._stream:
+            self._want_close = True
+            self._no_process = True
+            self._stream.close()
+            self._stream = None
+
         # Keep processing, if needed.
         self._process()
 
@@ -443,18 +494,51 @@ class HTTPClient(object):
         If we weren't expecting the stream to close, it's an error, otherwise,
         just process our requests.
         """
-        self._stream = None
 
-        # TODO: Check if we were expecting a close.
+        # Are we reading forever?
+        if self._reading_forever:
+            self._reading_forever = False
+            # Right, clean up then.
+            if self._requests:
+                # Get the request.
+                request = self._requests[0]
+                response = request.response
+
+                # Clean out the decoder.
+                if response._decoder:
+                    response._receive(response._decoder.flush())
+                    response._receive(response._decoder.unused_data)
+                    response._decoder = None
+
+                # Now, go to _on_response.
+                self._on_response()
+                return
+        
+        elif not self._want_close:
+            # If it's not an expected close, check for an active request and
+            # error it.
+            self._want_close = False
+            if self._requests:
+                request = self._requests.pop(0)
+                response = request.response
+                self._do_error(RequestClosed("The server closed the "
+                                             "connection."))
+                return
 
         # Keep processing, if needed.
-        self._process()
+        self._stream = None
+        if self._no_process:
+            self._no_process = False
+        else:
+            self._process()
 
     def _do_error(self, err):
         """
         There was some kind of exception. Close the stream, report it, and then
         keep processing.
         """
+        self._want_close = True
+        self._no_process = True
         self._stream.close()
         self._stream = None
         if not self._requests:
@@ -552,6 +636,17 @@ class HTTPClient(object):
             self._stream.on_read = self._read_chunk_head
             self._stream.read_delimiter = CRLF
 
+        # Is this not a persistent connection? If so, read the whole body.
+        elif not response._keep_alive:
+            response.total = 0
+            response.remaining = 0
+            self._reading_forever = True
+            self._stream.on_read = self._read_forever
+
+            # We have to have a read_delimiter of None, otherwise our data
+            # gets deleted when the connection is closed.
+            self._stream.read_delimiter = None
+
         # There must not be a body, so go ahead and be done.
         else:
             # We've got a reponse.
@@ -576,6 +671,13 @@ class HTTPClient(object):
         request = self._requests.pop(0)
         response = request.response
 
+        # Do we have Connection: close?
+        if not response._keep_alive:
+            self._want_close = True
+            self._no_process = True
+            self._stream.close()
+            self._stream = None
+
         # Clear the existing timer.
         if request._timeout_timer:
             request._timeout_timer()
@@ -592,6 +694,30 @@ class HTTPClient(object):
         self._process()
 
     ##### Length-Based Reponses ###############################################
+
+    def _read_forever(self, data):
+        """
+        Read until the connection closes.
+        """
+        if not self._requests:
+            return
+        request = self._requests[0]
+        response = request.response
+        self._reset_timer()
+
+        # Make note of how many bytes we've received.
+        response.total += len(data)
+
+        # Decode the received data.
+        if response._decoder:
+            data = response._decoder.decompress(data)
+
+        # Now, store that.
+        response._receive(data)
+
+        # Do a progress.
+        self._safely_call(request.session.on_progress, response,
+                          response.total, 0)
 
     def _read_body(self, data):
         """
@@ -765,7 +891,8 @@ class Session(object):
         self.client = client
 
         # Get the parent session.
-        self.parent = parent = client._sessions[-1] if client._sessions else None
+        parent = client._sessions[-1] if client._sessions else None
+        self.parent = parent
 
         # Setup our default settings.
         if on_response is None:
@@ -773,7 +900,10 @@ class Session(object):
         if on_progress is None:
             on_progress = parent.on_progress if parent else client.on_progress
         if on_ssl_error is None:
-            on_ssl_error = parent.on_ssl_error if parent else client.on_ssl_error
+            if parent:
+                on_ssl_error = parent.on_ssl_error
+            else:
+                on_ssl_error = client.on_ssl_error
         if on_error is None:
             on_error = parent.on_error if parent else client.on_error
         if timeout is None:
@@ -811,12 +941,14 @@ class Session(object):
                     except ImportError:
                         pass
                 if not loc:
-                    raise RuntimeError("Cannot find certificates for SSL verification.")
+                    raise RuntimeError("Cannot find certificates for SSL "
+                                       "verification.")
                 ssl_options = {'ca_certs': loc, 'cert_reqs': ssl.CERT_REQUIRED}
 
             # Make sure we've got backports.ssl_match_hostname
             if not match_hostname:
-                raise RuntimeError("Cannot verify SSL certificates without the package backports.ssl_match_hostname.")
+                raise RuntimeError("Cannot verify SSL certificates without "
+                                   "the package backports.ssl_match_hostname.")
 
         # Ensure the cookies are a cookiejar.
         if cookies is None:
@@ -901,9 +1033,10 @@ class Session(object):
             headers['Date'] = date(datetime.utcnow())
 
         if not 'Host' in headers:
-            headers['Host'] = parts.hostname
-            if parts.port:
-                headers['Host'] += ':%d' % parts.port
+            headers['Host'] = _hostname(parts)
+            port = _port(parts)
+            if port:
+                headers['Host'] += ':%d' % port
 
         if not 'User-Agent' in headers:
             headers['User-Agent'] = USER_AGENT
@@ -933,7 +1066,8 @@ class Session(object):
                     boundary = None
 
                 boundary, body = encode_multipart(data or {}, files, boundary)
-                headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
+                headers['Content-Type'] = 'multipart/form-data; boundary=%s' \
+                                            % boundary
                 length = 0
                 for item in body:
                     if isinstance(item, basestring):
@@ -1082,6 +1216,13 @@ class HTTPResponse(object):
             id(self)
             )
 
+    @property
+    def _keep_alive(self):
+        conn = self.headers.get('Connection', '').lower()
+        if self.http_version == 'HTTP/1.0':
+            return conn == 'keep-alive'
+        return conn != 'close'
+
     ##### Body Management #####################################################
 
     @property
@@ -1093,10 +1234,10 @@ class HTTPResponse(object):
         """
         if not self._charset:
             # Time to play guess the encoding! We don't try that hard.
-            _, _, charset = self.headers.get('Content-Type').partition('charset=')
-            if not charset:
-                charset = 'utf-8'
-            self._charset = charset
+            cset = self.headers.get('Content-Type').partition('charset=')[-1]
+            if not cset:
+                cset = 'utf-8'
+            self._charset = cset
         return self._charset
 
     @charset.setter
@@ -1128,6 +1269,8 @@ class HTTPResponse(object):
         This is the raw data received from the server. Take care before using
         this property, as there may be a *lot* of data.
         """
+        if not self._body_file:
+            return None
         f = self._body_file._file
         if hasattr(f, 'getvalue'):
             return f.getvalue()
@@ -1177,9 +1320,10 @@ class HTTPResponse(object):
                 method = 'GET'
                 body = None
 
-            host = parts.hostname
-            if parts.port:
-                host += ':%d' % parts.port
+            host = _hostname(parts)
+            port = _port(parts)
+            if port:
+                host += ':%d' % port
 
             # Update the request.
             request.url = parts
