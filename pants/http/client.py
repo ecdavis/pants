@@ -365,6 +365,7 @@ class HTTPClient(object):
                     not self._stream.can_fetch(host, is_secure):
                 log.debug("Closing unusable stream for %r." % self)
                 self._want_close = True
+                self._no_process = False
                 self._stream.end()
                 return
 
@@ -511,6 +512,8 @@ class HTTPClient(object):
                     response._decoder = None
 
                 # Now, go to _on_response.
+                self._want_close = False
+                self._no_process = False
                 self._on_response()
                 return
         
@@ -521,6 +524,7 @@ class HTTPClient(object):
             if self._requests:
                 request = self._requests.pop(0)
                 response = request.response
+                self._no_process = False
                 self._do_error(RequestClosed("The server closed the "
                                              "connection."))
                 return
