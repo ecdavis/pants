@@ -385,11 +385,15 @@ class Application(object):
             request.route_name = name
 
             if request.method not in methods:
-                return error(
-                    'The method %s is not allowed for %r.' % (
-                        request.method, path), 405, {
-                            'Allow': ', '.join(methods)
-                        }), None
+                if request.method == 'OPTIONS':
+                    methods = tuple(methods) + ('OPTIONS',)
+                    return ('', 200, {'Allow': ', '.join(methods)}), None
+                else:
+                    return error(
+                        'The method %s is not allowed for %r.' % (
+                            request.method, path), 405, {
+                                'Allow': ', '.join(methods)
+                            }), None
             else:
                 try:
                     return func(request), getattr(func, 'content_type', None)
