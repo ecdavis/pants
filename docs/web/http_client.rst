@@ -8,8 +8,9 @@ Exceptions
 ==========
 
 .. autoclass:: CertificateError
-.. autoclass:: RequestTimedOut
 .. autoclass:: MalformedResponse
+.. autoclass:: RequestClosed
+.. autoclass:: RequestTimedOut
 
 
 HTTPClient
@@ -18,6 +19,7 @@ HTTPClient
 .. autoclass:: HTTPClient
 
     .. automethod:: on_response
+    .. automethod:: on_headers
     .. automethod:: on_progress
     .. automethod:: on_ssl_error
     .. automethod:: on_error
@@ -25,9 +27,14 @@ HTTPClient
     .. automethod:: session
 
     .. automethod:: request
+    .. automethod:: delete
     .. automethod:: get
-    .. automethod:: post
     .. automethod:: head
+    .. automethod:: options
+    .. automethod:: patch
+    .. automethod:: post
+    .. automethod:: put
+    .. automethod:: trace
 
 
 HTTPRequest
@@ -90,6 +97,7 @@ HTTPRequest
         :class:`AuthBase` responsible for authorizing this request with the
         server.
 
+
 HTTPResponse
 ============
 
@@ -132,6 +140,7 @@ HTTPResponse
 
     .. automethod:: handle_301
     .. automethod:: handle_401
+
 
 HTTPStream
 ==========

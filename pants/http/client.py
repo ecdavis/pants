@@ -232,6 +232,25 @@ class HTTPClient(object):
         """
         pass
 
+    def on_headers(self, response):
+        """
+        Placeholder. Called when we've received headers for a request. You can
+        abort a request at this time by returning False from this function. It
+        *must* be False, and not simply a false-like value, such as an empty
+        string.
+
+        .. note::
+
+            This function isn't called for HTTP ``HEAD`` requests.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        response   A :class:`HTTPResponse` instance with information about the received response.
+        =========  ============
+        """
+        pass
+
     def on_progress(self, response, received, total):
         """
         Placeholder. Called when progress is made in downloading a response.
@@ -290,17 +309,37 @@ class HTTPClient(object):
         """
         return self._sessions[-1].request(*args, **kwargs)
 
+    def delete(self, url, **kwargs):
+        """ Begin a DELETE request. See :func:`request` for more details. """
+        return self.request("DELETE", url, **kwargs)
+
     def get(self, url, params=None, **kwargs):
         """ Begin a GET request. See :func:`request` for more details. """
         return self.request("GET", url, params=params, **kwargs)
+
+    def head(self, url, params=None, **kwargs):
+        """ Begin a HEAD request. See :func:`request` for more details. """
+        return self.request("HEAD", url, params=params, **kwargs)
+
+    def options(self, url, **kwargs):
+        """ Begin an OPTIONS request. See :func:`request` for more details. """
+        return self.request("OPTIONS", url, **kwargs)
+
+    def patch(self, url, data=None, **kwargs):
+        """ Begin a PATCH request. See :func:`request` for more details. """
+        return self.request("PATCH", url, data=data, **kwargs)
 
     def post(self, url, data=None, files=None, **kwargs):
         """ Begin a POST request. See :func:`request` for more details. """
         return self.request("POST", url, data=data, files=files, **kwargs)
 
-    def head(self, url, params=None, **kwargs):
-        """ Begin a HEAD request. See :func:`request` for more details. """
-        return self.request("HEAD", url, params=params, **kwargs)
+    def put(self, url, data=None, **kwargs):
+        """ Begin a PUT request. See :func:`request` for more details. """
+        return self.request("PUT", url, data=data, **kwargs)
+
+    def trace(self, url, **kwargs):
+        """ Begin a TRACE request. See :func:`request` for more details. """
+        return self.request("TRACE", url, **kwargs)
 
     ##### Internals ###########################################################
 
@@ -615,8 +654,18 @@ class HTTPClient(object):
             self._on_response()
             return
 
+        # Do the on_headers callback.
+        do_abort = self._safely_call(request.session.on_headers, response)
+        if do_abort is False:
+            # Abort the connection now.
+            self._requests.pop(0)
+            self._want_close = True
+            self._no_process = False
+            self._stream.close()
+            return
+
         # Is there a Content-Length header?
-        elif 'Content-Length' in headers:
+        if 'Content-Length' in headers:
             response.total = int(headers['Content-Length'])
             response.remaining = response.total
 
@@ -873,6 +922,7 @@ class Session(object):
     ===============  ==========  ============
     client                       The :class:`HTTPClient` instance this Session is associated with.
     on_response                  *Optional.* A callable that will handle any received responses, rather than the HTTPClient's own :func:`on_response` method.
+    on_headers                   *Optional.* A callable for when response headers have been received.
     on_progress                  *Optional.* A callable for progress notifications.
     on_ssl_error                 *Optional.* A callable responsible for handling SSL verification errors, if ``verify_ssl`` is True.
     on_error                     *Optional.* A callable that will handle any errors that occur.
@@ -886,9 +936,9 @@ class Session(object):
     ===============  ==========  ============
     """
 
-    def __init__(self, client, on_response=None, on_progress=None,
-                 on_ssl_error=None, on_error=None, timeout=None,
-                 max_redirects=None, keep_alive=None, auth=None,
+    def __init__(self, client, on_response=None, on_headers=None,
+                 on_progress=None, on_ssl_error=None, on_error=None,
+                 timeout=None, max_redirects=None, keep_alive=None, auth=None,
                  headers=None, cookies=None, verify_ssl=None,
                  ssl_options=None):
         """ Initialize the Session. """
@@ -901,6 +951,8 @@ class Session(object):
         # Setup our default settings.
         if on_response is None:
             on_response = parent.on_response if parent else client.on_response
+        if on_headers is None:
+            on_headers = parent.on_headers if parent else client.on_headers
         if on_progress is None:
             on_progress = parent.on_progress if parent else client.on_progress
         if on_ssl_error is None:
@@ -962,6 +1014,7 @@ class Session(object):
 
         # Store our settings now.
         self.on_response = on_response
+        self.on_headers = on_headers
         self.on_progress = on_progress
         self.on_ssl_error = on_ssl_error
         self.on_error = on_error
