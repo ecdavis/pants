@@ -5,10 +5,10 @@ Qt
 Using ``pants.contrib.qt``
 ==========================
 
-::
-    
+.. code-block:: python
+
     # First, create a simple web application with Pants.
-    from pants.contrib.web import Application, HTTPServer
+    from pants.web import Application, HTTPServer
 
     webapp = Application()
     @webapp.route("/")

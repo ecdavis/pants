@@ -8,7 +8,7 @@ Hello, World!
 An HTTP server running a WSGI application that will display a very simple
 Hello World to any connecting clients::
 
-    from pants.contrib.http import HTTPServer
+    from pants.http import HTTPServer
     from pants.contrib.wsgi import WSGIConnector
     from pants import engine
 

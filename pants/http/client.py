@@ -198,7 +198,42 @@ class HTTPClient(object):
     """
     An easy to use, asynchronous HTTP client implementing HTTP 1.1. All
     arguments passed to HTTPClient are used to initialize the default session.
-    See :class:`Session` for more details.
+    See :class:`Session` for more details. The following is a basic example of
+    using an HTTPClient to fetch a remote resource::
+
+        from pants.http import HTTPClient
+        from pants.engine import engine
+
+        def response_handler(response):
+            engine.stop()
+            print response.content
+
+        client = HTTPClient(response_handler)
+        client.get("http://httpbin.org/ip")
+        engine.start()
+
+    Groups of requests can have their behavior customized with the use of
+    sessions::
+
+        from pants.http import HTTPClient
+        from pants.engine import engine
+
+        def response_handler(response):
+            engine.stop()
+            print response.content
+
+        def other_handler(response):
+            print response.content
+
+        client = HTTPClient(response_handler)
+        client.get("http://httpbin.org/cookies")
+
+        with client.session(cookies={'pie':'yummy'}):
+            client.get("http://httpbin.org/cookies")
+
+        engine.start()
+
+    See :doc:`/guides/using_the_http_client` for more.
     """
 
     def __init__(self, *args, **kwargs):
@@ -555,7 +590,7 @@ class HTTPClient(object):
                 self._no_process = False
                 self._on_response()
                 return
-        
+
         elif not self._want_close:
             # If it's not an expected close, check for an active request and
             # error it.
@@ -1310,6 +1345,7 @@ class HTTPResponse(object):
         raw = self.raw
         if not raw:
             return raw
+
         return raw.decode(self.charset)
 
     @property

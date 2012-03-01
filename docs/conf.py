@@ -94,7 +94,10 @@ pygments_style = 'sphinx'
 #modindex_common_prefix = []
 
 # Links to other projects using Sphinx so that we can reference them.
-intersphinx_mapping = {'python': ('http://docs.python.org/', None)}
+intersphinx_mapping = {
+    'python': ('http://docs.python.org/', None),
+    'http://www.pyside.org/docs/pyside/': None,
+    }
 
 
 # -- Options for HTML output ---------------------------------------------------

@@ -155,6 +155,11 @@ class CaseInsensitiveDict(dict):
 # Support Functions
 ###############################################################################
 
+def get_filename(file):
+    name = getattr(file, 'name', None)
+    if name and not (name.endswith('>') and name.startswith('<')):
+        return name
+
 def generate_signature(key, *parts):
     hash = hmac.new(key, digestmod=hashlib.sha1)
     for p in parts:
@@ -191,7 +196,9 @@ def encode_multipart(vars, files=None, boundary=None):
             if isinstance(v, (list,tuple)):
                 fn, v = v
             else:
-                fn = k
+                fn = get_filename(v)
+                if not fn:
+                    fn = k
 
             out.append('--%s%sContent-Disposition: form-data; name="%s"; filename="%s"%sContent-Type: %s%sContent-Transfer-Encoding: binary%s' % (boundary, CRLF, k, fn, CRLF, content_type(fn), CRLF, DOUBLE_CRLF))
             out.append(v)

@@ -1,14 +1,15 @@
 Web
 ***
 
+
 Hello, World!
 =============
 
 An HTTP server running a web application that will display a very simple
 Hello World to any connecting clients::
 
-    from pants.contrib.http import HTTPServer
-    from pants.contrib.web import Application
+    from pants.http import HTTPServer
+    from pants.web import Application
     from pants import engine
 
     app = Application()
@@ -21,9 +22,9 @@ Hello World to any connecting clients::
     engine.start()
 
 It's often more convenient to just use the
-:meth:`~pants.contrib.web.Application.run` method::
+:meth:`~pants.web.Application.run` method::
 
-    from pants.contrib.web import *
+    from pants.web import *
 
     app = Application()
 
@@ -40,7 +41,7 @@ Go Away, World!
 HTTP errors are easy with Application. For example, an HTTP ``404 Not Found``
 response::
 
-    from pants.contrib.web import *
+    from pants.web import *
 
     app = Application()
 
@@ -57,7 +58,7 @@ Hello, `JSON <http://en.wikipedia.org/wiki/JSON>`_!
 The Application framework makes it easy to send JSON documents to clients by
 simply returning a dictionary as the response body::
 
-    from pants.contrib.web import *
+    from pants.web import *
 
     app = Application()
 
@@ -71,13 +72,13 @@ simply returning a dictionary as the response body::
 Static Files
 ============
 
-The :class:`~pants.contrib.web.FileServer` class provides an easy way to serve
-static files to clients, with support for headers that allow for intelligent
+The :class:`~pants.web.FileServer` class provides an easy way to serve static
+files to clients, with support for headers that allow for intelligent
 caching and support for the ``sendfile`` system call where available.
 
 .. code-block:: python
 
-    from pants.contrib.web import *
+    from pants.web import *
 
     app = Application()
 
@@ -86,4 +87,4 @@ caching and support for the ``sendfile`` system call where available.
     app.run()
 
 FileServer instances can also be used as request handlers directly with 
-:class:`~pants.contrib.http.HTTPServer`.
+:class:`~pants.http.HTTPServer`.
