@@ -144,13 +144,6 @@ HTTPResponse
     .. automethod:: handle_401
 
 
-HTTPStream
-==========
-
-.. autoclass:: HTTPStream
-    :members: can_fetch
-
-
 Session
 =======
 
@@ -161,3 +154,12 @@ Session
         The :class:`HTTPClient` this Session is associated with.
 
     .. automethod:: request
+
+    .. automethod:: delete
+    .. automethod:: get
+    .. automethod:: head
+    .. automethod:: options
+    .. automethod:: patch
+    .. automethod:: post
+    .. automethod:: put
+    .. automethod:: trace

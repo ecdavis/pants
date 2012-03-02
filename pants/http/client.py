@@ -133,12 +133,12 @@ def _port(parts):
         return None
 
 ###############################################################################
-# HTTPStream Class
+# _HTTPStream Class
 ###############################################################################
 
-class HTTPStream(Client):
+class _HTTPStream(Client):
     """
-    The HTTPStream is a basic Pants client with an extra function for
+    The _HTTPStream is a basic Pants client with an extra function for
     determining if it can connect to a given host without being destroyed and
     recreated. This is useful when dealing with proxies.
 
@@ -462,7 +462,7 @@ class HTTPClient(object):
 
         # Create a stream.
         if not self._stream:
-            self._stream = HTTPStream(self)
+            self._stream = _HTTPStream(self)
 
         # If we're secure, and the stream isn't, secure it.
         if is_secure and not self._stream.ssl_enabled:
@@ -1221,6 +1221,41 @@ class Session(object):
         self.client._requests.append(request)
         if not self.client._processing:
             self.client._process()
+
+        # Not sure what you'll do with this, but there you have it.
+        return request
+
+    def delete(self, url, **kwargs):
+        """ Begin a DELETE request. See :func:`request` for more details. """
+        return self.request("DELETE", url, **kwargs)
+
+    def get(self, url, params=None, **kwargs):
+        """ Begin a GET request. See :func:`request` for more details. """
+        return self.request("GET", url, params=params, **kwargs)
+
+    def head(self, url, params=None, **kwargs):
+        """ Begin a HEAD request. See :func:`request` for more details. """
+        return self.request("HEAD", url, params=params, **kwargs)
+
+    def options(self, url, **kwargs):
+        """ Begin an OPTIONS request. See :func:`request` for more details. """
+        return self.request("OPTIONS", url, **kwargs)
+
+    def patch(self, url, data=None, **kwargs):
+        """ Begin a PATCH request. See :func:`request` for more details. """
+        return self.request("PATCH", url, data=data, **kwargs)
+
+    def post(self, url, data=None, files=None, **kwargs):
+        """ Begin a POST request. See :func:`request` for more details. """
+        return self.request("POST", url, data=data, files=files, **kwargs)
+
+    def put(self, url, data=None, **kwargs):
+        """ Begin a PUT request. See :func:`request` for more details. """
+        return self.request("PUT", url, data=data, **kwargs)
+
+    def trace(self, url, **kwargs):
+        """ Begin a TRACE request. See :func:`request` for more details. """
+        return self.request("TRACE", url, **kwargs)
 
     ##### Context #############################################################
 
