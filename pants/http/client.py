@@ -703,8 +703,9 @@ class HTTPClient(object):
             return
 
         # Do the on_headers callback.
-        do_abort = self._safely_call(request.session.on_headers, response)
-        if do_abort is False:
+        continue_request = self._safely_call(request.session.on_headers,
+                                             response)
+        if continue_request is False:
             # Abort the connection now.
             self._requests.pop(0)
             self._want_close = True
