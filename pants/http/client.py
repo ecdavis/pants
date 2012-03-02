@@ -48,13 +48,26 @@ MAX_MEMORY_SIZE = 2 ** 20
 # Exceptions
 ###############################################################################
 
-class RequestTimedOut(Exception):
+class HttpException(Exception):
+    """
+    The base exception for all the exceptions used by the HTTP client, aside
+    from :class:`CertificateError`.
+    """
     pass
 
-class MalformedResponse(Exception):
+class RequestTimedOut(HttpException):
+    """ The exception returned when a connection times out. """
     pass
 
-class RequestClosed(Exception):
+class MalformedResponse(HttpException):
+    """ The exception returned when the response is malformed in some way. """
+    pass
+
+class RequestClosed(HttpException):
+    """
+    The exception returned when the connection closes before the entire
+    request has been downloaded.
+    """
     pass
 
 ###############################################################################

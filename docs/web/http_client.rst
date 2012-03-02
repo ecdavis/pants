@@ -8,6 +8,8 @@ Exceptions
 ==========
 
 .. autoclass:: CertificateError
+
+.. autoclass:: HttpException
 .. autoclass:: MalformedResponse
 .. autoclass:: RequestClosed
 .. autoclass:: RequestTimedOut
