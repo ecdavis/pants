@@ -13,14 +13,14 @@ class TestTimers(unittest.TestCase):
         self.times_called.append(time.time())
 
     def test_callback(self):
-        pants.callback(self.timer)
+        pants.engine.callback(self.timer)
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
         self.assertEquals(len(self.times_called), 1)
 
     def test_callback_cancel(self):
-        cancel_callback = pants.callback(self.timer)
+        cancel_callback = pants.engine.callback(self.timer)
         cancel_callback()
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
@@ -28,14 +28,14 @@ class TestTimers(unittest.TestCase):
         self.assertEquals(len(self.times_called), 0)
 
     def test_loop(self):
-        pants.loop(self.timer)
+        pants.engine.loop(self.timer)
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
         self.assertEquals(len(self.times_called), 3)
 
     def test_loop_cancel(self):
-        cancel_loop = pants.loop(self.timer)
+        cancel_loop = pants.engine.loop(self.timer)
         pants.engine.poll(0.01)
         pants.engine.poll(0.01)
         self.assertEquals(len(self.times_called), 2)
@@ -45,7 +45,7 @@ class TestTimers(unittest.TestCase):
 
     def test_defer(self):
         expected_time = time.time() + 0.01
-        pants.defer(0.01, self.timer)
+        pants.engine.defer(0.01, self.timer)
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
@@ -53,7 +53,7 @@ class TestTimers(unittest.TestCase):
         self.assertLess(abs(expected_time - self.times_called[0]), 0.01)
 
     def test_defer_cancel(self):
-        cancel_defer = pants.defer(0.01, self.timer)
+        cancel_defer = pants.engine.defer(0.01, self.timer)
         cancel_defer()
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
@@ -61,14 +61,14 @@ class TestTimers(unittest.TestCase):
         self.assertEquals(len(self.times_called), 0)
 
     def test_defer_with_zero_delay(self):
-        self.assertRaises(ValueError, pants.defer, 0, self.timer)
+        self.assertRaises(ValueError, pants.engine.defer, 0, self.timer)
 
     def test_defer_with_negative_delay(self):
-        self.assertRaises(ValueError, pants.defer, -1.0, self.timer)
+        self.assertRaises(ValueError, pants.engine.defer, -1.0, self.timer)
 
     def test_cycle(self):
         expected_times = [time.time() + 0.01, time.time() + 0.02, time.time() + 0.03]
-        pants.cycle(0.01, self.timer)
+        pants.engine.cycle(0.01, self.timer)
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
@@ -79,7 +79,7 @@ class TestTimers(unittest.TestCase):
 
     def test_cycle_cancel(self):
         expected_times = [time.time() + 0.01, time.time() + 0.02, time.time() + 0.03]
-        cancel_cycle = pants.cycle(0.01, self.timer)
+        cancel_cycle = pants.engine.cycle(0.01, self.timer)
         pants.engine.poll(0.2)
         pants.engine.poll(0.2)
         self.assertEquals(len(self.times_called), 2)
@@ -90,7 +90,7 @@ class TestTimers(unittest.TestCase):
         self.assertLess(abs(expected_times[1] - self.times_called[1]), 0.01)
 
     def test_cycle_with_zero_delay(self):
-        self.assertRaises(ValueError, pants.cycle, 0, self.timer)
+        self.assertRaises(ValueError, pants.engine.cycle, 0, self.timer)
 
     def test_cycle_with_negative_delay(self):
-        self.assertRaises(ValueError, pants.cycle, -1.0, self.timer)
+        self.assertRaises(ValueError, pants.engine.cycle, -1.0, self.timer)
