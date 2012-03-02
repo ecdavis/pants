@@ -153,6 +153,8 @@ Session
 
         The :class:`HTTPClient` this Session is associated with.
 
+    .. automethod:: session
+
     .. automethod:: request
 
     .. automethod:: delete

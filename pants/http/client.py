@@ -990,11 +990,14 @@ class Session(object):
                  headers=None, cookies=None, verify_ssl=None,
                  ssl_options=None):
         """ Initialize the Session. """
-        self.client = client
-
-        # Get the parent session.
-        parent = client._sessions[-1] if client._sessions else None
-        self.parent = parent
+        # Store the client and parent.
+        if isinstance(client, Session):
+            self.parent = parent = client
+            self.client = client = self.parent.client
+        else:
+            self.client = client
+            parent = client._sessions[-1] if client._sessions else None
+            self.parent = parent
 
         # Setup our default settings.
         if on_response is None:
@@ -1074,6 +1077,12 @@ class Session(object):
         self.cookies = cookies
         self.verify_ssl = verify_ssl
         self.ssl_options = ssl_options
+
+    ##### Session Generation ##################################################
+
+    def session(self, *args, **kwargs):
+        """ Create a new session. See :class:`Session` for details. """
+        return Session(self, *args, **kwargs)
 
     ##### Request Making ######################################################
 
