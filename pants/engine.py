@@ -279,7 +279,7 @@ class Engine(object):
         =========  ============
         """
         callback = functools.partial(function, *args, **kwargs)
-        timer = _Timer(callback, False)
+        timer = _Timer(self, callback, False)
         self._callbacks.append(timer)
 
         return timer
@@ -302,7 +302,7 @@ class Engine(object):
         =========  ============
         """
         loop = functools.partial(function, *args, **kwargs)
-        timer = _Timer(loop, True)
+        timer = _Timer(self, loop, True)
         self._callbacks.append(timer)
 
         return timer
@@ -329,7 +329,7 @@ class Engine(object):
             raise ValueError("Delay must be greater than 0 seconds.")
 
         deferred = functools.partial(function, *args, **kwargs)
-        timer = _Timer(deferred, False, delay, self.time + delay)
+        timer = _Timer(self, deferred, False, delay, self.time + delay)
         bisect.insort(self._deferreds, timer)
 
         return timer
@@ -357,7 +357,7 @@ class Engine(object):
             raise ValueError("Interval must be greater than 0 seconds.")
 
         cycle = functools.partial(function, *args, **kwargs)
-        timer = _Timer(cycle, True, interval, self.time + interval)
+        timer = _Timer(self, cycle, True, interval, self.time + interval)
         bisect.insort(self._deferreds, timer)
 
         return timer
@@ -535,7 +535,8 @@ class _Timer(object):
     end        The time, in seconds since the epoch, after which the timer should be run - or None, for a callback/loop.
     =========  ============
     """
-    def __init__(self, function, requeue, delay=None, end=None):
+    def __init__(self, engine, function, requeue, delay=None, end=None):
+        self.engine = engine
         self.function = function
         self.requeue = requeue
         self.delay = delay
@@ -548,4 +549,4 @@ class _Timer(object):
         return cmp(self.end, to.end)
 
     def cancel(self):
-        Engine.instance()._remove_timer(self)
+        self.engine._remove_timer(self)

@@ -161,14 +161,14 @@ class Stream(_Channel):
         # If we already have a socket, we shouldn't. Toss it!
         if self._socket:
             if self._socket.family != family:
-                Engine.instance().remove_channel(self)
+                self.engine.remove_channel(self)
                 self._socket_close()
                 self._closed = False
 
         # Create our socket.
         sock = socket.socket(family, socket.SOCK_STREAM)
         self._socket_set(sock)
-        Engine.instance().add_channel(self)
+        self.engine.add_channel(self)
 
         # Now, connect!
         try:
@@ -755,14 +755,14 @@ class StreamServer(_Channel):
         # If we already have a socket, we shouldn't. Toss it!
         if self._socket:
             if self._socket.family != family:
-                Engine.instance().remove_channel(self)
+                self.engine.remove_channel(self)
                 self._socket_close()
                 self._closed = False
 
         # Create our socket.
         sock = socket.socket(family, socket.SOCK_STREAM)
         self._socket_set(sock)
-        Engine.instance().add_channel(self)
+        self.engine.add_channel(self)
 
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -788,7 +788,7 @@ class StreamServer(_Channel):
 
         # Should we make a slave?
         if slave and not isinstance(addr, str) and addr[0] == '' and socket.has_ipv6:
-            self._slave = StreamServerSlave(self, addr, backlog)
+            self._slave = StreamServerSlave(self.engine, self, addr, backlog)
 
     def close(self):
         """
@@ -872,8 +872,8 @@ class StreamServerSlave(StreamServer):
     """
     A slave for a StreamServer to allow listening on multiple address familes.
     """
-    def __init__(self, server, addr, backlog):
-        StreamServer.__init__(self)
+    def __init__(self, engine, server, addr, backlog):
+        StreamServer.__init__(self, engine=engine)
         self.server = server
 
         # Now, listen our way.
@@ -884,7 +884,7 @@ class StreamServerSlave(StreamServer):
 
         sock = socket.socket(family, socket.SOCK_STREAM)
         self._socket_set(sock)
-        Engine.instance().add_channel(self)
+        self.engine.add_channel(self)
 
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

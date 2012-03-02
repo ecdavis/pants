@@ -115,14 +115,14 @@ class _Channel(object):
     ==================  ============
     """
     def __init__(self, **kwargs):
-        # Keyword arguments
-        sock = kwargs.get("socket", None)
+        self.engine = kwargs.get("engine", Engine.instance())
 
         # Socket
         self.family = None
         self.fileno = None
         self._socket = None
         self._closed = False
+        sock = kwargs.get("socket", None)
         if sock:
             self._socket_set(sock)
 
@@ -133,7 +133,7 @@ class _Channel(object):
         self._events = Engine.ALL_EVENTS
         self._processing_events = False
         if self._socket:
-            Engine.instance().add_channel(self)
+            self.engine.add_channel(self)
 
     def __repr__(self):
         return "%s #%r (%s)" % (self.__class__.__name__, self.fileno,
@@ -148,7 +148,7 @@ class _Channel(object):
         if self._closed:
             return
 
-        Engine.instance().remove_channel(self)
+        self.engine.remove_channel(self)
         self._socket_close()
         self._events = Engine.ALL_EVENTS
         self._processing_events = False
@@ -495,7 +495,7 @@ class _Channel(object):
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
             if not self._processing_events:
-                Engine.instance().modify_channel(self)
+                self.engine.modify_channel(self)
 
     def _stop_waiting_for_write_event(self):
         """
@@ -505,7 +505,7 @@ class _Channel(object):
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
             if not self._processing_events:
-                Engine.instance().modify_channel(self)
+                self.engine.modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -694,7 +694,7 @@ class _Channel(object):
             return
 
         if self._events != previous_events:
-            Engine.instance().modify_channel(self)
+            self.engine.modify_channel(self)
 
         self._processing_events = False
 
