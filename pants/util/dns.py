@@ -32,7 +32,7 @@ import struct
 import sys
 import time
 
-import pants.engine
+from pants.engine import Engine
 from pants.stream import Stream
 from pants.datagram import Datagram
 
@@ -728,10 +728,12 @@ class Resolver(object):
     Argument   Description
     =========  ============
     servers    *Optional.* A list of DNS servers to query. If a list isn't provided, Pants will attempt to retrieve a list of servers from the OS, falling back to a list of default servers if none are available.
+    engine     *Optional.* The :class:`pants.engine.Engine` instance to use.
     =========  ============
     """
-    def __init__(self, servers=None):
+    def __init__(self, servers=None, engine=None):
         self.servers = servers or list_dns_servers()
+        self.engine = engine or Engine.instance()
 
         # Internal State
         self._messages = {}
@@ -775,7 +777,7 @@ class Resolver(object):
         """
         Create a new Datagram instance and listen on a socket.
         """
-        self._udp = Datagram()
+        self._udp = Datagram(engine=self.engine)
         self._udp.on_read = self.receive_message
 
         start = port = random.randrange(10005, 65535)
@@ -811,7 +813,7 @@ class Resolver(object):
             message.id = self._last_id
 
         # Timeout in timeout seconds.
-        df_timeout = pants.engine.defer(timeout, self._error, message.id)
+        df_timeout = self.engine.defer(timeout, self._error, message.id)
 
         # Send the Message
         msg = str(message)
@@ -834,7 +836,7 @@ class Resolver(object):
                 # Pants gummed up. Try again.
                 self._next_server(message.id)
 
-            pants.engine.defer(0.5, self._next_server, message.id)
+            self.engine.defer(0.5, self._next_server, message.id)
 
         else:
             tcp = self._tcp[message.id] = _DNSStream(self, message.id)
@@ -1158,7 +1160,7 @@ class Synchroniser(object):
             raise ValueError("%r isn't callable." % key)
 
         def doer(*a, **kw):
-            if pants.engine._running:
+            if Engine.instance()._running:
                 raise RuntimeError("synchronous calls cannot be made while Pants is already running.")
 
             data = []
@@ -1174,11 +1176,11 @@ class Synchroniser(object):
                     a = a[0]
 
                 data.append(a)
-                pants.engine.stop()
+                Engine.instance().stop()
 
             kw['callback'] = callback
             func(*a, **kw)
-            pants.engine.start()
+            Engine.instance().start()
             return data[0]
 
         doer.__name__ = func.__name__

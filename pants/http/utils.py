@@ -34,7 +34,7 @@ if os.name == 'nt':
 else:
     from time import time
 
-from pants import callback, Client, Connection, Server
+from pants import Client, Connection, Server
 from pants import __version__ as pants_version
 from pants.engine import Engine
 

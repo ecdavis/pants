@@ -156,12 +156,10 @@ def do_poll():
     to the provided timeout, or for how long it would take to reach the
     earliest deferred event.
     """
-    engine = Engine.instance()
+    _engine.poll(0)
 
-    engine.poll(0)
-
-    if engine._deferreds:
-        timer.setInterval(min(1000 * (engine._deferreds[0].end - engine.time), _timeout))
+    if _engine._deferreds:
+        timer.setInterval(min(1000 * (_engine._deferreds[0].end - _engine.time), _timeout))
     else:
         timer.setInterval(_timeout)
 
@@ -171,8 +169,9 @@ def do_poll():
 
 timer = None
 _timeout = 0.02
+_engine = None
 
-def install(app=None, timeout=0.02):
+def install(app=None, timeout=0.02, engine=None):
     """
     Creates a :class:`~PySide.QtCore.QTimer` instance that will be triggered
     continuously to call :func:`Engine.poll() <pants.engine.Engine.poll>`,
@@ -183,12 +182,15 @@ def install(app=None, timeout=0.02):
     =========  ========  ============
     app        None      *Optional.* The :class:`~PySide.QtCore.QCoreApplication` to attach to. If no application is provided, it will attempt to find an existing application in memory, or, failing that, create a new application instance.
     timeout    ``0.02``  *Optional.* The maximum time to wait, in seconds, before running :func:`Engine.poll() <pants.engine.Engine.poll>`.
+    engine               *Optional.* The :class:`pants.engine.Engine` instance to use.
     =========  ========  ============
     """
     global timer
     global _timeout
+    global _engine
 
-    Engine.instance()._install_poller(_Qt())
+    _engine = engine or Engine.instance()
+    _engine._install_poller(_Qt())
 
     if app is None:
         app = QCoreApplication.instance()

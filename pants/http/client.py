@@ -103,7 +103,8 @@ def _get_cookies(request):
 def _load_cookies(cookies, session):
     if session.cookies:
         for key in session.cookies:
-            cookies.load(session.cookies[key].output(None, ''))
+            if not key in cookies:
+                cookies.load(session.cookies[key].output(None, ''))
     if session.parent:
         _load_cookies(cookies, session.parent)
 
@@ -147,8 +148,8 @@ class _HTTPStream(Client):
 
     _host = None
 
-    def __init__(self, client, *args):
-        Client.__init__(self, *args)
+    def __init__(self, client, *args, **kwargs):
+        Client.__init__(self, *args, **kwargs)
         self.client = client
 
         # Increase the buffer size, hopefully preventing a buffer overflow
@@ -252,6 +253,9 @@ class HTTPClient(object):
     def __init__(self, *args, **kwargs):
         """ Initialize the HTTPClient and start the first session. """
 
+        # Figure out our engine.
+        self.engine = kwargs.get('engine', Engine.instance())
+        
         # Internal State
         self._stream = None
         self._processing = None
@@ -462,7 +466,7 @@ class HTTPClient(object):
 
         # Create a stream.
         if not self._stream:
-            self._stream = _HTTPStream(self)
+            self._stream = _HTTPStream(self, engine=self.engine)
 
         # If we're secure, and the stream isn't, secure it.
         if is_secure and not self._stream.ssl_enabled:
@@ -499,8 +503,8 @@ class HTTPClient(object):
         if request._timeout_timer:
             request._timeout_timer()
 
-        request._timeout_timer = Engine.instance().defer(request.timeout,
-                                                    self._timed_out, request)
+        request._timeout_timer = self.engine.defer(request.timeout,
+                                                   self._timed_out, request)
 
     ##### Stream I/O Handlers #################################################
 
@@ -539,7 +543,14 @@ class HTTPClient(object):
         # Cookies
         cookies = _get_cookies(request)
         if cookies:
-            self._stream.write(cookies.output(None, 'Cookie:') + CRLF)
+            for key in cookies:
+                morsel = cookies[key]
+                if not request.path.startswith(morsel['path']) or \
+                        not _hostname(request.url).lower().\
+                        endswith(morsel['domain'].lower()) or \
+                        morsel['secure'] and request.url.scheme != 'https':
+                    continue
+                self._stream.write(morsel.output(None, 'Cookie:') + CRLF)
 
         # And now, the body.
         self._stream.write(CRLF)
@@ -694,7 +705,13 @@ class HTTPClient(object):
             if not isinstance(cookies, list):
                 cookies = [cookies]
             for val in cookies:
-                response.cookies.load(val)
+                val_jar = Cookie.SimpleCookie()
+                val_jar.load(val)
+                for key in val_jar:
+                    morsel = val_jar[key]
+                    if not morsel['domain']:
+                        morsel['domain'] = _hostname(request.url)
+                    response.cookies.load(morsel.output(None, ''))
 
         # Are we dealing with a HEAD request?
         if request.method == 'HEAD':

@@ -64,7 +64,7 @@ class Application(object):
         self.default_domain = default_domain
         self.debug = debug
 
-    def run(self, addr=None, ssl_options=None):
+    def run(self, addr=None, ssl_options=None, engine=None):
         """
         This function exists for convenience, and when called creates a
         :class:`~pants.contrib.http.HTTPServer` instance with its request
@@ -78,9 +78,13 @@ class Application(object):
         port          *Optional.* The port to listen on. If this isn't specified, it will be either 80 or 443, depending on whether or not SSL options for the server have been provided.
         host          *Optional.* The host interface to listen on. If this isn't specified, listen on all interfaces.
         ssl_options   *Optional.* A dict of SSL options for the server. See :class:`pants.contrib.ssl.SSLServer` for more information.
+        engine        *Optional.* The :class:`pants.engine.Engine` instance to use.
         ============  ============
         """
-        from pants import engine
+        if not engine:
+            from pants.engine import Engine
+            engine = Engine.instance()
+
         HTTPServer(self, ssl_options=ssl_options).listen(addr)
         engine.start()
 
