@@ -17,7 +17,8 @@
 #
 ###############################################################################
 """
-Implementation of a non-blocking, socket-wrapping channel.
+The low-level channel class. Provides a non-blocking socket wrapper for
+use as a base for higher-level classes.
 """
 
 ###############################################################################
@@ -98,20 +99,21 @@ class _Channel(object):
     """
     A simple socket wrapper class.
 
-    _Channel wraps most common socket methods to make them "safe" and
-    somewhat more consistent in their return values. This class is
-    intended to be subclasses and doesn't really provide a public API.
-    Subclasses should override
+    _Channel wraps most common socket methods to make them "safe", more
+    consistent in their return values and easier to use in non-blocking
+    code. This class is for internal use -- it does not function as-is
+    and must be subclassed. Subclasses should override
     :meth:`~pants._channel._Channel._handle_read_event` and
     :meth:`~pants._channel._Channel._handle_write_event` to implement
     basic event-handling behaviour. Subclasses should also ensure that
-    they call the various on_* event handler placeholders at the
+    they call the relevant on_* event handler placeholders at the
     appropriate times.
 
     ==================  ============
     Keyword Arguments   Description
     ==================  ============
-    socket              *Optional.* A pre-existing socket to wrap.
+    engine              *Optional.* The engine to which the channel should be added. Defaults to the global engine.
+    socket              *Optional.* A pre-existing socket to wrap. Defaults to a newly-created socket.
     ==================  ============
     """
     def __init__(self, **kwargs):
@@ -214,13 +216,16 @@ class _Channel(object):
         Placeholder. Called when the channel has failed to connect to a
         remote socket.
 
+        By default, logs the exception and closes the channel.
+
         ==========  ============
         Argument    Description
         ==========  ============
         exception   The exception that was raised.
         ==========  ============
         """
-        pass
+        log.exception(exception)
+        self.close()
 
     def on_overflow_error(self, exception):
         """
@@ -283,7 +288,8 @@ class _Channel(object):
         """
         Connect the socket to a remote socket at the given address.
 
-        Returns True if the connection was immediate, False otherwise.
+        Returns True if the connection was completed immediately, False
+        otherwise.
 
         =========  ============
         Argument   Description
@@ -489,8 +495,8 @@ class _Channel(object):
 
     def _start_waiting_for_write_event(self):
         """
-        Start waiting for a write event on the channel, and update the
-        engine accordingly.
+        Start waiting for a write event on the channel, update the
+        engine if necessary.
         """
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
@@ -499,8 +505,8 @@ class _Channel(object):
 
     def _stop_waiting_for_write_event(self):
         """
-        Stop waiting for a write event on the channel, and update the
-        engine accordingly.
+        Stop waiting for a write event on the channel, update the engine
+        if necessary.
         """
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
@@ -513,6 +519,9 @@ class _Channel(object):
 
         The callable is wrapped in a try block and executed. If an
         exception is raised it is logged.
+
+        If no exception is raised, returns the value returned by
+        *thing_to_call*.
 
         ==============  ============
         Argument        Description
@@ -544,7 +553,15 @@ class _Channel(object):
     def _resolve_addr(self, addr, native_resolve, callback):
         """
         Resolve the given address into something that can be connected
-        to immediately.
+        to immediately and determine the appropriate socket family.
+
+        ===============  ============
+        Argument         Description
+        ===============  ============
+        addr             The address to resolve.
+        native_resolve   If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
+        callback         A callable taking two mandatory arguments and one optional argument. The arguments are: the resolved address, the socket family and the error code, respectively.
+        ===============  ============
         """
         # This is here to prevent an import-loop. pants.util.dns depends
         # on pants._channel.
