@@ -60,7 +60,7 @@ class Engine(object):
     BASE_EVENTS = READ | ERROR | HANGUP
     ALL_EVENTS = BASE_EVENTS | WRITE
 
-    def __init__(self):
+    def __init__(self, poller=None):
         self.time = time.time()
 
         self._shutdown = False
@@ -68,7 +68,7 @@ class Engine(object):
 
         self._channels = {}
         self._poller = None
-        self._install_poller()
+        self._install_poller(poller)
 
         self._callbacks = []
         self._deferreds = []
