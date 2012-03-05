@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# Copyright 2011 Pants Developers (see AUTHORS.txt)
+# Copyright 2011-2012 Pants Developers (see AUTHORS.txt)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -919,7 +919,7 @@ class Resolver(object):
         """
         if not isinstance(qtype, (list,tuple)):
             qtype = (qtype, )
-        
+
         if allow_hosts:
             if host_time + 30 < time.time():
                 load_hosts()

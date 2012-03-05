@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# Copyright 2011 Pants Developers (see AUTHORS.txt)
+# Copyright 2011-2012 Pants Developers (see AUTHORS.txt)
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -255,7 +255,7 @@ class HTTPClient(object):
 
         # Figure out our engine.
         self.engine = kwargs.get('engine', Engine.instance())
-        
+
         # Internal State
         self._stream = None
         self._processing = None
