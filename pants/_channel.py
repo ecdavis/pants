@@ -211,6 +211,8 @@ class _Channel(object):
         """
         pass
 
+    ##### Public Error Handlers ###############################################
+
     def on_connect_error(self, exception):
         """
         Placeholder. Called when the channel has failed to connect to a
@@ -560,7 +562,7 @@ class _Channel(object):
         ===============  ============
         addr             The address to resolve.
         native_resolve   If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
-        callback         A callable taking two mandatory arguments and one optional argument. The arguments are: the resolved address, the socket family and the error code, respectively.
+        callback         A callable taking two mandatory arguments and one optional argument. The arguments are: the resolved address, the socket family and error information, respectively.
         ===============  ============
         """
         # This is here to prevent an import-loop. pants.util.dns depends

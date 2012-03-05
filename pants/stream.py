@@ -100,13 +100,17 @@ class Stream(_Channel):
         """
         Enable SSL on the channel and perform a handshake.
 
-        See :func:`ssl.wrap_socket` for a description of the keyword
-        arguments accepted by this method.
+        For best results, this method should be called before
+        :meth:`~pants.stream.Stream.connect`.
+
+        This method will raise a :exc:`RuntimeError` if you provide a
+        value other than False for the *do_handshake_on_connect* SSL
+        option.
 
         ============ ============
         Arguments    Description
         ============ ============
-        ssl_options  SSL keyword arguments.
+        ssl_options  *Optional.* SSL keyword arguments. See :func:`ssl.wrap_socket` for a description of the available SSL options.
         ============ ============
         """
         if self.ssl_enabled or self._ssl_enabling:
@@ -114,6 +118,9 @@ class Stream(_Channel):
 
         if self._closed or self._closing:
             raise RuntimeError("startSSL() called on closed %r" % self)
+
+        if ssl_options.setdefault("do_handshake_on_connect", False) is not False:
+            raise RuntimeError("SSL option 'do_handshake_on_connect' must be False.")
 
         self._ssl_enabling = True
         self._send_buffer.append((Stream.WORK_SSL_ENABLE, ssl_options))
@@ -130,7 +137,7 @@ class Stream(_Channel):
         Arguments        Description
         ===============  ============
         addr             The remote address to connect to.
-        native_resolve   *Optional.* If this is set to True, Pants will not attempt to resolve the given address name itself.
+        native_resolve   *Optional.* If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
         ===============  ============
         """
         if self.connected or self.connecting:
@@ -148,8 +155,17 @@ class Stream(_Channel):
 
     def _do_connect(self, addr, family, error=None):
         """
-        Actually connect, now that we know what sort of address we've got. Or,
-        if addr is None, connection failed and error information is available.
+        A callback method to be used with
+        :meth:`~pants._channel._Channel._resolve_addr` - either connects
+        immediately or notifies the user of an error.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        addr       The address to connect to or None if address resolution failed.
+        family     The detected socket family or None if address resolution failed.
+        error      *Optional.* Error information or None if no error occured.
+        =========  ============
         """
         if not addr:
             self.connecting = False
@@ -228,7 +244,7 @@ class Stream(_Channel):
         Arguments   Description
         ==========  ============
         data        A string of data to write to the channel.
-        flush       If True, flush the internal write buffer.
+        flush       *Optional.* If True, flush the internal write buffer.
         ==========  ============
         """
         if self._closed or self._closing:
@@ -258,9 +274,9 @@ class Stream(_Channel):
         Arguments   Description
         ==========  ============
         sfile       A file object to write to the channel.
-        nbytes      The number of bytes of the file to write. If 0, all bytes will be written.
-        offset      The number of bytes to offset writing by.
-        flush       If True, flush the internal write buffer.
+        nbytes      *Optional.* The number of bytes of the file to write. If 0, all bytes will be written.
+        offset      *Optional.* The number of bytes to offset writing by.
+        flush       *Optional.* If True, flush the internal write buffer.
         ==========  ============
         """
         if self._closed or self._closing:
@@ -297,6 +313,8 @@ class Stream(_Channel):
         handshake.
         """
         pass
+
+    ##### Public Error Handlers ###############################################
 
     def on_ssl_handshake_error(self, exception):
         """
@@ -477,6 +495,9 @@ class Stream(_Channel):
                 self.close()
 
     def _process_send_data_string(self, data):
+        """
+        Send data from a string to the remote socket.
+        """
         try:
             bytes_sent = self._socket_send(data)
         except socket.error:
@@ -490,6 +511,9 @@ class Stream(_Channel):
         return bytes_sent
 
     def _process_send_data_file(self, sfile, offset, nbytes):
+        """
+        Send data from a file to the remote socket.
+        """
         try:
             bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
         except socket.error:
@@ -515,11 +539,15 @@ class Stream(_Channel):
         return bytes_sent
 
     def _process_do_work_ssl_enable(self, ssl_options):
+        """
+        Enable SSL and begin the handshake.
+        """
         self._ssl_enabling = False
 
         if not self._ssl_socket_wrapped:
             try:
-                self._socket = ssl.wrap_socket(self._socket, do_handshake_on_connect=False, **ssl_options)
+                self._socket = ssl.wrap_socket(self._socket,
+                        do_handshake_on_connect=False, **ssl_options)
             except ssl.SSLError, e:
                 self._ssl_enabling = True
                 self._safely_call(self.on_ssl_error)
@@ -544,6 +572,9 @@ class Stream(_Channel):
 
         Returns a string of data read from the socket. The data is None if
         the socket has been closed.
+
+        Overrides :meth:`pants._channel._Channel._socket_recv` to handle
+        SSL-specific behaviour.
         """
         if not self.ssl_enabled:
             return _Channel._socket_recv(self)
@@ -573,6 +604,9 @@ class Stream(_Channel):
         Send data to the socket.
 
         Returns the number of bytes that were sent to the socket.
+
+        Overrides :meth:`pants._channel._Channel._socket_send` to handle
+        SSL-specific behaviour.
 
         =========  ============
         Argument   Description
@@ -612,6 +646,9 @@ class Stream(_Channel):
         Send data from a file to a remote socket.
 
         Returns the number of bytes that were sent to the socket.
+
+        Overrides :meth:`pants._channel._Channel._socket_sendfile` to
+        handle SSL-specific behaviour.
 
         =========  ============
         Argument   Description
@@ -666,13 +703,6 @@ class Stream(_Channel):
 class StreamServer(_Channel):
     """
     A stream-oriented, listening channel.
-
-    ==================  ============
-    Keyword Arguments   Description
-    ==================  ============
-    family              *Optional.* A supported socket family. By default, is :const:`socket.AF_INET`.
-    socket              *Optional.* A pre-existing socket to wrap.
-    ==================  ============
     """
     def __init__(self, **kwargs):
         sock = kwargs.get("socket", None)
@@ -700,6 +730,23 @@ class StreamServer(_Channel):
     ##### Control Methods #####################################################
 
     def startSSL(self, ssl_options={}):
+        """
+        Enable SSL on the channel.
+
+        For best results, this method should be called before
+        :meth:`~pants.stream.StreamServer.listen`.
+
+        This method will raise a :exc:`RuntimeError` if you provide a
+        value other than True for the *server_side* SSL option or a
+        value other than False for the *do_handshake_on_connect* SSL
+        option.
+
+        ============ ============
+        Arguments    Description
+        ============ ============
+        ssl_options  *Optional.* SSL keyword arguments. See :func:`ssl.wrap_socket` for a description of the available SSL options.
+        ============ ============
+        """
         if self.ssl_enabled:
             raise RuntimeError("startSSL() called on SSL-enabled %r." % self)
 
@@ -725,9 +772,9 @@ class StreamServer(_Channel):
         Arguments        Description
         ===============  ============
         addr             The local address to listen for connections on.
-        backlog          *Optional.* The size of the connection queue. By default, is 1024.
-        native_resolve   *Optional.* If this is set to True, Pants will not attempt to resolve the given address name itself.
-        slave            *Optional.* When True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
+        backlog          *Optional.* The maximum size of the connection queue.
+        native_resolve   *Optional.* If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
+        slave            *Optional.* If True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
         ===============  ============
         """
         if self.listening:
@@ -741,10 +788,20 @@ class StreamServer(_Channel):
 
         return self
 
-    def _do_listen(self, backlog, slave, addr, family, error=None):
-        """
-        Actually start to listen, now that we know what sort of address we've
-        got. Or, if addr is None, it's a bad address, so do an error thing.
+    def _do_listen(self, backlog, slave, addr, family, error=None):    """
+        A callback method to be used with
+        :meth:`~pants._channel._Channel._resolve_addr` - either listens
+        immediately or notifies the user of an error.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        backlog    The maximum size of the connection queue.
+        slave      If True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
+        addr       The address to listen on or None if address resolution failed.
+        family     The detected socket family or None if address resolution failed.
+        error      *Optional.* Error information or None if no error occured.
+        =========  ============
         """
         if not addr:
             err, errstr = error
@@ -869,7 +926,8 @@ class StreamServer(_Channel):
 
 class StreamServerSlave(StreamServer):
     """
-    A slave for a StreamServer to allow listening on multiple address familes.
+    A slave for a StreamServer to allow listening on multiple address
+    familes.
     """
     def __init__(self, engine, server, addr, backlog):
         StreamServer.__init__(self, engine=engine)
@@ -913,6 +971,10 @@ class StreamServerSlave(StreamServer):
 ###############################################################################
 
 class StreamBufferOverflow(Exception):
+    """
+    Raised when a Stream's internal buffer has exceeded its maximum
+    allowed size.
+    """
     def __init__(self, errstr):
         self.errstr = errstr
 
@@ -925,6 +987,10 @@ class StreamBufferOverflow(Exception):
 ###############################################################################
 
 class StreamConnectError(Exception):
+    """
+    Raised when an error has occured during an attempt to connect a
+    Stream to a remote host.
+    """
     def __init__(self, err, errstr):
         self.err = err
         self.errstr = errstr
