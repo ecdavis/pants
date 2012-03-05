@@ -96,7 +96,7 @@ class Stream(_Channel):
 
     ##### Control Methods #####################################################
 
-    def startSSL(self, ssl_options={}, flush=True):
+    def startSSL(self, ssl_options={}):
         """
         Enable SSL on the channel and perform a handshake.
 
@@ -106,7 +106,6 @@ class Stream(_Channel):
         ============ ============
         Arguments    Description
         ============ ============
-        flush        If True, flush the internal write buffer.
         ssl_options  SSL keyword arguments.
         ============ ============
         """
