@@ -279,7 +279,10 @@ def read_headers(data, target=None):
     =========  ============
     """
     if target is None:
-        target = CaseInsensitiveDict()
+        cast = True
+        target = {}
+    else:
+        cast = False
 
     data = data.rstrip(CRLF)
     key = None
@@ -307,6 +310,9 @@ def read_headers(data, target=None):
                 target[key] = [target[key], val]
             continue
         target[key] = val
+
+    if cast:
+        target = CaseInsensitiveDict(target)
 
     return target
 

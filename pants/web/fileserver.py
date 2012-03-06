@@ -363,8 +363,7 @@ class FileServer(object):
 
             stat = os.stat(full)
             mtime = datetime.fromtimestamp(stat.st_mtime).strftime(
-                u'<td class="right">%Y-%m-%d</td>'
-                u'<td class="left">%I:%M:%S %p</td>'
+                u'%Y-%m-%d %I:%M:%S %p'
                 )
 
             if os.path.isdir(full):
@@ -393,15 +392,18 @@ class FileServer(object):
             else:
                 continue
 
-            obj.append(
-                u'<tr><td><a class="icon %s" href="%s%s">%s</a></td><td>%s'
-                u'</td>%s</tr>' % (
-                    cls, uri, link, p, size, mtime))
+            obj.append(DIRECTORY_ENTRY.safe_substitute(
+                        cls=cls,
+                        uri=uri + link,
+                        name=p,
+                        size=size,
+                        modified=mtime
+                        ))
 
         if files or dirs:
             files = u''.join(dirs) + u''.join(files)
         else:
-            files = (u'<tr><td colspan="4" class="noborder">'
+            files = (u'<tr><td colspan="3" class="noborder">'
                      u'<div class="footer center">'
                      u'This directory is empty.</div></td></tr>')
 
@@ -410,11 +412,16 @@ class FileServer(object):
         else:
             rtime = u''
 
-        return DIRECTORY_PAGE % (uri, uri, go_up, files, request.host,
-                                 request.host, rtime), \
-            200, {
-                'Content-Type':'text/html; charset=utf-8'
-            }
+        output = DIRECTORY_PAGE.safe_substitute(
+                    path=uri,
+                    go_up=go_up,
+                    host=request.host,
+                    schema=request.protocol,
+                    content=''.join(files),
+                    debug=rtime
+                    )
+
+        return output, 200, {'Content-Type': 'text/html; charset=UTF-8'}
 
 ###############################################################################
 # Private Helper Functions

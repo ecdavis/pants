@@ -24,6 +24,7 @@ import base64
 import logging
 import os
 import re
+import string
 import urllib
 
 from datetime import datetime, timedelta
@@ -82,112 +83,10 @@ if os.name == 'nt':
 HTTP_MESSAGES = {
     401: u'You must sign in to access this page.',
     403: u'You do not have permission to view this page.',
-    404: u'The page at <code>%(uri)s</code> cannot be found.',
+    404: u'The page at <code>{uri}</code> cannot be found.',
     500: u'The server encountered an internal error and cannot display '
          u'this page.'
 }
-
-IMAGES = {
-    'audio'     : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAZpJREFUeNqsU01Lw0AQbdI0aVIVUiSlWKiV/gARiveC2ptehf4Rz+JJ0aM38ebJgzfvvQiWUhooqAeLYCkRUYRa8tHEN7IpIRS3ogsvuzs782Yz81YIgiDxH0P6ha/QbrdLvu/XgC1cIFWpVLZhd7lEpmlmXdetImgTwRuYl2Muc8DbT0SpZrN5huD65DqCkBBFkTAE3pFgCWaNR5RB9joFS5L0Ksvyg6qq97qum0CPJTrHLPJqlKFPPp8/KRQKDSw/IvgEsqw2AY/oOxNILjE9sWCbwSOCINZuXtf6wDPg81oqcs69WUhmIfq7IGMlEFut1u54PN6HvYROXpMiphEJnU5n1bbtUziuwbER41VBcowzgzZY1yANZ9qvKSC5gOM6acTzvCppKDI00hLZQruiKDfR+oVEmWQyqYWOBOz7EZ14xWLxMJ1Od6FqV9O023K5fAD7aKJ8VovFwWCwY1nWnuM4K8h2l8vljgzDuMLZCyCTPoESsMCexSNgAU6USAXo7dCjnGcK7jEdjVhhZaZ4mQlzGJLQ+BJgAITfplvWq5n7AAAAAElFTkSuQmCC",
-    'document'  : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAS1JREFUeNpi/P//PwM1AAsan+306dPngYZr4dPEyMh4zdTU1BDI/IXLIF4g1mJiYgIpBgsguxjEhvK1oGrf4jKIE0QoKCjUi4iI3AaxX79+rfXw4cMaqEvAGGoYJz6vgZ1x//79RiCGuwpmCFp4MuIzCAykpaXLpaSkjkNdZAh00URSAxts65MnTzqBGEUcFG4kGQQLB2RvoVtElEEgoKKiUiEgIPAIpA/dnhcvXug/fvy4nCiDbt++3UFpggQDCQmJBllZ2X1A5j80KeZnz55ZP336tI0og4DObwBhil0kIyNTJikpeRLI/IsmxfTy5UvjR48e9RMV/cDA7AJiksIIPXH8Y2dnvwBKM/gwSA16+DGipQshINYAYilc3gaCP0D8DIhvAPE7mCBAgAEAx0h2pQytmCsAAAAASUVORK5CYII=",
-    'folder'    : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAKCAYAAAC5Sw6hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQ9JREFUeNqsUT2LwkAQvd3EaDDIESxiaQqLgCDk59z9Gu9XWN8/sUzE0i4iNloEES3EZJP1jWRExK/Chbezszvzdt6M0Fp/fWKZN349iqItbIMcwzD+wjAc4qheEUnakiRpxXH8n6ZpVwjRAM6PqPYHxn63IlkURR9Jv5ZljeiSicqy9FHh7kn+1nGcQRAES6pI+L6/llIeIKXJJPBJ2hl0vgXFAd+e51ExgrbSNM0MCbM8z+v3vmXySu7lDti4rkv901QRvRxBNFVKCQ58Z5rIWVWD0Dy1I/ozQbJiEvrxERnfQ8kSJr8ef4amjaG9A2QItK7lPFq2bcdMxFKIsAa0gV5lXzHtgTmwAA4nAQYAHA9ij4jhqJgAAAAASUVORK5CYII=",
-    'icon'      : u"iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQ5JREFUeNpiYWBg+M8wiAELiGhI9RuUjmuYvYmBiWGQA8YhEcVT995EETx96TrDgsIAhoT+DUQbBFJvnNEL5+uqK5OkF2SXqZ4mini2szrEgeiOQwaXb94ly+fE6kP2CMhudEeyYHMUqaFHKQDZBbMT3S1Y0yDMcaSE3tkZxShRTAqAhSLIkVjTILbQIjdqyU0OIEeiuwPkYJaBcBAxaRYWqoO+HByZDgRlGKoW1NR2GLm5maYOpKajhlQapEoI4qp3qVF0US2K0WsBalWVVI3i////M4LwaDk46sBRB446cNSBow4cdeCoA0cdOOrAUQeOOpDUThMpI6KU9vZIAVQdo4Z1mBgZGalmJkCAAQB+2V2B4VtJPwAAAABJRU5ErkJggg==",
-    'image'     : u"iVBORw0KGgoAAAANSUhEUgAAABUAAAATCAYAAAB/TkaLAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAphJREFUeNqsVE1rE1EU7UxmEjMl0QYxIU4SRi2KH9CkBhWKC3FbRfAH+AfcuBH/hZsiCC66U1y4URcKFnQjk5As1G6UhsQmJCkGZpIxyeRjPDe8J9OhaSL44DBvHu/dc9+55z7BcZyF/z0kQM7n80/H4/E9WhAEYd8GTor1r9lsdhVTe56gi8DdWCz2IJlM5jEfe/YItVrtYrVafVKv11Xs25kVVASCdDASiXzBdxeoeLAbj8eL+FqdTudCoVBI0/5ZmfpwRWcwGOyxICNvpqQCyWLb9rXhcPgol8tVRVF8ibU3mUzmg/d2kks7CnZQ1RxOlEqlPrZarQoyvtzr9dZAcB8ELQR/C5LnIHhHBNK8FaXbjEajdiKR2MIvaX+k3+8r0PtSu92+CpLXxWLxYTqdfiz9i1UoKJNIpqCBQEDRNI3q8BkBz/l8vmXMAyI/0Gw2M1MKIJRKpTNIVAFIuz5g0hHgJ1CyLMsEoRYOh3UqPs9UME1zU9f1zRnJeklJa7tcLl8hdVRVpaADiRl73+ZpDTDlJgG44o7f79clSTIoqDiPlkRCaDQaN9F9z6DfDebxBbhhCXa8HgwGP+H3N6/+SFGU991udx0Zid4s+ZBleRu2OUHtTICVKijMC+zXSO9oNEqu6E2SwMJRfKlqKlXU3W2wywpsEyU7IVDXMIx1FOQkEbsfIhB+g5VuMWcMKVML+A7UqLtcQRfR7xs4fOwgKdyBcXWdxRnyjqKJweAex7F5C6a+zfWbNmAlatXuX+JD3tOJLGjF0/DwKrx4HgRnUelTpD13BXT9hfZcw+8OfxYP6yi6zg/YZA+v1DYlRICmS3DBCpGguMuhUOgVu+Vgnkzdz6Of/MigACFGIrHOqrAkJuOPAAMATZ5MP7rfmUUAAAAASUVORK5CYII=",
-    'video'     : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAPCAYAAADphp8SAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAe9JREFUeNqsU0tLAlEUdmZ8Tki5qHxvtV3gLgmC6C+06me06CG5KFBo0b6lEEI7qWVB5CJCXKuLFsngeyEjk4yOY98d7pWrGW0aOJxz73z3O+d+51xhOp3a/uOzUy+Wy+VDj8dTHI/H27quPzKAIAiW5xO6XK59OMUwjK1EIvGA2GRE8mQyuYU/crvd66PRyOb3+48jkcg74WDJ6vV6st1uZ2RZ3kCyTeCusf8E0yyibrcbRGavpmkFlhUkb3BNmMGqj0ajRRDZ+v1+nrvVCiMSJElykp1QKJQ2TdPVbDbPKMknKZtVxE4SHG7gbLVa51g6mUYoRhCJBtBHB5FJ9TA4EhuNjSU4gRfbErXT6WTZulqt7sXj8Tu+okqlckAChmONmCMiHwTOiqJoNBqN1GAwyJVKpdxim8lhgoM3IEHqBxEpE+3UoJdO1sFgMA0tXhBOKETCwR1FUTIMx4/E3NV6vd4lJ+gzXIPvWiAQeAXRDPfr1cLh8AWyyejGCSVZ2rUF3NKrDWDCX11bwM2Ipj6fT4XIQ2S4YT9qtVoyFovd8xWhk7skYDjo1GKTb6fBCGNf8Hq9Hw6HYwgdrlRVzaNr+cWuISGZ+lM8ERnzZJ219KLlrZJGwdx0UtdoJUP+rcE8dAD7sC/yNGBt4r8FGADC3BrRMDVuEAAAAABJRU5ErkJggg==",
-    'zip'       : u"iVBORw0KGgoAAAANSUhEUgAAABIAAAAQCAYAAAAbBi9cAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAVdJREFUeNpi/P//PwM1AAsan+306dPngYZrIQtyc3Pr/fnzR+Lnz5+7QHxGRsZrpqamhkDmL1wG8QKxFlQxg5ycXMbfv3+/Pn369BJMDOoDLajat7gM4oRpAIHHjx/PANGysrKZQAMEnzx50gaTg6nFZRBcFUiDoqJi7u/fv/8ADZiO5iIUtdgMYkB20f379yeDaAUFhYR///6JPHr0qAfNMPwGgRSCNMjLyxcCDfj64MGDBaTGGgp4+PBhP4iWkZHJBFLgMMKllgmfQVJSUrUmJiZ2P378YAUGfBvQdQzkGrQPSD0ChtEekFeZmJjIMwgI3p06derSx48feQmFEU6DQN64c+eOvZmZmcHr169N8XmLYGC/e/duBtBFGDFKkkGwtISUkhnwZXB0r/1jZ2e/BNIMC1wYGxmD1IDUoliMZosQEGuAIgyPa/8A8TMgvgHyPUwQIMAA22WMeFl8he8AAAAASUVORK5CYII="
-}
-
-IMAGES['icon'] = base64.b64decode(IMAGES['icon'])
-
-PAGE_CSS = u"""html, body { margin: 0; padding: 0; min-height: 100%%; }
-body {
-	font-family: Calibri,"Arial","Helvetica",sans-serif;
-	background: #EEE;
-	background-image: -webkit-gradient( linear, left bottom, left top,
-		color-stop(0, #ccc), color-stop(0.5, #eee) );
-    background-image: -moz-linear-gradient( center bottom, #ccc 0%%, #eee 50%% );
-}
-
-table.dir td,a { color: #666; }
-h1, a:hover { color: #444; }
-
-a { text-decoration: none; }
-a:hover { text-decoration: underline; }
-
-div.document,.left,pre,table.dir th:first-child,table.dir td:first-child {
-    text-align: left; }
-.thingy,.center,.footer { text-align: center; }
-table.dir td,table.dir th,.right { text-align: right; }
-
-table.dir td,table.dir th,.thingy > h1 { margin: 0; }
-p { margin-bottom: 0; }
-table.dir a,pre { display: block; }
-pre {
-	background: #ddd;
-    background-color: rgba(199,199,199,0.5);
-	text-align: left;
-	border-radius: 5px;
-	-moz-border-radius: 5px;
-	padding: 5px;
-}
-
-table.dir { width:100%%; border-spacing: 0; }
-table.dir td,table.dir th { padding: 2px 5px; }
-table.dir td { border-top: 1px solid transparent; border-bottom: 1px solid transparent; }
-table.dir tr:first-child td { border-top: none; }
-table.dir tr:hover td { border-color: #ccc; }
-table.dir td.noborder { border-color: transparent !important; }
-table.dir th { border-bottom: 1px solid #ccc; }
-
-.footer,.faint { color: #aaa; }
-.footer .debug { font-size: 0.9em; font-family: Consolas,monospace; }
-.haiku { margin-top: 20px; }
-.haiku + p { color: #777; }
-.spacer { padding-top: 60px; }
-.column { max-width: 960px; min-width: 600px; margin: 0px auto; }
-.footer { padding-top: 10px; }
-
-a.icon { padding-left: 23px; background-position: left; }
-a.icon,.thingy { background-repeat: no-repeat; }
-
-a.folder { background-image: url("data:image/png;base64,%s"); }
-a.document { background-image: url("data:image/png;base64,%s"); }
-a.image { background-image: url("data:image/png;base64,%s"); }
-a.zip { background-image: url("data:image/png;base64,%s"); }
-a.audio { background-image: url("data:image/png;base64,%s"); }
-a.video { background-image: url("data:image/png;base64,%s"); }
-
-.thingy { background-color: #FFF; background-position: center; color: #000;
-	border: 5px #ddd solid;
-	-moz-border-radius: 25px;
-	border-radius: 25px;
-	padding: 50px;
-	margin: 0 50px;
-}""" % (IMAGES['folder'], IMAGES['document'], IMAGES['image'], IMAGES['zip'],
-    IMAGES['audio'], IMAGES['video'])
-PAGE_CSS = PAGE_CSS.replace('%','%%%%')
-
-PAGE = u"""<!DOCTYPE html>
-<html><head><title>%%s</title><style>%s</style></head><body>
-<div class="column"><div class="spacer"></div><div class="thingy">
-%%s
-</div><div class="footer"><i><a href="%s">%s</a><br><a class="faint" href="http://%%%%s/">%%%%s</a></i>
-<div class="debug">%%%%s</div></div>
-<div class="spacer"></div></div></body></html>""".replace('\n','') % (
-    PAGE_CSS, SERVER_URL, SERVER)
-
-DIRECTORY_PAGE = PAGE % (
-    u'Index of %s',
-    u"""<h1>Index of %s</h1>%s<table class="dir"><thead><tr>
-<th style="width:50%%">Name</th><th>Size</th>
-<th class="center" colspan="2">Last Modified</th></tr></thead>%s
-</table>"""
-    )
-
-ERROR_PAGE = PAGE % (
-    u'%d %s',
-    u'<h1>%d<br>%s</h1>%s%s'
-    )
 
 # Regular expressions used for various types.
 REGEXES = {
@@ -201,6 +100,111 @@ DATE_FORMATS = (
     "%A, %d-%b-%y %H:%M:%S %Z",
     "%a %b %d %H:%M:%S %Y",
     )
+
+###############################################################################
+# Resources
+###############################################################################
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+
+# The Main CSS
+try:
+    with open(os.path.join(DATA_DIR, "main.css"), "rb") as f:
+        MAIN_CSS = f.read()
+except IOError:
+    log.debug("Unable to load pants.web main CSS from %r." % DATA_DIR)
+    MAIN_CSS = ""
+
+# The Directory CSS
+try:
+    with open(os.path.join(DATA_DIR, "directory.css"), "rb") as f:
+        DIRECTORY_CSS = f.read()
+except IOError:
+    log.debug("Unable to load pants.web directory CSS from %r." % DATA_DIR)
+    DIRECTORY_CSS = ""
+
+# The Images
+IMAGES = {}
+for name in ('audio', 'document', 'folder', 'image', 'video', 'zip'):
+    try:
+        with open(os.path.join(DATA_DIR, "%s.png" % name), "rb") as f:
+            IMAGES[name] = base64.b64encode(f.read())
+    except IOError:
+        log.debug("Unable to load pants.web icon %r from %r." %
+                    (name, DATA_DIR))
+
+# Insert the images.
+DIRECTORY_CSS = string.Template(DIRECTORY_CSS).safe_substitute(**IMAGES)
+
+# The Main Template
+try:
+    with open(os.path.join(DATA_DIR, "main.html"), "rb") as f:
+        PAGE = f.read()
+except IOError:
+    log.debug("Unable to load pants.web page template from %r." % DATA_DIR)
+    PAGE = u"""<!DOCTYPE html>
+<title>$title</title>
+$content
+<hr>
+<address><a href="$server_url">$server</a> at
+<a href="$schema://$host">$schema://$host</a></address>"""
+
+# Fill up the template a bit.
+PAGE = string.Template(PAGE).safe_substitute(
+                                css=MAIN_CSS,
+                                server_url=SERVER_URL,
+                                server=SERVER)
+
+PAGE = re.sub(">\s+<", "><", PAGE, flags=re.DOTALL)
+PAGE = string.Template(PAGE)
+
+# The Directory Template
+try:
+    with open(os.path.join(DATA_DIR, "directory.html"), "rb") as f:
+        DIRECTORY_PAGE = PAGE.safe_substitute(
+                                title="Index of $path",
+                                content=f.read(),
+                                extra_css=DIRECTORY_CSS
+                                )
+except IOError:
+    DIRECTORY_PAGE = PAGE.safe_substitute(
+                            title="Index of $path",
+                            content="""<h1>Index of $path</h1>
+$go_up
+<table><thead><tr><th>Name</th><th>Size</th><th>Last Modified</th></tr></thead>
+$content
+</table>""",
+                            extra_css=DIRECTORY_CSS
+                            )
+
+DIRECTORY_PAGE = string.Template(DIRECTORY_PAGE)
+
+# Directory Entry Template
+try:
+    with open(os.path.join(DATA_DIR, "entry.html"), "rb") as f:
+        DIRECTORY_ENTRY = f.read()
+except IOError:
+    DIRECTORY_ENTRY = '<tr><td><a class="icon $cls" href="$uri">$name</a>' + \
+                      '</td><td>$size</td><td>$modified</td></tr>'
+
+DIRECTORY_ENTRY = string.Template(DIRECTORY_ENTRY)
+
+# The Error Template
+try:
+    with open(os.path.join(DATA_DIR, "error.html"), "rb") as f:
+        ERROR_PAGE = PAGE.safe_substitute(
+                            title="$status $status_text",
+                            content=f.read(),
+                            extra_css=u'')
+except IOError:
+    log.warning("Unable to load pants.web error template from %r." % DATA_DIR)
+    ERROR_PAGE = PAGE.safe_substitute(
+                        title="$status $status_text",
+                        extra_css=u'',
+                        content=u"""<h1>$status $status_text</h1>
+$content""")
+
+ERROR_PAGE = string.Template(ERROR_PAGE)
 
 ###############################################################################
 # Special Exceptions

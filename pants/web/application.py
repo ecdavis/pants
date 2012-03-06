@@ -628,29 +628,28 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
         request = Application.current_app.request
 
     if status is None:
-        if type(message) is int:
+        if isinstance(message, (int, long)):
             status = message
             message = None
         else:
             status = 404
 
-    if not status in HTTP:
-        status = 404
-    title = HTTP[status]
+    status_text = HTTP.get(status, "Unknown Error")
     if not headers:
         headers = {}
 
     if message is None:
-        if status in HTTP_MESSAGES:
-            dict = request.__dict__.copy()
-            dict['uri'] = decode(urllib.unquote(dict['uri']))
-            message = HTTP_MESSAGES[status] % dict
-        else:
-            message = u"An unspecified error has occured."
+        message = HTTP_MESSAGES.get(status,
+                                    u"An unspecified error has occured.")
 
-    haiku = u''
+        values = request.__dict__.copy()
+        values['uri'] = decode(urllib.unquote(values['uri']))
+        message = message.format(**values)
+
     if status in HAIKUS:
         haiku = u'<div class="haiku">%s</div>' % HAIKUS[status]
+    else:
+        haiku = u''
 
     if not message.startswith(u'<'):
         message = u'<p>%s</p>' % message
@@ -659,12 +658,20 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
         debug = Application.current_app and Application.current_app.debug
 
     if debug:
-        time = u'%0.3f ms' % (1000 * request.time)
+        debug = u'%0.3f ms' % (1000 * request.time)
     else:
-        time = u''
+        debug = u''
 
-    result = ERROR_PAGE % (status, title, status, title.replace(u' ',u'&nbsp;'),
-        haiku, message, request.host, request.host, time)
+    result = ERROR_PAGE.safe_substitute(
+                status=status,
+                status_text=status_text,
+                status_text_nbsp=status_text.replace(u' ', u'&nbsp;'),
+                haiku=haiku,
+                content=message,
+                schema=request.protocol,
+                host=request.host,
+                debug=debug
+                )
 
     return result, status, headers
 

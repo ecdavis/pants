@@ -11,6 +11,7 @@ setup(
     url="http://pantsweb.org/",
     download_url="https://github.com/ecdavis/pants/tarball/pants-0.10.1",
     packages=["pants", "pants.contrib", "pants.http", "pants.util", "pants.web"],
+    package_data={"pants.web": ["data/*.css", "data/*.png", "data/*.html"]},
     classifiers=[
         "Programming Language :: Python :: 2.6",
         "License :: OSI Approved :: Apache Software License",
