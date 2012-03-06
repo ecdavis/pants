@@ -152,10 +152,6 @@ class _HTTPStream(Client):
         Client.__init__(self, *args, **kwargs)
         self.client = client
 
-        # Increase the buffer size, hopefully preventing a buffer overflow
-        # from taking place.
-        self._recv_buffer_size_limit = 10 * (2 ** 20)
-
         # This should be true when connected to certain proxies.
         self.need_full_url = False
 

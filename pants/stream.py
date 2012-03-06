@@ -74,7 +74,6 @@ class Stream(_Channel):
         # I/O attributes
         self.read_delimiter = None
         self._recv_buffer = ""
-        self._recv_buffer_size_limit = 2 ** 16  # 64kb
         self._send_buffer = []
 
         # Channel state
@@ -93,6 +92,44 @@ class Stream(_Channel):
             self.startSSL()
         elif kwargs.get("ssl_options", None) is not None:
             self.startSSL(kwargs["ssl_options"])
+
+    ##### Properties ##########################################################
+
+    @property
+    def read_delimiter(self):
+        """ TODO: Document this! """
+        return self._read_delimiter
+
+    @read_delimiter.setter
+    def read_delimiter(self, value):
+        if value is None or isinstance(value, basestring):
+            self._read_delimiter = value
+            self._recv_buffer_size_limit = self._buffer_size
+
+        elif isinstance(value, (int, long)):
+            self._read_delimiter = value
+            self._recv_buffer_size_limit = max(self._buffer_size, value)
+
+        else:
+            raise TypeError(
+                    "read_delimiter must be None, a string, an int, or a long"
+                    )
+
+    _buffer_size = 2 ** 16  # 64kb
+
+    @property
+    def buffer_size(self):
+        return self._buffer_size
+
+    @buffer_size.setter
+    def buffer_size(self, value):
+        if not isinstance(value, (long, int)):
+            raise TypeError("buffer_size must be an int or a long")
+        self._buffer_size = value
+        if isinstance(self._read_delimiter, (int, long)):
+            self._recv_buffer_size_limit = max(value, self._read_delimiter)
+        else:
+            self._recv_buffer_size_limit = value
 
     ##### Control Methods #####################################################
 
@@ -389,11 +426,17 @@ class Stream(_Channel):
                 self._recv_buffer += data
 
                 if len(self._recv_buffer) > self._recv_buffer_size_limit:
-                    e = StreamBufferOverflow(
-                            "Buffer length exceeded upper limit on %r." % self
-                        )
-                    self._safely_call(self.on_overflow_error, e)
-                    return
+                    # Try processing the buffer to reduce its length.
+                    self._process_recv_buffer()
+
+                    # If the buffer's still too long, overflow error.
+                    if len(self._recv_buffer) > self._recv_buffer_size_limit:
+                        e = StreamBufferOverflow(
+                                "Buffer length exceeded upper limit on %r." %
+                                    self
+                            )
+                        self._safely_call(self.on_overflow_error, e)
+                        return
 
         self._process_recv_buffer()
 
