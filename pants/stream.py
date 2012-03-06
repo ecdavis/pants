@@ -788,7 +788,8 @@ class StreamServer(_Channel):
 
         return self
 
-    def _do_listen(self, backlog, slave, addr, family, error=None):    """
+    def _do_listen(self, backlog, slave, addr, family, error=None):
+        """
         A callback method to be used with
         :meth:`~pants._channel._Channel._resolve_addr` - either listens
         immediately or notifies the user of an error.
