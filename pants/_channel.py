@@ -81,7 +81,7 @@ if sys.platform == "win32":
         if err in socket.errorTab:
             errstr = socket.errorTab[err]
         elif err in errno.errorcode:
-            errstr = socket.errorcode[err]
+            errstr = errno.errorcode[err]
         else:
             errstr = os.strerror(err)
             if errstr == "Unknown error":
