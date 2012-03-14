@@ -167,25 +167,31 @@ class HTTPConnection(Connection):
                 self.read_delimiter = length
                 return
 
-            # Call the request handler.
-            self.server.request_handler(request)
-
         except BadRequest, e:
             log.info('Bad request from %r: %s',
                 self.remote_addr, e)
+            
             self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
-            if e.body:
+            if e.message:
                 self.write('Content-Type: text/html%s' % CRLF)
-                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF))
-                self.write(e.body)
+                self.write('Content-Length: %d%s' % (len(e.message),
+                                                     DOUBLE_CRLF))
+                self.write(e.message)
             else:
                 self.write(CRLF)
             self.end()
+            return
 
+        try:
+            # Call the request handler.
+            self.server.request_handler(request)
         except Exception:
             log.exception('Error handling HTTP request.')
-            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
-            self.end()
+            if request._started:
+                self.close()
+            else:
+                request.send_response("500 Internal Server Error", 500)
+                self.end()
 
     def _read_request_body(self, data):
         """
@@ -211,24 +217,23 @@ class HTTPConnection(Connection):
                     else:
                         log.warning('Invalid multipart/form-data.')
 
-            self.server.request_handler(request)
-
         except BadRequest, e:
             log.info('Bad request from %r: %s',
                 self.remote_addr, e)
-            self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
-            if e.body:
-                self.write('Content-Type: text/html%s' % CRLF)
-                self.write('Content-Length: %d%s' % (len(e.body), DOUBLE_CRLF))
-                self.write(e.body)
-            else:
-                self.write(CRLF)
-            self.end()
 
+            request.send_response(e.message, e.code)
+            self.end()
+            return
+
+        try:
+            self.server.request_handler(request)
         except Exception:
             log.exception('Error handling HTTP request.')
-            self.write('HTTP/1.1 500 Internal Server Error%s' % DOUBLE_CRLF)
-            self.end()
+            if request._started:
+                self.close()
+            else:
+                request.send_response("500 Internal Server Error", 500)
+                self.end()
 
 ###############################################################################
 # HTTPRequest Class
@@ -264,6 +269,7 @@ class HTTPRequest(object):
         self.method     = method
         self.uri        = uri
         self.version    = http_version
+        self._started   = False
 
         # X-Headers
         if connection.server.xheaders:
@@ -453,6 +459,7 @@ class HTTPRequest(object):
         data       A string of data to be sent to the client.
         =========  ============
         """
+        self._started = True
         self.connection.write(data)
 
     def send_cookies(self, keys=None, end_headers=False):
@@ -470,6 +477,7 @@ class HTTPRequest(object):
         end_headers   False     *Optional.* If this is set to True, a double CRLF sequence will be written at the end of the cookie headers, signifying the end of the HTTP headers segment and the beginning of the response.
         ============  ========  ============
         """
+        self._started = True
         if keys is None:
             out = self.cookies.output()
         else:
@@ -500,6 +508,7 @@ class HTTPRequest(object):
         cookies       True      *Optional.* If this is set to True, HTTP cookies will be sent along with the headers.
         ============  ========  ============
         """
+        self._started = True
         out = []
         append = out.append
         for key in headers:
@@ -557,6 +566,7 @@ class HTTPRequest(object):
         content_type   ``text/plain``   *Optional.* The Content-Type header to send.
         =============  ===============  ============
         """
+        self._started = True
         if not isinstance(content, str):
             content = str(content)
 
@@ -585,6 +595,7 @@ class HTTPRequest(object):
         code       ``200``   *Optional.* The HTTP status code to send to the client.
         =========  ========  ============
         """
+        self._started = True
         try:
             self.connection.write('%s %d %s%s' % (
                 self.version, code, HTTP[code], CRLF))

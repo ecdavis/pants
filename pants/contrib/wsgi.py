@@ -80,7 +80,7 @@ class WSGIConnector(object):
 
         def start_response(status, head):
             request.send_status(status)
-            if isinstance(head, list):
+            if not isinstance(head, dict):
                 head = dict(head)
             request.send_headers(head)
 
@@ -128,17 +128,23 @@ class WSGIConnector(object):
             log.exception('Exception running WSGI application for: %s %s',
                 request.method, request.path)
 
+            # Use the default behavior if we're not debugging.
             if not self.debug:
-                body, status, headers = error(500, request=request, debug=False)
-            else:
-                resp = u''.join([
-                    u"<h2>Traceback</h2>\n",
-                    u"<pre>%s</pre>\n" % traceback.format_exc(),
-                    u"<h2>HTTP Request</h2>\n",
-                    request.__html__(),
-                    ])
-                body, status, headers = error(resp, 500, request=request,
-                    debug=True)
+                raise
+
+            if request._started:
+                # We can't recover, so close the connection.
+                request.connection.close()
+                return
+
+            resp = u''.join([
+                u"<h2>Traceback</h2>\n",
+                u"<pre>%s</pre>\n" % traceback.format_exc(),
+                u"<h2>HTTP Request</h2>\n",
+                request.__html__(),
+                ])
+            body, status, headers = error(resp, 500, request=request,
+                debug=True)
 
             request.send_status(500)
 
