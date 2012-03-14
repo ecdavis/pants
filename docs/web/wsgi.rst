@@ -1,7 +1,7 @@
-``pants.contrib.wsgi``
-**********************
+``pants.web.wsgi``
+******************
 
-.. automodule:: pants.contrib.wsgi
+.. automodule:: pants.web.wsgi
 
 
 WSGIConnector

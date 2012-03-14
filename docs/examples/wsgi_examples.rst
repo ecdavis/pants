@@ -9,7 +9,7 @@ An HTTP server running a WSGI application that will display a very simple
 Hello World to any connecting clients::
 
     from pants.http import HTTPServer
-    from pants.contrib.wsgi import WSGIConnector
+    from pants.web import WSGIConnector
     from pants import engine
 
     def application(environ, start_response):

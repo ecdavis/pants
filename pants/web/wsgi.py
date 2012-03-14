@@ -25,8 +25,8 @@ import re
 import sys
 import traceback
 
-from pants.http import log
-from pants.web import error
+from pants.web.application import error
+from pants.web.utils import log
 
 ###############################################################################
 # WSGIConnector Class
@@ -34,7 +34,7 @@ from pants.web import error
 
 class WSGIConnector(object):
     """
-    This class acts as a request handler for :class:`pants.contrib.http.HTTPServer`
+    This class acts as a request handler for :class:`pants.http.HTTPServer`
     and provides a simple interface for hosting `WSGI <http://en.wikipedia.org/wiki/WSGI>`_
     compatible applications.
 
@@ -56,12 +56,12 @@ class WSGIConnector(object):
     def attach(self, application, path, domain=None):
         """
         Attach the WSGIConnector to an instance of
-        :class:`pants.contrib.web.Application` at the given route.
+        :class:`pants.web.Application` at the given route.
 
         ============  ========  ============
         Argument      Default   Description
         ============  ========  ============
-        application             The :class:`~pants.contrib.web.Application` to attach to.
+        application             The :class:`~pants.web.Application` to attach to.
         path                    The path to serve requests from.
         domain        None      *Optional.* The domain to serve requests upon.
         ============  ========  ============
