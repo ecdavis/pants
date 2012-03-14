@@ -26,7 +26,6 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         ],
     scripts=[
-        "bin/pantsd.py",
         "bin/pants_dig.py",
         ],
     )
