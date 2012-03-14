@@ -32,6 +32,14 @@ SSL_OPTIONS = {
     }
 
 class GoogleClient(pants.Client):
+    def __init__(self, **kwargs):
+        pants.Client.__init__(self, **kwargs)
+
+        self.on_ssl_handshake_called = False
+        self.on_connect_called = False
+        self.on_read_called = False
+        self.on_close_called = False
+
     def on_ssl_handshake(self):
         self.on_ssl_handshake_called = True
 
