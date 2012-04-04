@@ -110,10 +110,8 @@ class Engine(object):
         else:
             self._running = True
 
-        # Initialise engine.
         log.info("Starting engine.")
 
-        # Main loop.
         try:
             while not self._shutdown:
                 self.poll(poll_timeout)
@@ -124,7 +122,6 @@ class Engine(object):
         except Exception:
             log.exception("Uncaught exception in main loop.")
         finally:
-            # Graceful shutdown.
             log.info("Stopping engine.")
             self._shutdown = False
             self._running = False
@@ -156,8 +153,6 @@ class Engine(object):
         ============= ============
         """
         self.time = time.time()
-
-        # Timers
 
         callbacks, self._callbacks = self._callbacks[:], []
 
@@ -193,8 +188,6 @@ class Engine(object):
         if not self._channels:
             time.sleep(poll_timeout)  # Don't burn CPU.
             return
-
-        # Channels
 
         try:
             events = self._poller.poll(poll_timeout)
@@ -524,7 +517,7 @@ class _Select(object):
 
 class _Timer(object):
     """
-    A simple data structure for storing timer information.
+    A simple class for storing timer information.
 
     =========  ============
     Argument   Description

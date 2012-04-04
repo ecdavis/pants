@@ -47,13 +47,30 @@ log = logging.getLogger("pants")
 
 class Stream(_Channel):
     """
-    A stream-oriented, connecting channel.
+    The low-level, stream-oriented connection class.
 
-    ==================  ============
+    A :class:`~pants.stream.Stream` instance represents either a local
+    connection to a remote server or a remote connection to a local
+    server over a connection-oriented protocol such as TCP/IP. The class
+    is fully-functional and can be used directly in applications,
+    although it is recommended that you use the :mod:`pants.basic`
+    classes wherever it is possible to do so.
+
+    ==================  ================================================
     Keyword Arguments   Description
-    ==================  ============
-    socket              *Optional.* A pre-existing socket to wrap.
-    ==================  ============
+    ==================  ================================================
+    engine              *Optional.* The engine to which the channel
+                        should be added. Defaults to the global engine.
+    socket              *Optional.* A pre-existing socket to wrap. This
+                        can be a regular :obj:`~socket.socket` or an
+                        :obj:`~ssl.SSLSocket`. If a socket is not
+                        provided, a new socket will be created for the
+                        channel when required.
+    ssl_options         *Optional.* If provided,
+                        :meth:`~pants.stream.Stream.startSSL` will be
+                        called with these options once the stream is
+                        ready. By default, SSL will not be enabled.
+    ==================  ================================================
     """
     DATA_STRING = 0
     DATA_FILE = 1
@@ -97,7 +114,36 @@ class Stream(_Channel):
 
     @property
     def read_delimiter(self):
-        """ TODO: Document this! """
+        """
+        The magical read delimiter which determines how incoming data is
+        buffered by the stream.
+
+        As data is read from the socket, it is buffered internally by
+        the stream before being passed to the
+        :meth:`~pants.stream.Stream.on_read` callback. The value of the
+        read delimiter determines when the data is passed to the
+        callback. Valid values are ``None``, a string, or an
+        integer/long.
+
+        When the read delimiter is ``None``, data will be passed to
+        :meth:`~pants.stream.Stream.on_read` immediately after it is
+        read from the socket. This is the default behaviour.
+
+        When the read delimiter is a string, data will be buffered
+        internally until that string is encountered in the incoming
+        data. All data up to and including the read delimiter is then
+        passed to :meth:`~pants.stream.Stream.on_read`.
+
+        When the read delimiter is an integer or a long, it is treated
+        as the number of bytes to read before passing the data to
+        :meth:`~pants.stream.Stream.on_read`.
+
+        Attempting to set the read delimiter to any other value will
+        raise a :exc:`TypeError`.
+
+        The effective use of the read delimiter can greatly simplify the
+        implementation of certain protocols.
+        """
         return self._read_delimiter
 
     @read_delimiter.setter
@@ -119,6 +165,32 @@ class Stream(_Channel):
 
     @property
     def buffer_size(self):
+        """
+        The maximum size, in bytes, of the internal buffer used for
+        incoming data.
+
+        When buffering data it is important to ensure that inordinate
+        amounts of memory are not used. Setting the buffer size to a
+        sensible value can prevent coding errors or malicious use from
+        causing your application to consume increasingly large amounts
+        of memory. By default, a maximum of 64kb of data will be stored.
+
+        The buffer size is mainly relevant when using a string value for
+        the :attr:`~pants.stream.Stream.read_delimiter`. Because you
+        cannot guarantee that the string will appear, having an upper
+        limit on the size of the data is appropriate.
+
+        If the read delimiter is set to a number larger than the buffer
+        size, the buffer size will be increased to accomodate the read
+        delimiter.
+
+        When the internal buffer's size exceeds the maximum allowed, the
+        :meth:`~pants.stream.Stream.on_overflow_error` callback will be
+        invoked.
+
+        Attempting to set the buffer size to anything other than an
+        integer or long will raise a :exc:`TypeError`.
+        """
         return self._buffer_size
 
     @buffer_size.setter
@@ -135,20 +207,48 @@ class Stream(_Channel):
 
     def startSSL(self, ssl_options={}):
         """
-        Enable SSL on the channel and perform a handshake.
+        Enable SSL on the channel and perform a handshake at the next
+        opportunity.
 
-        For best results, this method should be called before
-        :meth:`~pants.stream.Stream.connect`.
+        SSL is only enabled on a channel once all currently pending data
+        has been written. If a problem occurs at this stage,
+        :meth:`~pants.stream.Stream.on_ssl_error` is called. Once SSL
+        has been enabled, the SSL handshake begins - this typically
+        takes some time and may fail, in which case
+        :meth:`~pants.stream.Stream.on_ssl_handshake_error` will be
+        called. When the handshake is successfully completed,
+        :meth:`~pants.stream.Stream.on_ssl_handshake` is called and the
+        channel is secure.
 
-        This method will raise a :exc:`RuntimeError` if you provide a
-        value other than False for the *do_handshake_on_connect* SSL
-        option.
+        Typically, this method is called before
+        :meth:`~pants.stream.Stream.connect`. In this case,
+        :meth:`~pants.stream.Stream.on_ssl_handshake` will be called
+        before :meth:`~pants.stream.Stream.on_connect`. If it is called
+        after :meth:`~pants.stream.Stream.connect`, the reverse is true.
+        
+        It is possible, although unusual, to start SSL on a channel that
+        is already connected and active. In this case, as noted above,
+        SSL will only be enabled and the handshake performed after all
+        currently pending data has been written.
 
-        ============ ============
+        The SSL options argument will be passed through to
+        :func:`ssl.wrap_socket` as keyword arguments - see the
+        :mod:`ssl` documentation for further information. You will
+        typically want to provide the ``keyfile``, ``certfile`` and
+        ``ca_certs`` options. The ``do_handshake_on_connect`` option
+        **must** be ``False``, or a :exc:`ValueError` will be raised.
+
+        Attempting to enable SSL on a closed channel or a channel that
+        already has SSL enabled on it will raise a :exc:`RuntimeError`.
+
+        Returns the channel.
+
+        ============ ===================================================
         Arguments    Description
-        ============ ============
-        ssl_options  *Optional.* SSL keyword arguments. See :func:`ssl.wrap_socket` for a description of the available SSL options.
-        ============ ============
+        ============ ===================================================
+        ssl_options  *Optional.* Keyword arguments to pass to
+                     :func:`ssl.wrap_socket`.
+        ============ ===================================================
         """
         if self.ssl_enabled or self._ssl_enabling:
             raise RuntimeError("startSSL() called on SSL-enabled %r" % self)
@@ -157,25 +257,53 @@ class Stream(_Channel):
             raise RuntimeError("startSSL() called on closed %r" % self)
 
         if ssl_options.setdefault("do_handshake_on_connect", False) is not False:
-            raise RuntimeError("SSL option 'do_handshake_on_connect' must be False.")
+            raise ValueError("SSL option 'do_handshake_on_connect' must be False.")
 
         self._ssl_enabling = True
         self._send_buffer.append((Stream.WORK_SSL_ENABLE, ssl_options))
+
         if self.connected:
             self._process_send_buffer()
 
-    def connect(self, addr, native_resolve=True):
+        return self
+
+    def connect(self, address, native_resolve=True):
         """
         Connect the channel to a remote socket.
 
+        The given ``address`` is resolved and used by the channel to
+        connect to the remote server. If an error occurs at any stage in
+        this process, :meth:`~pants.stream.Stream.on_connect_error` is
+        called. When a connection is successfully established,
+        :meth:`~pants.stream.Stream.on_connect` is called.
+
+        Addresses can be represented in a number of different ways. A
+        single string is treated as a UNIX address. A single integer is
+        treated as a port and converted to a 2-tuple of the form
+        ``('', port)``. A 2-tuple is treated as an IPv4 address and a
+        4-tuple is treated as an IPv6 address. See the :mod:`socket`
+        documentation for further information on socket addresses.
+
+        If no socket exists on the channel, one will be created with a
+        socket family appropriate for the given address.
+
+        An error will occur during the connection if the given address
+        is not of a valid format or of an inappropriate format for the
+        socket (e.g. if an IP address is given to a UNIX socket).
+
+        Calling :meth:`connect()` on a closed channel or a channel that
+        is already connected will raise a :exc:`RuntimeError`.
+
         Returns the channel.
 
-        ===============  ============
+        ===============  ===============================================
         Arguments        Description
-        ===============  ============
-        addr             The remote address to connect to.
-        native_resolve   *Optional.* If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
-        ===============  ============
+        ===============  ===============================================
+        address          The remote address to connect to.
+        native_resolve   *Optional.* If True, use Python's builtin
+                         address resolution. Otherwise, Pants'
+                         non-blocking address resolution will be used.
+        ===============  ===============================================
         """
         if self.connected or self.connecting:
             raise RuntimeError("connect() called on active %r." % self)
@@ -186,57 +314,18 @@ class Stream(_Channel):
         self.connecting = True
 
         # Identify the type of address.
-        self._resolve_addr(addr, native_resolve, self._do_connect)
+        self._resolve_addr(address, native_resolve, self._do_connect)
 
         return self
-
-    def _do_connect(self, addr, family, error=None):
-        """
-        A callback method to be used with
-        :meth:`~pants._channel._Channel._resolve_addr` - either connects
-        immediately or notifies the user of an error.
-
-        =========  ============
-        Argument   Description
-        =========  ============
-        addr       The address to connect to or None if address resolution failed.
-        family     The detected socket family or None if address resolution failed.
-        error      *Optional.* Error information or None if no error occured.
-        =========  ============
-        """
-        if not addr:
-            self.connecting = False
-            e = StreamConnectError(*error)
-            self._safely_call(self.on_connect_error, e)
-            return
-
-        # If we already have a socket, we shouldn't. Toss it!
-        if self._socket:
-            if self._socket.family != family:
-                self.engine.remove_channel(self)
-                self._socket_close()
-                self._closed = False
-
-        # Create our socket.
-        sock = socket.socket(family, socket.SOCK_STREAM)
-        self._socket_set(sock)
-        self.engine.add_channel(self)
-
-        # Now, connect!
-        try:
-            connected = self._socket_connect(addr)
-        except socket.error, err:
-            self.close()
-            e = StreamConnectError(err.errno, err.strerror)
-            self._safely_call(self.on_connect_error, e)
-            return
-
-        if connected:
-            self._handle_connect_event()
 
     def close(self):
         """
         Close the channel.
+
+        The channel will be closed immediately and removed from the
+        engine, causing any unwritten data to be lost.
+
+        Once closed, a channel cannot be re-opened.
         """
         if self._closed:
             return
@@ -261,7 +350,11 @@ class Stream(_Channel):
 
     def end(self):
         """
-        Close the channel after writing is finished.
+        Close the channel while ensuring all unwritten data is sent.
+
+        The channel is effectively closed, but is not removed from the
+        engine until all currently unwritten data has been sent to the
+        socket.
         """
         if self._closed or self._closing:
             return
@@ -307,14 +400,17 @@ class Stream(_Channel):
         """
         Write a file to the channel.
 
-        ==========  ============
+        ==========  ====================================================
         Arguments   Description
-        ==========  ============
+        ==========  ====================================================
         sfile       A file object to write to the channel.
-        nbytes      *Optional.* The number of bytes of the file to write. If 0, all bytes will be written.
-        offset      *Optional.* The number of bytes to offset writing by.
-        flush       *Optional.* If True, flush the internal write buffer.
-        ==========  ============
+        nbytes      *Optional.* The number of bytes of the file to
+                    write. If 0, all bytes will be written.
+        offset      *Optional.* The number of bytes to offset writing
+                    by.
+        flush       *Optional.* If True, flush the internal write
+                    buffer.
+        ==========  ====================================================
         """
         if self._closed or self._closing:
             log.warning("Attempted to write file to closed %r." % self)
@@ -386,6 +482,53 @@ class Stream(_Channel):
         self.close()
 
     ##### Internal Methods ####################################################
+
+    def _do_connect(self, addr, family, error=None):
+        """
+        A callback method to be used with
+        :meth:`~pants._channel._Channel._resolve_addr` - either connects
+        immediately or notifies the user of an error.
+
+        =========  =====================================================
+        Argument   Description
+        =========  =====================================================
+        addr       The address to connect to or None if address
+                   resolution failed.
+        family     The detected socket family or None if address
+                   resolution failed.
+        error      *Optional.* Error information or None if no error
+                   occured.
+        =========  =====================================================
+        """
+        if not addr:
+            self.connecting = False
+            e = StreamConnectError(*error)
+            self._safely_call(self.on_connect_error, e)
+            return
+
+        # If we already have a socket, we shouldn't. Toss it!
+        if self._socket:
+            if self._socket.family != family:
+                self.engine.remove_channel(self)
+                self._socket_close()
+                self._closed = False
+
+        # Create our socket.
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        self._socket_set(sock)
+        self.engine.add_channel(self)
+
+        # Now, connect!
+        try:
+            connected = self._socket_connect(addr)
+        except socket.error, err:
+            self.close()
+            e = StreamConnectError(err.errno, err.strerror)
+            self._safely_call(self.on_connect_error, e)
+            return
+
+        if connected:
+            self._handle_connect_event()
 
     def _update_addr(self):
         """
