@@ -37,13 +37,21 @@ from pants.stream import Stream, StreamServer
 class Client(Stream):
     """
     A simple streaming client.
+
+    ============  ======================================================
+    Argument      Description
+    ============  ======================================================
+    ssl_options   *Optional.* If provided,
+                  :meth:`~pants.stream.Stream.startSSL` will be called
+                  with these options once the channel is ready.
+    engine        *Optional.* The engine to which the channel should be
+                  added.
+    ============  ======================================================
     """
-    def __init__(self, ssl_options=None, family=socket.AF_INET,
-                 engine=Engine.instance()):
+    def __init__(self, ssl_options=None, engine=Engine.instance()):
         # This dummy method prevents keyword arguments from finding
         # their way up to the Stream/_Channel constructors.
-        Stream.__init__(self, ssl_options=ssl_options, family=family,
-                        engine=engine)
+        Stream.__init__(self, ssl_options=ssl_options, engine=engine)
 
 
 ###############################################################################
@@ -57,8 +65,9 @@ class Connection(Stream):
     =========  ============
     Argument   Description
     =========  ============
-    socket     A pre-existing socket that this channel should wrap.
-    server     The server to which this channel is connected.
+    engine     The engine to which the channel should be added.
+    server     The server to which the channel is connected.
+    socket     The pre-existing socket that the channel should wrap.
     =========  ============
     """
     def __init__(self, engine, server, socket):
@@ -75,19 +84,26 @@ class Server(StreamServer):
     """
     A simple streaming server.
 
-    ================  ============
+    ================  ===================================================
     Argument          Description
-    ================  ============
-    ConnectionClass   *Optional.* A :obj:`pants.simple.Connection` subclass with which to wrap newly connected sockets.
-    ================  ============
+    ================  ===================================================
+    ConnectionClass   *Optional.* A :obj:`pants.basic.Connection`
+                      subclass with which to wrap newly connected
+                      sockets.
+    ssl_options       *Optional.* If provided,
+                      :meth:`~pants.stream.Stream.startSSL` will be
+                      called with these options once the channel is
+                      ready.
+    engine            *Optional.* The engine to which the channel should
+                      be added.
+    ================  ===================================================
     """
-    #: A :obj:`pants.simple.Connection` subclass with which to wrap newly connected sockets.
+    #: A :obj:`pants.basic.Connection` subclass with which to wrap newly connected sockets.
     ConnectionClass = Connection
 
     def __init__(self, ConnectionClass=None, ssl_options=None,
-                 family=socket.AF_INET, engine=Engine.instance()):
-        StreamServer.__init__(self, ssl_options=ssl_options, family=family,
-                              engine=engine)
+            engine=Engine.instance()):
+        StreamServer.__init__(self, ssl_options=ssl_options, engine=engine)
 
         # Sets instance attribute, NOT class attribute.
         if ConnectionClass:
@@ -103,12 +119,13 @@ class Server(StreamServer):
 
         Returns the channel.
 
-        ==========  ============
+        ==========  ==============================================
         Arguments   Description
-        ==========  ============
-        addr        *Optional.* The local address to listen for connections on. By default, is ('', 8080).
-        backlog     *Optional.* The size of the connection queue. By default, is 1024.
-        ==========  ============
+        ==========  ==============================================
+        addr        *Optional.* The local address to listen for
+                    connections on.
+        backlog     *Optional.* The size of the connection queue.
+        ==========  ==============================================
         """
         return StreamServer.listen(self, addr, backlog)
 
@@ -118,7 +135,8 @@ class Server(StreamServer):
         """
         Called after the channel has accepted a new connection.
 
-        Create a new instance of :attr:`ConnectonClass` to wrap the socket
+        Create a new instance of
+        :attr:`~pants.basic.Server.ConnectonClass` to wrap the socket
         and add it to the server.
 
         =========  ============
