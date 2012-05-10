@@ -225,7 +225,7 @@ class Stream(_Channel):
         :meth:`~pants.stream.Stream.on_ssl_handshake` will be called
         before :meth:`~pants.stream.Stream.on_connect`. If it is called
         after :meth:`~pants.stream.Stream.connect`, the reverse is true.
-        
+
         It is possible, although unusual, to start SSL on a channel that
         is already connected and active. In this case, as noted above,
         SSL will only be enabled and the handshake performed after all
@@ -370,12 +370,16 @@ class Stream(_Channel):
         """
         Write data to the channel.
 
-        ==========  ============
+        The channel must be connected to a remote host.
+
+        ==========  ===================================================
         Arguments   Description
-        ==========  ============
+        ==========  ===================================================
         data        A string of data to write to the channel.
-        flush       *Optional.* If True, flush the internal write buffer.
-        ==========  ============
+        flush       *Optional.* If True, flush the internal write
+                    buffer. See :meth:`~pants.stream.Stream.flush` for
+                    details.
+        ==========  ===================================================
         """
         if self._closed or self._closing:
             log.warning("Attempted to write to closed %r." % self)
@@ -400,6 +404,8 @@ class Stream(_Channel):
         """
         Write a file to the channel.
 
+        The channel must be connected to a remote host.
+
         ==========  ====================================================
         Arguments   Description
         ==========  ====================================================
@@ -409,7 +415,8 @@ class Stream(_Channel):
         offset      *Optional.* The number of bytes to offset writing
                     by.
         flush       *Optional.* If True, flush the internal write
-                    buffer.
+                    buffer. See :meth:`~pants.stream.Stream.flush` for
+                    details.
         ==========  ====================================================
         """
         if self._closed or self._closing:
@@ -430,7 +437,9 @@ class Stream(_Channel):
     def flush(self):
         """
         Attempt to immediately write any internally buffered data to the
-        channel.
+        channel without waiting for a write event.
+
+        This method should only be used when absolutely required.
         """
         if not self._send_buffer:
             return
