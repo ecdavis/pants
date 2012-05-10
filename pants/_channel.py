@@ -109,12 +109,14 @@ class _Channel(object):
     they call the relevant on_* event handler placeholders at the
     appropriate times.
 
-    ==================  ============
+    ==================  ================================================
     Keyword Arguments   Description
-    ==================  ============
-    engine              *Optional.* The engine to which the channel should be added. Defaults to the global engine.
-    socket              *Optional.* A pre-existing socket to wrap. Defaults to a newly-created socket.
-    ==================  ============
+    ==================  ================================================
+    engine              *Optional.* The engine to which the channel
+                        should be added. Defaults to the global engine.
+    socket              *Optional.* A pre-existing socket to wrap.
+                        Defaults to a newly-created socket.
+    ==================  ================================================
     """
     def __init__(self, **kwargs):
         self.engine = kwargs.get("engine", Engine.instance())
@@ -472,14 +474,16 @@ class _Channel(object):
 
         Returns the number of bytes that were sent to the socket.
 
-        =========  ============
+        =========  ====================================================
         Argument   Description
-        =========  ============
+        =========  ====================================================
         sfile      The file to send.
         offset     The number of bytes to offset writing by.
-        nbytes     The number of bytes of the file to write. If 0, all bytes will be written.
-        fallback   If True, the pure-Python sendfile function will be used.
-        =========  ============
+        nbytes     The number of bytes of the file to write. If 0, all
+                   bytes will be written.
+        fallback   If True, the pure-Python sendfile function will be
+                   used.
+        =========  ====================================================
         """
         try:
             return sendfile(sfile, self, offset, nbytes, fallback)
@@ -523,7 +527,7 @@ class _Channel(object):
         exception is raised it is logged.
 
         If no exception is raised, returns the value returned by
-        *thing_to_call*.
+        :func:`thing_to_call`.
 
         ==============  ============
         Argument        Description
@@ -557,13 +561,18 @@ class _Channel(object):
         Resolve the given address into something that can be connected
         to immediately and determine the appropriate socket family.
 
-        ===============  ============
+        ===============  ==============================================
         Argument         Description
-        ===============  ============
+        ===============  ==============================================
         addr             The address to resolve.
-        native_resolve   If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
-        callback         A callable taking two mandatory arguments and one optional argument. The arguments are: the resolved address, the socket family and error information, respectively.
-        ===============  ============
+        native_resolve   If True, use Python's builtin address
+                         resolution. Otherwise, Pants' non-blocking
+                         address resolution will be used.
+        callback         A callable taking two mandatory arguments and
+                         one optional argument. The arguments are: the
+                         resolved address, the socket family and error
+                         information, respectively.
+        ===============  ==============================================
         """
         # This is here to prevent an import-loop. pants.util.dns depends
         # on pants._channel.
