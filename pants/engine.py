@@ -17,7 +17,7 @@
 #
 ###############################################################################
 """
-The core of the Pants framework - the engine.
+Implementation of an asynchronous engine.
 """
 
 ###############################################################################
@@ -45,11 +45,27 @@ log = logging.getLogger("pants")
 
 class Engine(object):
     """
-    The asynchronous engine that powers a Pants application.
+    The asynchronous engine class.
 
-    The engine is a singleton object responsible for updating all
-    channels and timers in your application. Once started it will run
-    until it is manually stopped, interrupted or a fatal error occurs.
+    An engine object is central to any Pants application, as it is
+    responsible for monitoring and updating channels and timers
+    asynchronously. The majority of Pants applications will use the
+    global engine object (see :meth:`~pants.engine.Engine.instance`),
+    however it is possible to create and use multiple engines when
+    required.
+
+    An engine object can provide the main loop for an application, or it
+    can be integrated into a pre-existing main loop, depending on the
+    circumstances.
+
+    =========  =========================================================
+    Argument   Description
+    =========  =========================================================
+    poller     *Optional.* A specific polling object for the engine to
+               use. By default, the engine will determine the most
+               suitable polling object for the current platform and use
+               that.
+    =========  =========================================================
     """
     # Socket events - these correspond to epoll() states.
     NONE = 0x00
@@ -96,11 +112,12 @@ class Engine(object):
         initialised. For applications with a pre-existing main loop, see
         :meth:`~pants.engine.Engine.poll`.
 
-        =============  ============
+        =============  ===================================
         Argument       Description
-        =============  ============
-        poll_timeout   *Optional.* The timeout to pass to :meth:`~pants.engine.Engine.poll`. By default, is 0.02.
-        =============  ============
+        =============  ===================================
+        poll_timeout   *Optional.* The timeout to pass to
+                       :meth:`~pants.engine.Engine.poll`.
+        =============  ===================================
         """
         if self._shutdown:
             self._shutdown = False
@@ -132,7 +149,7 @@ class Engine(object):
 
         If :meth:`~pants.engine.Engine.start` has been called, calling
         :meth:`~pants.engine.Engine.stop` will cause the engine to cease
-        polling and shut down.
+        polling and shut down on the next iteration of the main loop.
         """
         if self._running:
             self._shutdown = True
@@ -257,9 +274,9 @@ class Engine(object):
         """
         Schedule a callback.
 
-        A callback is a function (or other callable) that is not executed
-        immediately but rather at the beginning of the next iteration of the
-        main engine loop.
+        A callback is a function (or other callable) that is executed
+        the next time :meth:`~pants.engine.Engine.poll` is called - in
+        other words, on the next iteration of the main loop.
 
         Returns a callable which can be used to cancel the callback.
 
@@ -281,8 +298,9 @@ class Engine(object):
         """
         Schedule a loop.
 
-        A loop is a callback that is executed and then rescheduled, being
-        run on each iteration of the main engine loop.
+        A loop is a callback that is continuously rescheduled. It will
+        be executed every time :meth:`~pants.engine.Engine.poll` is
+        called - in other words, on each iteraton of the main loop.
 
         Returns a callable which can be used to cancel the loop.
 
@@ -304,19 +322,21 @@ class Engine(object):
         """
         Schedule a deferred.
 
-        A deferred is a function (or other callable) that is not executed
-        immediately but rather after a certain amount of time.
+        A deferred is a function (or other callable) that is executed
+        after a certain amount of time has passed.
 
         Returns a callable which can be used to cancel the deferred.
 
-        =========  ============
+        =========  =====================================================
         Argument   Description
-        =========  ============
-        delay      The delay, in seconds, after which the deferred should be run.
+        =========  =====================================================
+        delay      The delay, in seconds, after which the deferred
+                   should be run.
         function   The callable to be executed when the deferred is run.
-        args       The positional arguments to be passed to the callable.
+        args       The positional arguments to be passed to the
+                   callable.
         kwargs     The keyword arguments to be passed to the callable.
-        =========  ============
+        =========  =====================================================
         """
         if delay <= 0:
             raise ValueError("Delay must be greater than 0 seconds.")
@@ -331,9 +351,8 @@ class Engine(object):
         """
         Schedule a cycle.
 
-        A cycle is a deferred that is executed after a certain amount of
-        time and then rescheduled, effectively being run at regular
-        intervals.
+        A cycle is a deferred that is continuously rescheduled. It will
+        be run at regular intervals.
 
         Returns a callable which can be used to cancel the cycle.
 
@@ -379,6 +398,15 @@ class Engine(object):
     ##### Poller Methods ######################################################
 
     def _install_poller(self, poller=None):
+        """
+        Install a poller on the engine.
+        
+        =========  ============
+        Argument   Description
+        =========  ============
+        poller     The poller to be installed.
+        =========  ============
+        """
         if self._poller is not None:
             for fileno, channel in self._channels.iteritems():
                 self._poller.remove(fileno, channel._events)
@@ -401,6 +429,9 @@ class Engine(object):
 ###############################################################################
 
 class _EPoll(object):
+    """
+    An :obj:`~select.epoll`-based poller.
+    """
     def __init__(self):
         self._epoll = select.epoll()
 
@@ -422,6 +453,9 @@ class _EPoll(object):
 ###############################################################################
 
 class _KQueue(object):
+    """
+    A :obj:`~select.kqueue`-based poller.
+    """
     MAX_EVENTS = 1024
 
     def __init__(self):
@@ -475,6 +509,9 @@ class _KQueue(object):
 ###############################################################################
 
 class _Select(object):
+    """
+    A :func:`~select.select`-based poller.
+    """
     def __init__(self):
         self._r = set()
         self._w = set()
@@ -519,14 +556,16 @@ class _Timer(object):
     """
     A simple class for storing timer information.
 
-    =========  ============
+    =========  ======================================================
     Argument   Description
-    =========  ============
+    =========  ======================================================
     function   The callable to be executed when the timer is run.
     requeue    Whether the timer should be requeued after being run.
-    delay      The time, in seconds, after which the timer should be run - or None, for a callback/loop.
-    end        The time, in seconds since the epoch, after which the timer should be run - or None, for a callback/loop.
-    =========  ============
+    delay      The time, in seconds, after which the timer should be
+               run- or None, for a callback/loop.
+    end        The time, in seconds since the epoch, after which the
+               timer should be run - or None, for a callback/loop.
+    =========  ======================================================
     """
     def __init__(self, engine, function, requeue, delay=None, end=None):
         self.engine = engine
