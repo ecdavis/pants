@@ -27,8 +27,8 @@ from pants.test._pants_util import *
 
 SSL_OPTIONS = {
     'server_side': True,
-    'certfile': 'cert.pem',
-    'keyfile': 'cert.pem'
+    'certfile': os.path.dirname(__file__) + 'cert.pem',
+    'keyfile': os.path.dirname(__file__) + 'cert.pem'
     }
 
 class GoogleClient(pants.Client):
