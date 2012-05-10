@@ -109,14 +109,14 @@ class _Channel(object):
     they call the relevant on_* event handler placeholders at the
     appropriate times.
 
-    ==================  ================================================
-    Keyword Arguments   Description
-    ==================  ================================================
-    engine              *Optional.* The engine to which the channel
-                        should be added. Defaults to the global engine.
-    socket              *Optional.* A pre-existing socket to wrap.
-                        Defaults to a newly-created socket.
-    ==================  ================================================
+    =================  ================================================
+    Keyword Argument   Description
+    =================  ================================================
+    engine             *Optional.* The engine to which the channel
+                       should be added. Defaults to the global engine.
+    socket             *Optional.* A pre-existing socket to wrap.
+                       Defaults to a newly-created socket.
+    =================  ================================================
     """
     def __init__(self, **kwargs):
         self.engine = kwargs.get("engine", Engine.instance())

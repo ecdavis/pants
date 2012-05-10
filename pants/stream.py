@@ -56,21 +56,21 @@ class Stream(_Channel):
     although it is recommended that you use the :mod:`pants.basic`
     classes wherever it is possible to do so.
 
-    ==================  ================================================
-    Keyword Arguments   Description
-    ==================  ================================================
-    engine              *Optional.* The engine to which the channel
-                        should be added. Defaults to the global engine.
-    socket              *Optional.* A pre-existing socket to wrap. This
-                        can be a regular :obj:`~socket.socket` or an
-                        :obj:`~ssl.SSLSocket`. If a socket is not
-                        provided, a new socket will be created for the
-                        channel when required.
-    ssl_options         *Optional.* If provided,
-                        :meth:`~pants.stream.Stream.startSSL` will be
-                        called with these options once the stream is
-                        ready. By default, SSL will not be enabled.
-    ==================  ================================================
+    =================  ================================================
+    Keyword Argument   Description
+    =================  ================================================
+    engine             *Optional.* The engine to which the channel
+                       should be added. Defaults to the global engine.
+    socket             *Optional.* A pre-existing socket to wrap. This
+                       can be a regular :obj:`~socket.socket` or an
+                       :obj:`~ssl.SSLSocket`. If a socket is not
+                       provided, a new socket will be created for the
+                       channel when required.
+    ssl_options        *Optional.* If provided,
+                       :meth:`~pants.stream.Stream.startSSL` will be
+                       called with these options once the stream is
+                       ready. By default, SSL will not be enabled.
+    =================  ================================================
     """
     DATA_STRING = 0
     DATA_FILE = 1
