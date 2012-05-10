@@ -91,8 +91,8 @@ class Server(StreamServer):
                       subclass with which to wrap newly connected
                       sockets.
     ssl_options       *Optional.* If provided,
-                      :meth:`~pants.stream.Stream.startSSL` will be
-                      called with these options once the channel is
+                      :meth:`~pants.stream.StreamServer.startSSL` will
+                      be called with these options once the channel is
                       ready.
     engine            *Optional.* The engine to which the channel should
                       be added.
