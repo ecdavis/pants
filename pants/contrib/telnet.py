@@ -58,8 +58,8 @@ class TelnetConnection(Connection):
     relevant placeholder method. This class should be subclassed to
     provide functionality for individual commands and options.
     """
-    def __init__(self, server, socket):
-        Connection.__init__(self, server, socket)
+    def __init__(self, *args):
+        Connection.__init__(self, *args)
 
         # Initialize Stuff
         self._telnet_data = ""
