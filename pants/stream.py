@@ -936,11 +936,13 @@ class StreamServer(_Channel):
         value other than False for the *do_handshake_on_connect* SSL
         option.
 
-        ============ ============
+        ============ =================================================
         Arguments    Description
-        ============ ============
-        ssl_options  *Optional.* SSL keyword arguments. See :func:`ssl.wrap_socket` for a description of the available SSL options.
-        ============ ============
+        ============ =================================================
+        ssl_options  *Optional.* SSL keyword arguments. See
+                     :func:`ssl.wrap_socket` for a description of the
+                     available SSL options.
+        ============ =================================================
         """
         if self.ssl_enabled:
             raise RuntimeError("startSSL() called on SSL-enabled %r." % self)
@@ -963,14 +965,20 @@ class StreamServer(_Channel):
 
         Returns the channel.
 
-        ===============  ============
+        ===============  ================================================
         Arguments        Description
-        ===============  ============
+        ===============  ================================================
         addr             The local address to listen for connections on.
-        backlog          *Optional.* The maximum size of the connection queue.
-        native_resolve   *Optional.* If True, use Python's builtin address resolution. Otherwise, Pants' non-blocking address resolution will be used.
-        slave            *Optional.* If True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
-        ===============  ============
+        backlog          *Optional.* The maximum size of the
+                         connection queue.
+        native_resolve   *Optional.* If True, use Python's builtin
+                         address resolution. Otherwise, Pants'
+                         non-blocking address resolution will be used.
+        slave            *Optional.* If True, this will cause a
+                         StreamServer listening on IPv6 INADDR_ANY to
+                         create a slave StreamServer that listens on the
+                         IPv4 INADDR_ANY.
+        ===============  ================================================
         """
         if self.listening:
             raise RuntimeError("listen() called on active %r." % self)
@@ -989,15 +997,20 @@ class StreamServer(_Channel):
         :meth:`~pants._channel._Channel._resolve_addr` - either listens
         immediately or notifies the user of an error.
 
-        =========  ============
+        =========  =====================================================
         Argument   Description
-        =========  ============
+        =========  =====================================================
         backlog    The maximum size of the connection queue.
-        slave      If True, this will cause a StreamServer listening on IPv6 INADDR_ANY to create a slave StreamServer that listens on the IPv4 INADDR_ANY.
-        addr       The address to listen on or None if address resolution failed.
-        family     The detected socket family or None if address resolution failed.
-        error      *Optional.* Error information or None if no error occured.
-        =========  ============
+        slave      If True, this will cause a StreamServer listening on
+                   IPv6 INADDR_ANY to create a slave StreamServer that
+                   listens on the IPv4 INADDR_ANY.
+        addr       The address to listen on or None if address
+                   resolution failed.
+        family     The detected socket family or None if address
+                   resolution failed.
+        error      *Optional.* Error information or None if no error
+                   occured.
+        =========  =====================================================
         """
         if not addr:
             err, errstr = error
@@ -1168,7 +1181,7 @@ class StreamServerSlave(StreamServer):
 
 class StreamBufferOverflow(Exception):
     """
-    Raised when a Stream's internal buffer has exceeded its maximum
+    Raised when a stream's internal buffer has exceeded its maximum
     allowed size.
     """
     def __init__(self, errstr):
@@ -1185,7 +1198,7 @@ class StreamBufferOverflow(Exception):
 class StreamConnectError(Exception):
     """
     Raised when an error has occured during an attempt to connect a
-    Stream to a remote host.
+    stream to a remote host.
     """
     def __init__(self, err, errstr):
         self.err = err
