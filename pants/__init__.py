@@ -28,7 +28,6 @@ import logging
 
 from pants.engine import Engine
 from pants.basic import Client, Connection, Server
-from pants.datagram import Datagram
 from pants.stream import Stream, StreamServer
 
 
@@ -42,7 +41,7 @@ __version__ = "0.10.1"
 __all__ = [
     "__authors__", "__version__",  # Metadata
     "engine",  # Core
-    "Datagram", "Stream", "StreamServer",  # Low-level networking
+    "Stream", "StreamServer",  # Low-level networking
     "Client", "Connection", "Server",  # High-level networking
     ]
 
