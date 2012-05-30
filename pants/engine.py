@@ -17,7 +17,7 @@
 #
 ###############################################################################
 """
-Implementation of an asynchronous engine.
+Asynchronous event processing and timer scheduling.
 """
 
 ###############################################################################
@@ -47,24 +47,29 @@ class Engine(object):
     """
     The asynchronous engine class.
 
-    An engine object is central to any Pants application, as it is
-    responsible for monitoring and updating channels and timers
-    asynchronously. The majority of Pants applications will use the
-    global engine object (see :meth:`~pants.engine.Engine.instance`),
-    however it is possible to create and use multiple engines when
-    required.
+    An engine object is responsible for passing I/O events to active
+    channels and running timers asynchronously. Depending on OS support,
+    the engine will use either the epoll(), kqueue() or select() system
+    call to detect events on active channels. It is possible to force
+    the engine to use a particular polling method, but this is not
+    recommended.
 
-    An engine object can provide the main loop for an application, or it
-    can be integrated into a pre-existing main loop, depending on the
-    circumstances.
+    Most applications will use the global engine object, which can be
+    accessed using :meth:`~pants.engine.Engine.instance`, however it is
+    also possible to create and use multiple instances of
+    :class:`~pants.engine.Engine` in your application.
+
+    An engine can either provide the main loop for your application
+    (see :meth:`~pants.engine.Engine.start` and
+    :meth:`~pants.engine.Engine.stop`), or its functionality can be
+    integrated into a pre-existing main loop (see
+    :meth:`~pants.engine.Engine.poll`).
 
     =========  =========================================================
     Argument   Description
     =========  =========================================================
     poller     *Optional.* A specific polling object for the engine to
-               use. By default, the engine will determine the most
-               suitable polling object for the current platform and use
-               that.
+               use.
     =========  =========================================================
     """
     # Socket events - these correspond to epoll() states.
@@ -158,10 +163,10 @@ class Engine(object):
         """
         Poll the engine.
 
-        Updates timers and performs I/O on all active channels. If your
-        application has a pre-existing main loop, call
-        :meth:`~pants.engine.Engine.poll` on each iteration of that loop,
-        otherwise, see :meth:`~pants.engine.Engine.start`.
+        Updates timers and processes I/O events on all active channels.
+        If your application has a pre-existing main loop, call
+        :meth:`~pants.engine.Engine.poll` on each iteration of that
+        loop, otherwise, see :meth:`~pants.engine.Engine.start`.
 
         ============= ============
         Argument      Description
