@@ -105,8 +105,8 @@ class Engine(object):
         """
         Start the engine.
 
-        This method initialises and continuously polls the engine until
-        either :meth:`~pants.engine.Engine.stop` is called, or an uncaught
+        Initialises and continuously polls the engine until either
+        :meth:`~pants.engine.Engine.stop` is called or an uncaught
         :obj:`Exception` is raised. :meth:`~pants.engine.Engine.start`
         should be called after your asynchronous application has been fully
         initialised. For applications with a pre-existing main loop, see
@@ -158,7 +158,7 @@ class Engine(object):
         """
         Poll the engine.
 
-        Update timers and perform I/O on all active channels. If your
+        Updates timers and performs I/O on all active channels. If your
         application has a pre-existing main loop, call
         :meth:`~pants.engine.Engine.poll` on each iteration of that loop,
         otherwise, see :meth:`~pants.engine.Engine.start`.
@@ -223,50 +223,6 @@ class Engine(object):
                 raise
             except Exception:
                 log.exception("Error while handling events on %r." % channel)
-
-    ##### Channel Methods #####################################################
-
-    def add_channel(self, channel):
-        """
-        Add a channel to the engine.
-
-        =========  ============
-        Argument   Description
-        =========  ============
-        channel    The channel to be added.
-        =========  ============
-        """
-        self._channels[channel.fileno] = channel
-        self._poller.add(channel.fileno, channel._events)
-
-    def modify_channel(self, channel):
-        """
-        Modify the state of a channel.
-
-        =========  ============
-        Argument   Description
-        =========  ============
-        channel    The channel to be modified.
-        =========  ============
-        """
-        self._poller.modify(channel.fileno, channel._events)
-
-    def remove_channel(self, channel):
-        """
-        Remove a channel from the engine.
-
-        =========  ============
-        Argument   Description
-        =========  ============
-        channel    The channel to be removed.
-        =========  ============
-        """
-        self._channels.pop(channel.fileno, None)
-
-        try:
-            self._poller.remove(channel.fileno, channel._events)
-        except (IOError, OSError):
-            log.exception("Error while removing %r." % channel)
 
     ##### Timer Methods #######################################################
 
@@ -395,12 +351,56 @@ class Engine(object):
             except ValueError:
                 pass  # Callback not present.
 
+    ##### Channel Methods #####################################################
+
+    def add_channel(self, channel):
+        """
+        Add a channel to the engine.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be added.
+        =========  ============
+        """
+        self._channels[channel.fileno] = channel
+        self._poller.add(channel.fileno, channel._events)
+
+    def modify_channel(self, channel):
+        """
+        Modify the state of a channel.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be modified.
+        =========  ============
+        """
+        self._poller.modify(channel.fileno, channel._events)
+
+    def remove_channel(self, channel):
+        """
+        Remove a channel from the engine.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        channel    The channel to be removed.
+        =========  ============
+        """
+        self._channels.pop(channel.fileno, None)
+
+        try:
+            self._poller.remove(channel.fileno, channel._events)
+        except (IOError, OSError):
+            log.exception("Error while removing %r." % channel)
+
     ##### Poller Methods ######################################################
 
     def _install_poller(self, poller=None):
         """
         Install a poller on the engine.
-        
+
         =========  ============
         Argument   Description
         =========  ============
