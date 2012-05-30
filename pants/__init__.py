@@ -16,8 +16,12 @@
 #
 ###############################################################################
 """
-A convenient collection of the core Pants classes and methods to allow
-imports from the top-level package.
+The core Pants classes and objects.
+
+Exports :class:`pants.basic.Client`, :class:`pants.basic.Connection`,
+:class:`pants.basic.Server`, :class:`pants.stream.Stream`,
+:class:`pants.stream.StreamServer` and the global
+:class:`pants.engine.Engine` instance.
 """
 
 ###############################################################################
@@ -47,7 +51,7 @@ __all__ = [
 
 
 ###############################################################################
-# Properties
+# Objects
 ###############################################################################
 
 #: Alias for pants.engine.Engine.instance
