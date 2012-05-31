@@ -16,7 +16,7 @@
 #
 ###############################################################################
 """
-Low-level implementations of stream-oriented channels.
+Low-level streaming channels.
 """
 
 ###############################################################################
@@ -79,7 +79,7 @@ class Stream(_Channel):
     def __init__(self, **kwargs):
         sock = kwargs.get("socket", None)
         if sock and sock.type != socket.SOCK_STREAM:
-            raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
+            raise TypeError("Cannot create a %s with a socket type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
         _Channel.__init__(self, **kwargs)
@@ -157,9 +157,7 @@ class Stream(_Channel):
             self._recv_buffer_size_limit = max(self._buffer_size, value)
 
         else:
-            raise TypeError(
-                    "read_delimiter must be None, a string, an int, or a long"
-                    )
+            raise TypeError("read_delimiter must be None, a string, an int, or a long")
 
     _buffer_size = 2 ** 16  # 64kb
 
@@ -223,8 +221,9 @@ class Stream(_Channel):
         Typically, this method is called before
         :meth:`~pants.stream.Stream.connect`. In this case,
         :meth:`~pants.stream.Stream.on_ssl_handshake` will be called
-        before :meth:`~pants.stream.Stream.on_connect`. If it is called
-        after :meth:`~pants.stream.Stream.connect`, the reverse is true.
+        before :meth:`~pants.stream.Stream.on_connect`. If
+        :meth:`~pants.stream.Stream.startSSL` is called after
+        :meth:`~pants.stream.Stream.connect`, the reverse is true.
 
         It is possible, although unusual, to start SSL on a channel that
         is already connected and active. In this case, as noted above,
@@ -898,11 +897,34 @@ class Stream(_Channel):
 class StreamServer(_Channel):
     """
     A stream-oriented, listening channel.
+
+    A :class:`~pants.stream.StreamServer` instance represents a local
+    server capable of listening for connections from remote hosts over a
+    connection-oriented protocol such as TCP/IP. The class is
+    fully-functional and can be used directly in applications, although
+    it is recommended that you use the :class:`pants.basic.Server` class
+    wherever it is possible to do so.
+
+    =================  ================================================
+    Keyword Argument   Description
+    =================  ================================================
+    engine             *Optional.* The engine to which the channel
+                       should be added. Defaults to the global engine.
+    socket             *Optional.* A pre-existing socket to wrap. This
+                       can be a regular :obj:`~socket.socket` or an
+                       :obj:`~ssl.SSLSocket`. If a socket is not
+                       provided, a new socket will be created for the
+                       channel when required.
+    ssl_options        *Optional.* If provided,
+                       :meth:`~pants.stream.StreamServer.startSSL` will
+                       be called with these options once the server is
+                       ready. By default, SSL will not be enabled.
+    =================  ================================================
     """
     def __init__(self, **kwargs):
         sock = kwargs.get("socket", None)
         if sock and sock.type != socket.SOCK_STREAM:
-            raise TypeError("Cannot create a %s with a type other than SOCK_STREAM."
+            raise TypeError("Cannot create a %s with a socket type other than SOCK_STREAM."
                     % self.__class__.__name__)
 
         _Channel.__init__(self, **kwargs)
@@ -928,21 +950,37 @@ class StreamServer(_Channel):
         """
         Enable SSL on the channel.
 
-        For best results, this method should be called before
-        :meth:`~pants.stream.StreamServer.listen`.
+        Enabling SSL on a server channel will cause any new connections
+        accepted by the server to be automatically wrapped in an SSL
+        context before being passed to
+        :meth:`~pants.stream.StreamServer.on_accept`. If an error occurs
+        during this process,
+        :meth:`~pants.stream.StreamServer.on_ssl_error` is called.
 
-        This method will raise a :exc:`RuntimeError` if you provide a
-        value other than True for the *server_side* SSL option or a
-        value other than False for the *do_handshake_on_connect* SSL
-        option.
+        SSL is enabled immediately. Typically, this method is called
+        before :meth:`~pants.stream.StreamServer.listen`. If it is
+        called afterwards, any connections made in the meantime will not
+        have been wrapped in SSL contexts.
 
-        ============ =================================================
+        The SSL options argument will be passed through to each
+        invocation of :func:`ssl.wrap_socket` as keyword arguments - see
+        the :mod:`ssl` documentation for further information. You will
+        typically want to provide the ``keyfile``, ``certfile`` and
+        ``ca_certs`` options. The ``do_handshake_on_connect`` option
+        **must** be ``False`` and the ``server_side`` option **must** be
+        true, or a :exc:`ValueError` will be raised.
+
+        Attempting to enable SSL on a closed channel or a channel that
+        already has SSL enabled on it will raise a :exc:`RuntimeError`.
+
+        Returns the channel.
+
+        ============ ===================================================
         Arguments    Description
-        ============ =================================================
-        ssl_options  *Optional.* SSL keyword arguments. See
-                     :func:`ssl.wrap_socket` for a description of the
-                     available SSL options.
-        ============ =================================================
+        ============ ===================================================
+        ssl_options  *Optional.* Keyword arguments to pass to
+                     :func:`ssl.wrap_socket`.
+        ============ ===================================================
         """
         if self.ssl_enabled:
             raise RuntimeError("startSSL() called on SSL-enabled %r." % self)
@@ -951,24 +989,48 @@ class StreamServer(_Channel):
             raise RuntimeError("startSSL() called on closed %r." % self)
 
         if ssl_options.setdefault("server_side", True) is not True:
-            raise RuntimeError("SSL option 'server_side' must be True.")
+            raise ValueError("SSL option 'server_side' must be True.")
 
         if ssl_options.setdefault("do_handshake_on_connect", False) is not False:
-            raise RuntimeError("SSL option 'do_handshake_on_connect' must be False.")
+            raise ValueError("SSL option 'do_handshake_on_connect' must be False.")
 
         self.ssl_enabled = True
         self._ssl_options = ssl_options
 
-    def listen(self, addr, backlog=1024, native_resolve=True, slave=True):
+        return self
+
+    def listen(self, address, backlog=1024, native_resolve=True, slave=True):
         """
         Begin listening for connections made to the channel.
+
+        The given ``address`` is resolved, the channel is bound to the
+        address and then begins listening for connections. Once the
+        channel has begun listening,
+        :meth:`~pants.stream.StreamServer.on_listen` will be called.
+
+        Addresses can be represented in a number of different ways. A
+        single string is treated as a UNIX address. A single integer is
+        treated as a port and converted to a 2-tuple of the form
+        ``('', port)``. A 2-tuple is treated as an IPv4 address and a
+        4-tuple is treated as an IPv6 address. See the :mod:`socket`
+        documentation for further information on socket addresses.
+
+        If no socket exists on the channel, one will be created with a
+        socket family appropriate for the given address.
+
+        An error will occur if the given address is not of a valid
+        format or of an inappropriate format for the socket (e.g. if an
+        IP address is given to a UNIX socket).
+
+        Calling :meth:`listen()` on a closed channel or a channel that
+        is already listening will raise a :exc:`RuntimeError`.
 
         Returns the channel.
 
         ===============  ================================================
         Arguments        Description
         ===============  ================================================
-        addr             The local address to listen for connections on.
+        address          The local address to listen for connections on.
         backlog          *Optional.* The maximum size of the
                          connection queue.
         native_resolve   *Optional.* If True, use Python's builtin
@@ -987,9 +1049,55 @@ class StreamServer(_Channel):
             raise RuntimeError("listen() called on closed %r." % self)
 
         # Resolve our address.
-        self._resolve_addr(addr, native_resolve, functools.partial(self._do_listen, backlog, slave))
+        self._resolve_addr(address, native_resolve, functools.partial(self._do_listen, backlog, slave))
 
         return self
+
+    def close(self):
+        """
+        Close the channel.
+
+        The channel will be closed immediately and will cease to accept
+        new connections. Any connections accepted by this channel will
+        remain open and will need to be closed separately. If this
+        channel has an IPv4 slave (see
+        :meth:`~pants.stream.StreamServer.listen`) it will be closed.
+
+        Once closed, a channel cannot be re-opened.
+        """
+        if self._closed:
+            return
+
+        self.listening = False
+
+        self.ssl_enabled = False
+
+        self._update_addr()
+
+        if self._slave:
+            self._slave.close()
+
+        _Channel.close(self)
+
+    ##### Public Error Handlers ###############################################
+
+    def on_ssl_error(self, exception):
+        """
+        Placeholder. Called when an error occurs in the underlying SSL
+        implementation.
+
+        By default, logs the exception and closes the channel.
+
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
+
+    ##### Internal Methods ####################################################
 
     def _do_listen(self, backlog, slave, addr, family, error=None):
         """
@@ -1054,26 +1162,6 @@ class StreamServer(_Channel):
         # Should we make a slave?
         if slave and not isinstance(addr, str) and addr[0] == '' and socket.has_ipv6:
             self._slave = StreamServerSlave(self.engine, self, addr, backlog)
-
-    def close(self):
-        """
-        Close the channel.
-        """
-        if self._closed:
-            return
-
-        self.listening = False
-
-        self.ssl_enabled = False
-
-        self._update_addr()
-
-        if self._slave:
-            self._slave.close()
-
-        _Channel.close(self)
-
-    ##### Internal Methods ####################################################
 
     def _update_addr(self):
         """
