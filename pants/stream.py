@@ -740,8 +740,7 @@ class Stream(_Channel):
 
         if not self._ssl_socket_wrapped:
             try:
-                self._socket = ssl.wrap_socket(self._socket,
-                        do_handshake_on_connect=False, **ssl_options)
+                self._socket = ssl.wrap_socket(self._socket, **ssl_options)
             except ssl.SSLError, e:
                 self._ssl_enabling = True
                 self._safely_call(self.on_ssl_error)
@@ -954,8 +953,8 @@ class StreamServer(_Channel):
         accepted by the server to be automatically wrapped in an SSL
         context before being passed to
         :meth:`~pants.stream.StreamServer.on_accept`. If an error occurs
-        during this process,
-        :meth:`~pants.stream.StreamServer.on_ssl_error` is called.
+        while a new connection is being wrapped,
+        :meth:`~pants.stream.StreamServer.on_ssl_wrap_error` is called.
 
         SSL is enabled immediately. Typically, this method is called
         before :meth:`~pants.stream.StreamServer.listen`. If it is
@@ -1081,21 +1080,26 @@ class StreamServer(_Channel):
 
     ##### Public Error Handlers ###############################################
 
-    def on_ssl_error(self, exception):
+    def on_ssl_wrap_error(self, sock, addr, exception):
         """
-        Placeholder. Called when an error occurs in the underlying SSL
-        implementation.
+        Placeholder. Called when an error occurs while wrapping a new
+        connection with an SSL context.
 
-        By default, logs the exception and closes the channel.
+        By default, logs the exception and closes the new connection.
 
         ==========  ============
         Argument    Description
         ==========  ============
+        sock        The newly connected socket object.
+        addr        The new socket's address.
         exception   The exception that was raised.
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        try:
+            sock.close()
+        except socket.error:
+            pass
 
     ##### Internal Methods ####################################################
 
@@ -1200,12 +1204,8 @@ class StreamServer(_Channel):
                 try:
                     sock.setblocking(False)
                     sock = ssl.wrap_socket(sock, **self._ssl_options)
-                except ssl.SSLError:
-                    log.exception("Exception raised while SSL-wrapping socket on %r." % self)
-                    try:
-                        sock.close()
-                    except socket.error:
-                        pass
+                except ssl.SSLError, e:
+                    self._safely_call(self.on_ssl_wrap_error, sock, addr, e)
                     continue
 
             self._safely_call(self.on_accept, sock, addr)

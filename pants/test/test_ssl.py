@@ -25,10 +25,12 @@ import pants
 
 from pants.test._pants_util import *
 
+CERT_PATH = os.path.dirname(__file__) + '/cert.pem'
+CERT_EXISTS = os.path.exists(CERT_PATH)
 SSL_OPTIONS = {
     'server_side': True,
-    'certfile': os.path.dirname(__file__) + 'cert.pem',
-    'keyfile': os.path.dirname(__file__) + 'cert.pem'
+    'certfile': CERT_PATH,
+    'keyfile': CERT_PATH
     }
 
 class GoogleClient(pants.Client):
@@ -75,6 +77,7 @@ class Echo(pants.Connection):
     def on_read(self, data):
         self.write(data)
 
+@unittest.skipIf(not CERT_EXISTS, "no SSL certificate present in unit test directory")
 class TestSSLServer(PantsTestCase):
     def setUp(self):
         self.server = pants.Server(Echo, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
@@ -103,6 +106,7 @@ class FileSender(pants.Connection):
             # blocking for some strange reason.
             self.write_file(test_file, flush=True)
 
+@unittest.skipIf(not CERT_EXISTS, "no SSL certificate present in unit test directory")
 class TestSSLSendfile(PantsTestCase):
     def setUp(self):
         self.server = pants.Server(FileSender, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
