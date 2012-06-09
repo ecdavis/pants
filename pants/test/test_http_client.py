@@ -64,6 +64,7 @@ class HTTPTestCase(PantsTestCase):
         pass
 
     def setUp(self):
+        engine.stop()
         self.client = HTTPClient(self.on_response, self.on_headers,
                             self.on_progress, self.on_ssl_error, self.on_error)
 
@@ -85,6 +86,8 @@ class HTTPTestCase(PantsTestCase):
             self.client._stream = None
         del self.client
 
+        PantsTestCase.tearDown(self)
+
 ###############################################################################
 # The Cases
 ###############################################################################
@@ -95,7 +98,7 @@ class GetTest(HTTPTestCase):
         self.stop()
 
     def test_get(self):
-        self.client.get("http://httpbin.org/ip")
+        self.client.get("http://httpbin.org/ip", {"foo": "bar"})
         self.start()
 
 
@@ -110,6 +113,74 @@ class PostTest(HTTPTestCase):
 
     def test_post(self):
         self.client.post("http://httpbin.org/post", {"foo": "bar"})
+        self.start()
+
+    def test_multipart(self):
+        self.got_response = False
+        self.response_valid = True
+
+        self.client.post("http://httpbin.org/post", {"foo": "bar"},
+                         {"file": ("test.py", "whee")})
+        self.start()
+
+
+class HostChangeTest(HTTPTestCase):
+
+    resp_count = 0
+
+    def on_response(self, response):
+        self.resp_count += 1
+        if self.resp_count < 2:
+            return
+
+        self.stop()
+        self.got_response = True
+
+    def test_cookie(self):
+        self.client.get("http://www.google.com/")
+        self.client.get("http://httpbin.org/ip")
+        self.start()
+
+
+class TimeoutTest(HTTPTestCase):
+    def on_response(self, response):
+        self.stop()
+        self.response_valid = False
+
+    def on_error(self, response, error):
+        self.stop()
+        self.got_response = True
+
+    def test_timeout(self):
+        with self.client.session(timeout=1) as ses:
+            ses.get("http://httpbin.org/delay/3")
+        self.start()
+
+
+class BadHostTest(HTTPTestCase):
+    def on_response(self, response):
+        self.stop()
+
+    def on_error(self, response, error):
+        self.got_response = True
+        self.stop()
+
+    def test_bad_host(self):
+        self.client.get("http://www.python.rog/")
+        self.start()
+
+
+class BadPortTest(HTTPTestCase):
+    def on_response(self, response):
+        self.stop()
+        print response
+
+    def on_error(self, response, error):
+        self.got_response = True
+        self.stop()
+
+    def test_bad_port(self):
+        self.client.get("http://httpbin.org:65432/")
         self.start()
 
 
@@ -255,7 +326,7 @@ class BadCertTest(HTTPTestCase):
 
 
 @unittest.skipIf(not VERIFY_SSL, "Unable to verify SSL certificats without CA bundle. Install certifi and backports.ssl_match_hostname.")
-class TestSSLOverride(HTTPTestCase):
+class SSLOverrideTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
         self.got_response = True
@@ -269,7 +340,7 @@ class TestSSLOverride(HTTPTestCase):
         self.start()
 
 
-class TestProgress(HTTPTestCase):
+class ProgressTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
 
@@ -280,3 +351,13 @@ class TestProgress(HTTPTestCase):
         self.client.get("http://httpbin.org/get")
         self.start()
 
+
+class ForceURLEncodedTest(HTTPTestCase):
+    def on_response(self, response):
+        self.stop()
+        self.got_response = True
+
+    def test_force_urlencoded(self):
+        self.client.post("http://httpbin.org/post",
+                headers={"Content-Type": "application/x-www-form-urlencoded"})
+        self.start()

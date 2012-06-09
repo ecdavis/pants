@@ -34,8 +34,8 @@ class TestChannelConstructorArguments(unittest.TestCase):
         sock = socket.socket()
         channel = _Channel(socket=sock)
         self.assertTrue(channel._socket is sock)
-        self.assertTrue(channel.fileno is sock.fileno())
-        self.assertTrue(channel.family is sock.family)
+        self.assertEquals(channel.fileno, sock.fileno())
+        self.assertEquals(channel.family, sock.family)
 
     def test_channel_constructor_engine_arg(self):
         engine = Engine()

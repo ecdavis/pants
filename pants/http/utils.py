@@ -42,7 +42,7 @@ from pants.engine import Engine
 # Logging
 ###############################################################################
 
-log = logging.getLogger('http')
+log = logging.getLogger("pants.http")
 
 ###############################################################################
 # Constants

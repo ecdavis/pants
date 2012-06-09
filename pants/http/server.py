@@ -343,9 +343,8 @@ class HTTPRequest(object):
     def cookies(self):
         """
         An instance of :class:`Cookie.SimpleCookie` representing the cookies
-        received with this request. Cookies may also be written by adding them
-        to the SimpleCookie instance, and then using the :func:`send_cookies`
-        function.
+        received with this request. Cookies being sent to the client with the
+        response are stored in :attr:`cookies_out`.
         """
         try:
             return self._cookies
@@ -359,6 +358,18 @@ class HTTPRequest(object):
                 else:
                     cookies.load(raw)
             return self._cookies
+
+    @property
+    def cookies_out(self):
+        """
+        An instance of :class:`Cookie.SimpleCookie` to populate with cookies
+        that should be sent with the response.
+        """
+        try:
+            return self._cookies_out
+        except AttributeError:
+            self._cookies_out = cookies = Cookie.SimpleCookie()
+            return cookies
 
     @property
     def full_url(self):
@@ -406,8 +417,8 @@ class HTTPRequest(object):
 
         value = "%s|%d|%s|%s" % (value, expires, ts, signature)
 
-        self.cookies[name] = value
-        m = self.cookies[name]
+        self.cookies_out[name] = value
+        m = self.cookies_out[name]
 
         if kwargs:
             for k,v in kwargs.iteritems():
@@ -466,7 +477,8 @@ class HTTPRequest(object):
         """
         Write any cookies associated with the request to the client. If any
         keys are specified, only the cookies with the specified keys will be
-        transmitted. Otherwise, all cookies will be written to the client.
+        transmitted. Otherwise, all cookies in :attr:`cookies_out` will be
+        written to the client.
 
         This function is usually called automatically by send_headers.
 
@@ -479,13 +491,16 @@ class HTTPRequest(object):
         """
         self._started = True
         if keys is None:
-            out = self.cookies.output()
+            if hasattr(self, '_cookies_out'):
+                out = self.cookies_out.output()
+            else:
+                out = ''
         else:
             out = []
             for k in keys:
-                if not k in self.cookies:
+                if not k in self.cookies_out:
                     continue
-                out.append(self.cookies[k].output())
+                out.append(self.cookies_out[k].output())
             out = CRLF.join(out)
 
         if not out.endswith(CRLF):
@@ -525,7 +540,7 @@ class HTTPRequest(object):
         if not 'Server' in headers:
             append('Server: %s' % SERVER)
 
-        if cookies and hasattr(self, '_cookies'):
+        if cookies and hasattr(self, '_cookies_out'):
             self.send_cookies()
 
         if end_headers:
