@@ -113,11 +113,11 @@ HTTPResponse
 
         The HTTP version of the response.
 
-    .. attribute:: status
+    .. attribute:: status_code
 
         The HTTP status code of the response, such as ``200``.
 
-    .. attribute:: status_code
+    .. attribute:: status
 
         The status code and text as one string.
 
