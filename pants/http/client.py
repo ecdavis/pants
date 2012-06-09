@@ -687,7 +687,7 @@ class HTTPClient(object):
 
         # Store what we've got so far on the response.
         response.http_version = http_version
-        response.status = status
+        response.status_code = status
         response.status_text = status_text
         response.headers = headers
 
@@ -798,7 +798,7 @@ class HTTPClient(object):
             request._timeout_timer()
 
         # Check for a status code handler.
-        handler = getattr(response, 'handle_%d' % response.status, None)
+        handler = getattr(response, 'handle_%d' % response.status_code, None)
         if handler:
             response = self._safely_call(handler, self)
             if not response:
@@ -1336,7 +1336,7 @@ class HTTPResponse(object):
     total = None
     remaining = None
     http_version = None
-    status = None
+    status_code = None
     status_text = None
     cookies = None
     headers = None
@@ -1365,17 +1365,18 @@ class HTTPResponse(object):
         self.cookies = self.request.session.cookies
 
     @property
-    def status_code(self):
-        if not self.status:
+    def status(self):
+        """ The status code and status text as a string. """
+        if not self.status_code:
             return None
         if not self.status_text:
-            return str(self.status)
-        return "%d %s" % (self.status, self.status_text)
+            return str(self.status_code)
+        return "%d %s" % (self.status_code, self.status_text)
 
     def __repr__(self):
         return "<%s [%s] at 0x%X>" % (
             self.__class__.__name__,
-            self.status_code,
+            self.status,
             id(self)
             )
 
@@ -1411,7 +1412,8 @@ class HTTPResponse(object):
     def content(self):
         """
         This is the content received from the server, decoded with
-        :attr:`encoding`.
+        :attr:`encoding`. Take care before using this property, as there may be
+        a *lot* of data.
         """
         raw = self.raw
         if not raw:
@@ -1462,7 +1464,7 @@ class HTTPResponse(object):
             return self
 
         # Get some useful things.
-        status = self.status
+        status = self.status_code
         method = self.method
         body = request.body
         location = self.headers['Location']
