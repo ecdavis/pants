@@ -179,7 +179,7 @@ class Stream(_Channel):
         limit on the size of the data is appropriate.
 
         If the read delimiter is set to a number larger than the buffer
-        size, the buffer size will be increased to accomodate the read
+        size, the buffer size will be increased to accommodate the read
         delimiter.
 
         When the internal buffer's size exceeds the maximum allowed, the
