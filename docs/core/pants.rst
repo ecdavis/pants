@@ -10,18 +10,6 @@ Engine
 .. autodata:: engine
 
 
-Scheduling
-==========
-
-.. autofunction:: callback
-
-.. autofunction:: loop
-
-.. autofunction:: defer
-
-.. autofunction:: cycle
-
-
 High-Level Networking
 =====================
 
@@ -39,4 +27,3 @@ Low-Level Networking
 
 .. autoclass:: StreamServer
 
-.. autoclass:: Datagram

@@ -1,0 +1,216 @@
+/*
+ * screen.css_t
+ * ============
+ *
+ * Copyright 2012, Pants Developers. See AUTHORS.
+ */
+
+/* Page Layout */
+
+body {
+    background: #333;
+    margin: 0;
+}
+
+.print { display: none; }
+
+#footer > div, #content > div, #heading > div, div.related > ul {
+    position: relative;
+    min-width: 790px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+/*
+ * Heading
+ */
+
+#heading {
+    position: fixed;
+    z-index: 1;
+    top: -140px;
+    width: 100%;
+    height: 130px;
+    color: #fff;
+    background: url(heading.png) repeat-x #0f3a59;
+    padding: 20px;
+    border-bottom: 1px solid #020508;
+    box-shadow: 0 0 5px 5px rgba(0,0,0,0.5);
+
+    transition: top 0.25s, opacity 0.25s;
+    -moz-transition: top 0.25s, opacity 0.25s;
+    -webkit-transition: top 0.25s, opacity 0.25s;
+    -o-transition: top 0.25s, opacity 0.25s;
+
+    opacity: 0.75;
+}
+
+#logo > img {
+    padding-right: 10px;
+    margin-top: 50px;
+
+    transition: margin-top 0.25s;
+    -moz-transition: margin-top 0.25s;
+    -webkit-transition: margin-top 0.25s;
+    -o-transition: margin-top 0.25s;
+}
+
+#heading.at-top, #heading:hover {
+    top: 0;
+    opacity: 1;
+}
+
+#heading.at-top #logo > img, #heading:hover #logo > img {
+    margin-top: 0;
+}
+
+#footer a, #heading a {
+    color: #EBEBEB;
+}
+#footer a:hover, #heading a:hover { color: #fff; }
+
+#logo { width: 400px; }
+
+#logo img { float: left; }
+#logo h1 {
+    font-size: 45px;
+    line-height: 1em;
+    padding: 25px 0 5px;
+    margin: 0;
+    font-weight: 200;
+    text-rendering: optimizelegibility;
+    letter-spacing: -1px;
+}
+#logo a img {
+    opacity: 0.9;
+}
+#logo a:hover img, #logo a:focus img { opacity: 1; }
+
+#above-nav {
+    position: absolute;
+    top: -9px;
+    right: 40px;
+    line-height: 25px;
+    width: 700px;
+    text-align: right;
+}
+
+#search {
+    display: inline-block;
+    zoom: 1;
+    *display: inline;
+    margin-left: 10px;
+    margin-top: -1px;
+    color: #fff;
+    background-color: #12334c;
+    background-color: rgba(2, 5, 8, 0.25);
+    border: 1px solid #205080;
+    padding: 0 4px;
+    border-radius: 4px;
+}
+
+.hidden { display: none; }
+
+#search input, #search a { outline: none !important; }
+
+#search input {
+    width: 230px;
+    color: #fff;
+    background: transparent;
+    border: none;
+    padding: 0 20px 0 0;
+    margin: 0;
+}
+
+#search input.blur { color: #8899a5; }
+
+#search a {
+    text-indent: -2000px;
+    overflow: hidden;
+    display: block;
+    font-size: 1px;
+
+    position: absolute;
+    top: 5px;
+    right: 6px;
+
+    color: transparent;
+    height: 15px;
+    width: 12px;
+    background: url(search.png) no-repeat;
+    opacity: 0.5;
+}
+
+#search a:focus, #search a:hover { opacity: 1; }
+
+#navigation {
+    position: absolute;
+    top: 25px;
+    right: 40px;
+    line-height: 1em;
+}
+
+#navigation, #navigation ul, #navigation li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+#navigation > li {
+    float: left;
+    padding-right: 30px;
+}
+
+#navigation > li:last-child {
+    padding-right: 0;
+}
+
+#navigation ul > li {
+    padding-bottom: 5px;
+}
+
+#navigation ul > li:first-child {
+    font-weight: bold;
+    padding-bottom: 10px;
+    font-size: 125%;
+    font-variant: small-caps;
+}
+
+/* Colors */
+
+#content {
+    background: #fff;
+    color: #141414;
+}
+
+#footer {
+    color: #fff;
+
+    background: #333;
+    background: -moz-linear-gradient(top, rgba(2,5,8,1) 0%, rgba(51,51,51,1) 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(2,5,8,1)), color-stop(100%,rgba(51,51,51,1))); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* IE10+ */
+    background: linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#020508', endColorstr='#333333',GradientType=0 ); /* IE6-9 */
+}
+
+#footer span {
+    color: #666;
+    text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
+}
+
+div.body h1, div.body h2, div.body h3, div.body h4, div.body h5, div.body h6 {
+    color: #212224;
+}
+
+pre {
+    background-color: #F5F5F5;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #ccc;
+    border-bottom: 1px solid white;
+}

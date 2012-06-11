@@ -1,0 +1,32 @@
+{%- set doc_root = pathto('documentation') %}
+{%- if doc_root == '#' %}{% set doc_root = '' %}{% endif %}
+<ul id="navigation">
+    <li>
+        <ul>
+            <li>About</li>
+            <li><a href="{{ pathto('benchmarks') }}">Benchmarks</a></li>
+        </ul>
+    </li>
+    <li>
+        <ul>
+            <li><a href="{{ doc_root }}">Documentation</a></li>
+            <li><a href="{{ pathto('overview') }}">Overview</a></li>
+            <li><a href="{{ pathto('guides/index') }}">Guide</a></li>
+            <li><a href="{{ doc_root }}#api">API</a></li>
+            <li><a href="{{ pathto('examples/index') }}">Examples</a></li>
+        </ul>
+    </li>
+    <li>
+        <ul>
+            <li>Community</li>
+            <li><a href="http://webchat.freenode.net/?channels=pantsmud">IRC</a></li>
+        </ul>
+    </li>
+    <li>
+        <ul>
+            <li>Downloads</li>
+            <li><a href="https://github.com/ecdavis/Pants">GitHub</a></li>
+            <li><a href="http://pypi.python.org/pypi/pants">PyPi</a></li>
+        </ul>
+    </li>
+</ul>

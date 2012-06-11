@@ -104,7 +104,7 @@ intersphinx_mapping = {
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'normal'
+html_theme = 'website'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -137,7 +137,7 @@ html_static_path = ['_static']
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
-#html_last_updated_fmt = '%b %d, %Y'
+#html_last_updated_fmt = '%B %d, %Y'
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
@@ -251,3 +251,8 @@ except ImportError:
     MOCK_MODULES = ['PySide', 'PySide.QtCore']
     for mod_name in MOCK_MODULES:
         sys.modules[mod_name] = Mock()
+
+# Install a shiny __repr__ on the Engine.
+
+from pants.engine import Engine
+Engine.__repr__ = lambda s: "Engine.instance()"

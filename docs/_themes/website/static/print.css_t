@@ -1,0 +1,66 @@
+/*
+ * print.css_t
+ * ===========
+ *
+ * Copyright 2012, Pants Developers. See AUTHORS.
+ */
+
+.viewcode-link, #above-nav, #navigation, #subheading, div.related, div.sphinxsidebar { display: none; }
+
+#heading, #content {
+    border: 0; margin: 0 5%; padding: 0;
+}
+
+#content { clear: both; }
+
+a {
+    text-decoration: none;
+    color: #000;
+}
+
+#logo h1 {
+    padding-top: 35px;
+    margin: 0;
+    font-size: 2em;
+}
+
+#logo img {
+    float: left;
+    padding-right: 10px;
+    background: white;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid #000;
+    height: 0;
+}
+
+#content a {
+    color: #520;
+    background: transparent;
+    text-decoration: underline;
+}
+
+#content a.external:after {
+    content: " (" attr(href) ") ";
+    font-size: 0.9em;
+}
+
+#footer {
+    border-top: 1px solid;
+}
+
+#footer span {
+    color: #aaa;
+}
+
+/* Front Page */
+
+div.row.col2 div.item, div.row.col3 div.item {
+    margin-left: 0;
+    float: none;
+    width: auto;
+    clear: both;
+}
+
