@@ -58,7 +58,7 @@
             <div class="sphinxsidebarwrapper">
                 {%- block sidebarlogo %}
                     {%- if logo %}
-                        <p class="logo"><a href="{{ pathto(master_doc) }}">
+                        <p class="logo"><a href="{{ pathto('index') }}">
                             <img class="logo" src="{{ pathto('_static/' + logo, 1) }}" alt="Logo"/>
                         </a></p>
                     {%- endif %}
@@ -171,7 +171,7 @@
     <div>
         <div id="logo">
             <img src="{{ pathto('_static/logo.png',1) }}" alt="Pants">
-            <h1><a href="{{ pathto(master_doc) }}">Pants</a></h1>
+            <h1><a href="{{ pathto('index') }}">Pants</a></h1>
             An asynchronous networking library for Python.
             <hr class="print">
         </div>
