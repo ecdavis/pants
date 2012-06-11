@@ -34,7 +34,7 @@ handle the response to our request for Google's homepage. That function goes
 something like this::
 
     def response_handler(response):
-        if response.status.code != 200:
+        if response.status_code != 200:
             # It's not a valid response, so freak out or something.
             raise Exception("We didn't get our page!")
 
