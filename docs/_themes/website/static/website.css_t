@@ -11,7 +11,7 @@
  * Page Layout
  */
 body {
-    font-size: 12px;
+    font-size: 13px;
     font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 

@@ -80,6 +80,9 @@ body {
     font-weight: 200;
     text-rendering: optimizelegibility;
     letter-spacing: -1px;
+
+    text-shadow: 0 -1px 0 rgba(0,0,0,0.25);
+
 }
 #logo a img {
     opacity: 0.9;
