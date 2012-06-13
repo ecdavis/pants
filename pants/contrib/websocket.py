@@ -23,7 +23,11 @@
 import base64
 import hashlib
 import logging
+import re
 import struct
+
+from pants.util.struct_delimiter import struct_delimiter
+
 
 ###############################################################################
 # Constants
@@ -61,11 +65,16 @@ FRAME_PONG = 10
 # Special read_delimiter Value
 EntireMessage = object()
 
+# Regex Stuff
+RegexType = type(re.compile(""))
+
+
 ###############################################################################
 # Logging
 ###############################################################################
 
 log = logging.getLogger(__name__)
+
 
 ###############################################################################
 # WebSocketConnection Class
@@ -90,6 +99,7 @@ class WebSocketConnection(object):
     """
     protocols = None
     read_delimiter = EntireMessage
+    regex_search = True
 
     def __init__(self, request):
         # Store the request and play nicely with web.
@@ -569,6 +579,47 @@ class WebSocketConnection(object):
                     break
                 data = self._read_buffer[:mark]
                 self._read_buffer = self._read_buffer[mark + len(delimiter):]
+                self._safely_call(self.on_read, data)
+
+            elif isinstance(delimiter, struct_delimiter):
+                # Use item access because it's faster. This'll need to be
+                # changed if struct_delimiter ever changes.
+                if len(self._read_buffer) < delimiter[1]:
+                    break
+                data = self._read_buffer[:delimiter[1]]
+                self._read_buffer = self._read_buffer[delimiter[1]:]
+
+                # Safely unpack it. This should *probably* never error.
+                try:
+                    data = delimiter.unpack(data)
+                except struct.error:
+                    log.exception("Unable to unpack data on %r." % self)
+                    self.close()
+                    break
+
+                # Unlike most on_read calls, this one sends every variable of
+                # the parsed data as its own argument.
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, RegexType):
+                # Depending on regex_search, we could do this two ways.
+                if self.regex_search:
+                    match = delimiter.search(self._read_buffer)
+                    if not match:
+                        break
+
+                    data = self._read_buffer[:match.start()]
+                    self._read_buffer = self._read_buffer[match.end():]
+
+                else:
+                    # Require the match to be at the beginning.
+                    data = delimiter.match(self._read_buffer)
+                    if not data:
+                        break
+
+                    self._read_buffer = self._read_buffer[data.end():]
+
+                # Send either the string or the match object.
                 self._safely_call(self.on_read, data)
 
             else:

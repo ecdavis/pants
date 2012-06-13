@@ -15,8 +15,10 @@
 # limitations under the License.
 #
 ###############################################################################
+import re
 
 import socket
+import struct
 import unittest
 
 import pants
@@ -48,6 +50,56 @@ class TestReadDelimiterString(PantsTestCase):
     def tearDown(self):
         PantsTestCase.tearDown(self)
         self.server.close()
+
+class StructOriented(pants.Connection):
+    def on_connect(self):
+        self.read_delimiter = pants.struct_delimiter("2H")
+
+    def on_read(self, val1, val2):
+        self.write(str(val1 * val2))
+
+class TestReadDelimiterStruct(PantsTestCase):
+    def setUp(self):
+        self.server = pants.Server(StructOriented).listen(('127.0.0.1', 4040))
+        PantsTestCase.setUp(self)
+
+    def tearDown(self):
+        PantsTestCase.tearDown(self)
+        self.server.close()
+
+    def test_read_delimiter_struct_delimiter(self):
+        sock = socket.socket()
+        sock.settimeout(1.0)
+        sock.connect(('127.0.0.1', 4040))
+        sock.send(struct.pack("2H", 42, 81))
+        response = sock.recv(1024)
+        self.assertEquals(int(response), 42*81)
+        sock.close()
+
+class RegexOriented(pants.Connection):
+    def on_connect(self):
+        self.read_delimiter = re.compile(r"\s\s+")
+
+    def on_read(self, data):
+        self.write(data)
+
+class TestReadDelimiterRegex(PantsTestCase):
+    def setUp(self):
+        self.server = pants.Server(RegexOriented).listen(('127.0.0.1', 4040))
+        PantsTestCase.setUp(self)
+
+    def tearDown(self):
+        PantsTestCase.tearDown(self)
+        self.server.close()
+
+    def test_read_delimiter_regex(self):
+        sock = socket.socket()
+        sock.settimeout(1.0)
+        sock.connect(('127.0.0.1', 4040))
+        sock.send("This is  a test.  ")
+        response = sock.recv(1024)
+        self.assertEquals(response, "This isa test.")
+        sock.close()
 
 class ChunkOriented(pants.Connection):
     def on_connect(self):
