@@ -491,6 +491,37 @@ class Stream(_Channel):
         else:
             self._start_waiting_for_write_event()
 
+    def write_packed(self, *data, **kwargs):
+        """
+        Write packed binary data to the channel.
+
+        The channel must be connected to a remote host. Additionally, the
+        current :attr:`read_delimiter` must be an instance of
+        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
+        if a format argument isn't provided.
+
+        ==========  ====================================================
+        Argument    Description
+        ==========  ====================================================
+        *data       Any number of values to be passed through
+                    :mod:`struct` and written to the remote host.
+        flush       *Optional.* If True, flush the internal write
+                    buffer. See :meth:`~pants.stream.Stream.flush`
+                    for details.
+        format      *Optional.* A formatting string to pack the
+                    provided data with. If one isn't provided, the read
+                    delimiter will be used.
+        ==========  ====================================================
+        """
+        format = kwargs.get("format", None)
+        if not format:
+            if not isinstance(self._read_delimiter, struct_delimiter):
+                raise ValueError("No format is available for writing data with "
+                                 "struct.")
+            format = self._read_delimiter[0]
+
+        self.write(struct.pack(format, *data), kwargs.get("flush", False))
+
     def flush(self):
         """
         Attempt to immediately write any internally buffered data to the
