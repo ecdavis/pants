@@ -21,7 +21,10 @@
 ###############################################################################
 
 import json
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from pants.http import HTTPServer
 
@@ -48,6 +51,7 @@ class HTTPTestCase(PantsTestCase):
 # The Cases
 ###############################################################################
 
+@unittest.skipIf(requests is None, "requests library not installed")
 class BasicTest(HTTPTestCase):
     def request_handler(self, request):
         request.send_response("Hello, World!")
@@ -57,6 +61,7 @@ class BasicTest(HTTPTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Hello, World!")
 
+@unittest.skipIf(requests is None, "requests library not installed")
 class ExceptionTest(HTTPTestCase):
     def request_handler(self, request):
         print pie
@@ -65,7 +70,7 @@ class ExceptionTest(HTTPTestCase):
         response = requests.get("http://127.0.0.1:4040/")
         self.assertEqual(response.status_code, 500)
 
-
+@unittest.skipIf(requests is None, "requests library not installed")
 class CookieTest(HTTPTestCase):
     def request_handler(self, request):
         for key in request.cookies:
@@ -79,6 +84,7 @@ class CookieTest(HTTPTestCase):
                                 cookies={"foo": "bar"})
         self.assertEqual(response.cookies["bar"], "foo")
 
+@unittest.skipIf(requests is None, "requests library not installed")
 class ResponseBody(HTTPTestCase):
     def request_handler(self, request):
         data = json.loads(request.body)
