@@ -29,7 +29,7 @@ import os
 import socket
 import ssl
 
-from pants._channel import _Channel
+from pants._channel import _Channel, HAS_IPV6
 from pants.engine import Engine
 
 
@@ -1164,7 +1164,7 @@ class StreamServer(_Channel):
         self._safely_call(self.on_listen)
 
         # Should we make a slave?
-        if slave and not isinstance(addr, str) and addr[0] == '' and socket.has_ipv6:
+        if slave and not isinstance(addr, str) and addr[0] == '' and HAS_IPV6:
             self._slave = StreamServerSlave(self.engine, self, addr, backlog)
 
     def _update_addr(self):

@@ -30,6 +30,7 @@ Exports :class:`pants.basic.Client`, :class:`pants.basic.Connection`,
 
 import logging
 
+from pants._channel import HAS_IPV6
 from pants.engine import Engine
 from pants.basic import Client, Connection, Server
 from pants.stream import Stream, StreamServer
@@ -44,6 +45,7 @@ __version__ = "0.10.1"
 
 __all__ = [
     "__authors__", "__version__",  # Metadata
+    "HAS_IPV6",  # Constants
     "engine",  # Core
     "Stream", "StreamServer",  # Low-level networking
     "Client", "Connection", "Server",  # High-level networking

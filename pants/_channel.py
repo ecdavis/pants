@@ -56,8 +56,17 @@ except AttributeError:
     # Unix sockets not supported.
     pass
 
+HAS_IPV6 = False
 if socket.has_ipv6:
-    SUPPORTED_FAMILIES.append(socket.AF_INET6)
+    # IPv6 must be enabled on Windows XP before it can be used, but
+    # socket.has_ipv6 will be True regardless.
+    try:
+        socket.socket(socket.AF_INET6)
+    except socket.error:
+        pass
+    else:
+        HAS_IPV6 = True
+        SUPPORTED_FAMILIES.append(socket.AF_INET6)
 
 SUPPORTED_FAMILIES = tuple(SUPPORTED_FAMILIES)
 SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
@@ -593,7 +602,7 @@ class _Channel(object):
             addr = ('', addr)
 
         if addr[0] in ('', '<broadcast>'):
-            if socket.has_ipv6:
+            if HAS_IPV6:
                 callback(addr, socket.AF_INET6)
             elif len(addr) == 4:
                 callback(None, None, FAMILY_ERROR)
@@ -605,7 +614,7 @@ class _Channel(object):
         # That means it's either an AF_INET or AF_INET6 address.
         got_family = None
 
-        if socket.has_ipv6:
+        if HAS_IPV6:
             try:
                 result = socket.inet_pton(socket.AF_INET6, addr[0])
             except socket.error:
@@ -631,7 +640,7 @@ class _Channel(object):
             if len(addr) == 2:
                 fam = socket.AF_INET
             else:
-                if not socket.has_ipv6:
+                if not HAS_IPV6:
                     callback(None, None, FAMILY_ERROR)
                     return
 
@@ -658,7 +667,7 @@ class _Channel(object):
 
             for i in rdata:
                 if ':' in i:
-                    if not socket.has_ipv6:
+                    if not HAS_IPV6:
                         continue
                     callback((i,) + addr[1:], socket.AF_INET6)
                     return
@@ -669,7 +678,7 @@ class _Channel(object):
                 callback(None, None, FAMILY_ERROR)
 
         if len(addr) == 4:
-            if not socket.has_ipv6:
+            if not HAS_IPV6:
                 callback(None, None, FAMILY_ERROR)
                 return
             qtype = dns.AAAA
