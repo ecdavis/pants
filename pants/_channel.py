@@ -710,16 +710,14 @@ class _Channel(object):
                 return
 
         if events & Engine.ERROR:
-            err, errstr = self._get_socket_error()
-            if err != 0:
-                log.error("Error on %r: %s (%d)" % (self, errstr, err))
-            self.close()
-            return
+            self._handle_error_event()
+            if self._closed:
+                return
 
         if events & Engine.HANGUP:
-            log.debug("Hang up on %r." % self)
-            self.close()
-            return
+            self._handle_hangup_event()
+            if self._closed:
+                return
 
         if self._events != previous_events:
             self.engine.modify_channel(self)
@@ -741,3 +739,23 @@ class _Channel(object):
         Not implemented in :class:`~pants._channel._Channel`.
         """
         raise NotImplementedError
+
+    def _handle_error_event(self):
+        """
+        Handle an error event raised on the channel.
+
+        By default, logs the error and closes the channel.
+        """
+        err, errstr = self._get_socket_error()
+        if err != 0:
+            log.error("Error on %r: %s (%d)" % (self, errstr, err))
+            self.close()
+
+    def _handle_hangup_event(self):
+        """
+        Handle a hangup event raised on the channel.
+
+        By default, logs the hangup and closes the channel.
+        """
+        log.debug("Hang up on %r." % self)
+        self.close()
