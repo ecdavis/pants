@@ -318,7 +318,8 @@ class _Channel(object):
         if not result or result == errno.EISCONN:
             return True
 
-        if result in (errno.EAGAIN, errno.EWOULDBLOCK, errno.EINPROGRESS, errno.EALREADY):
+        if result in (errno.EAGAIN, errno.EWOULDBLOCK,
+                errno.EINPROGRESS, errno.EALREADY):
             self._start_waiting_for_write_event()
             return False
 
