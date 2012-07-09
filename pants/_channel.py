@@ -18,7 +18,7 @@
 ###############################################################################
 """
 The low-level channel class. Provides a non-blocking socket wrapper for
-use as a base for higher-level classes.
+use as a base for higher-level classes. Intended for internal use only.
 """
 
 ###############################################################################
@@ -50,16 +50,20 @@ log = logging.getLogger("pants")
 ###############################################################################
 
 SUPPORTED_FAMILIES = [socket.AF_INET]
+HAS_UNIX = False
 try:
     SUPPORTED_FAMILIES.append(socket.AF_UNIX)
 except AttributeError:
     # Unix sockets not supported.
     pass
+else:
+    HAS_UNIX = True
 
 HAS_IPV6 = False
 if socket.has_ipv6:
     # IPv6 must be enabled on Windows XP before it can be used, but
-    # socket.has_ipv6 will be True regardless.
+    # socket.has_ipv6 will be True regardless. Check that we can
+    # actually create an IPv6 socket.
     try:
         socket.socket(socket.AF_INET6)
     except socket.error:
@@ -114,7 +118,10 @@ class _Channel(object):
     and must be subclassed. Subclasses should override
     :meth:`~pants._channel._Channel._handle_read_event` and
     :meth:`~pants._channel._Channel._handle_write_event` to implement
-    basic event-handling behaviour. Subclasses should also ensure that
+    basic event-handling behaviour. Subclasses may also override
+    :meth:`~pants._channel._Channel._handle_error_event` and
+    :meth:`~pants._channel._Channel._handle_hangup_event` to implement
+    custom error-handling behaviour. Subclasses should also ensure that
     they call the relevant on_* event handler placeholders at the
     appropriate times.
 
@@ -131,8 +138,6 @@ class _Channel(object):
         self.engine = kwargs.get("engine", Engine.instance())
 
         # Socket
-        self.family = None
-        self.fileno = None
         self._socket = None
         self._closed = False
         sock = kwargs.get("socket", None)
@@ -144,7 +149,7 @@ class _Channel(object):
 
         # Internal state
         self._events = Engine.ALL_EVENTS
-        self._processing_events = False
+        self._processing_events = False  # See _Channel._handle_events()
         if self._socket:
             self.engine.add_channel(self)
 
@@ -152,11 +157,24 @@ class _Channel(object):
         return "%s #%r (%s)" % (self.__class__.__name__, self.fileno,
                 object.__repr__(self))
 
+    ##### Properties ##########################################################
+
+    @property
+    def fileno(self):
+        """
+        The fileno associated with the socket that this channel wraps,
+        or None if the channel does not have a socket.
+        """
+        return None if not self._socket else self._socket.fileno()
+
     ##### Control Methods #####################################################
 
     def close(self):
         """
         Close the channel.
+        
+        This method does not call the on_close() event handler -
+        subclasses are responsible for that functionality.
         """
         if self._closed:
             return
@@ -165,8 +183,6 @@ class _Channel(object):
         self._socket_close()
         self._events = Engine.ALL_EVENTS
         self._processing_events = False
-
-        self._safely_call(self.on_close)
 
     ##### Public Event Handlers ###############################################
 
@@ -240,6 +256,38 @@ class _Channel(object):
         log.exception(exception)
         self.close()
 
+    def on_read_error(self, exception):
+        """
+        Placeholder. Called when the channel has failed to read data
+        from a remote socket.
+
+        By default, logs the exception and closes the channel.
+
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
+
+    def on_write_error(self, exception):
+        """
+        Placeholder. Called when the channel has failed to write data to
+        a remote socket.
+
+        By default, logs the exception and closes the channel.
+
+        ==========  ============
+        Argument    Description
+        ==========  ============
+        exception   The exception that was raised.
+        ==========  ============
+        """
+        log.exception(exception)
+        self.close()
+
     def on_overflow_error(self, exception):
         """
         Placeholder. Called when an internal buffer on the channel has
@@ -293,7 +341,6 @@ class _Channel(object):
             raise ValueError("Unsupported socket type.")
 
         sock.setblocking(False)
-        self.family = sock.family
         self.fileno = sock.fileno()
         self._socket = sock
 
@@ -358,11 +405,11 @@ class _Channel(object):
         Close the socket.
         """
         try:
+            self._socket.shutdown()
             self._socket.close()
         except (AttributeError, socket.error):
             return
         finally:
-            self.family = None
             self.fileno = None
             self._socket = None
             self._closed = True
@@ -516,7 +563,7 @@ class _Channel(object):
         """
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
-            if not self._processing_events:
+            if not self._processing_events:  # See _Channel._handle_events()
                 self.engine.modify_channel(self)
 
     def _stop_waiting_for_write_event(self):
@@ -526,7 +573,7 @@ class _Channel(object):
         """
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
-            if not self._processing_events:
+            if not self._processing_events:  # See _Channel._handle_events()
                 self.engine.modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
@@ -566,127 +613,97 @@ class _Channel(object):
 
         return err, errstr
 
-    def _resolve_addr(self, addr, native_resolve, callback):
+    def _format_address(self, address):
         """
-        Resolve the given address into something that can be connected
-        to immediately and determine the appropriate socket family.
+        Given an address, returns the address family and - if
+        necessary - properly formats the address.
+        
+        A string is treated as an AF_UNIX address. An integer or long is
+        converted to a 2-tuple of the form ('', number). A 2-tuple is
+        treated as an AF_INET address and a 4-tuple is treated as an
+        AF_INET6 address.
 
-        ===============  ==============================================
-        Argument         Description
-        ===============  ==============================================
-        addr             The address to resolve.
-        native_resolve   If True, use Python's builtin address
-                         resolution. Otherwise, Pants' non-blocking
-                         address resolution will be used.
-        callback         A callable taking two mandatory arguments and
-                         one optional argument. The arguments are: the
-                         resolved address, the socket family and error
-                         information, respectively.
-        ===============  ==============================================
+        Will raise an InvalidAddressFormatError if the given address is
+        from an unknown or unsupported family.
+        
+        ========= ============
+        Argument  Description
+        ========= ============
+        address   The address to format.
+        ========= ============
+        """
+        if isinstance(address, basestring):
+            if HAS_UNIX:
+                return address, socket.AF_UNIX
+            raise InvalidAddressFormatError("AF_UNIX not supported.")
+
+        if isinstance(address, (int, long)):
+            address = ('', address)
+
+        if len(address) == 2:
+            return address, socket.AF_INET
+        elif len(address) == 4:
+            if HAS_IPV6:
+                return address, socket.AF_INET6
+            else:
+                raise InvalidAddressFormatError("AF_INET6 not supported.")
+
+        raise InvalidAddressFormatError("Invalid address: %r" % address)
+
+    def _resolve_address(self, address, family, cb):
+        """
+        Use Pants' DNS client to asynchronously resolve the given
+        address.
+
+        ========= ===================================================
+        Argument  Description
+        ========= ===================================================
+        address   The address to resolve.
+        family    The address family.
+        cb        A callable taking two mandatory arguments and one
+                  optional argument. The arguments are: the resolved
+                  address, the socket family and error information,
+                  respectively.
+        ========= ===================================================
         """
         # This is here to prevent an import-loop. pants.util.dns depends
-        # on pants._channel.
+        # on pants._channel. Unfortunate, but necessary.
         global dns
         if dns is None:
             from pants.util import dns
 
-        if isinstance(addr, str):
-            # This is a unix socket!
-            if not hasattr(socket, "AF_UNIX"):
-                callback(None, None, FAMILY_ERROR)
-                return
-            callback(addr, socket.AF_UNIX)
+        # UNIX addresses and INADDR_ANY don't need to be resolved.
+        if isinstance(address, basestring) or address[0] == '':
+            cb(address, family)
             return
 
-        if isinstance(addr, (int, long)):
-            # INADDR_ANY-atize it!
-            addr = ('', addr)
-
-        if addr[0] in ('', '<broadcast>'):
-            if HAS_IPV6:
-                callback(addr, socket.AF_INET6)
-            elif len(addr) == 4:
-                callback(None, None, FAMILY_ERROR)
-            else:
-                callback(addr, socket.AF_INET)
-            return
-
-        # It must be a tuple or list. Or, at least, assume it is.
-        # That means it's either an AF_INET or AF_INET6 address.
-        got_family = None
-
-        if HAS_IPV6:
-            try:
-                result = socket.inet_pton(socket.AF_INET6, addr[0])
-            except socket.error:
-                pass
-            else:
-                got_family = socket.AF_INET6
-
-        if got_family is None and len(addr) == 2:
-            try:
-                result = socket.inet_pton(socket.AF_INET, addr[0])
-            except socket.error:
-                pass
-            else:
-                got_family = socket.AF_INET
-
-        # Do it this way so any errors aren't gobbled up in those try
-        # thingies.
-        if got_family is not None:
-            callback(addr, got_family)
-            return
-
-        if native_resolve:
-            if len(addr) == 2:
-                fam = socket.AF_INET
-            else:
-                if not HAS_IPV6:
-                    callback(None, None, FAMILY_ERROR)
-                    return
-
-                fam = socket.AF_INET6
-
-            try:
-                info = socket.getaddrinfo(addr[0], addr[1], fam)[0]
-            except socket.gaierror, err:
-                callback(None, None, (err.errno, err.strerror))
-                return
-
-            callback(info[4], info[0])
-            return
-
-        # Resolve it with Pants.
         def dns_callback(status, cname, ttl, rdata):
             if status == dns.DNS_NAMEERROR:
-                callback(None, None, NAME_ERROR)
+                cb(None, None, NAME_ERROR)
                 return
 
             if status != dns.DNS_OK or not rdata:
-                self._resolve_addr(addr, True, callback)
+                cb(address, family)
                 return
 
             for i in rdata:
                 if ':' in i:
                     if not HAS_IPV6:
                         continue
-                    callback((i,) + addr[1:], socket.AF_INET6)
+                    cb((i,) + addr[1:], socket.AF_INET6)
                     return
                 else:
-                    callback((i,) + addr[1:], socket.AF_INET)
+                    cb((i,) + addr[1:], socket.AF_INET)
                     return
             else:
-                callback(None, None, FAMILY_ERROR)
+                cb(None, None, FAMILY_ERROR)
 
-        if len(addr) == 4:
-            if not HAS_IPV6:
-                callback(None, None, FAMILY_ERROR)
-                return
+        if HAS_IPV6 and family == socket.AF_INET6:
             qtype = dns.AAAA
         else:
             qtype = (dns.AAAA, dns.A)
 
-        dns.query(addr[0], qtype, callback=dns_callback)
+        dns.query(address[0], qtype, callback=dns_callback)
 
     ##### Internal Event Handler Methods ######################################
 
@@ -704,6 +721,13 @@ class _Channel(object):
             log.warning("Received events for closed %r." % self)
             return
 
+        # This is an annoying little hack that makes Pants run a fair
+        # bit faster than it otherwise would. The
+        # *_waiting_for_write_event() methods do nothing when
+        # _processing_events is True. Since we know we're going to pass
+        # the updated events to the engine at the end of this method, we
+        # save ourselves some time by not passing them during regular
+        # processing. 
         self._processing_events = True
 
         previous_events = self._events
@@ -758,7 +782,7 @@ class _Channel(object):
         """
         err, errstr = self._get_socket_error()
         if err != 0:
-            log.error("Error on %r: %s (%d)" % (self, errstr, err))
+            log.error("Socket error on %r: %s (%d)" % (self, errstr, err))
             self.close()
 
     def _handle_hangup_event(self):
@@ -769,3 +793,14 @@ class _Channel(object):
         """
         log.debug("Hang up on %r." % self)
         self.close()
+
+
+###############################################################################
+# Exceptions
+###############################################################################
+
+class InvalidAddressFormatError(Exception):
+    """
+    Raised when an invalid address format is provided to a channel.
+    """
+    pass
