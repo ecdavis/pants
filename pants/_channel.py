@@ -149,7 +149,6 @@ class _Channel(object):
 
         # Internal state
         self._events = Engine.ALL_EVENTS
-        self._processing_events = False  # See _Channel._handle_events()
         if self._socket:
             self.engine.add_channel(self)
 
@@ -561,8 +560,7 @@ class _Channel(object):
         """
         if self._events != self._events | Engine.WRITE:
             self._events = self._events | Engine.WRITE
-            if not self._processing_events:  # See _Channel._handle_events()
-                self.engine.modify_channel(self)
+            self.engine.modify_channel(self)
 
     def _stop_waiting_for_write_event(self):
         """
@@ -571,8 +569,7 @@ class _Channel(object):
         """
         if self._events == self._events | Engine.WRITE:
             self._events = self._events & (self._events ^ Engine.WRITE)
-            if not self._processing_events:  # See _Channel._handle_events()
-                self.engine.modify_channel(self)
+            self.engine.modify_channel(self)
 
     def _safely_call(self, thing_to_call, *args, **kwargs):
         """
@@ -719,15 +716,6 @@ class _Channel(object):
             log.warning("Received events for closed %r." % self)
             return
 
-        # This is an annoying little hack that makes Pants run a fair
-        # bit faster than it otherwise would. The
-        # *_waiting_for_write_event() methods do nothing when
-        # _processing_events is True. Since we know we're going to pass
-        # the updated events to the engine at the end of this method, we
-        # save ourselves some time by not passing them during regular
-        # processing. 
-        self._processing_events = True
-
         previous_events = self._events
         self._events = Engine.BASE_EVENTS
 
@@ -753,8 +741,6 @@ class _Channel(object):
 
         if self._events != previous_events:
             self.engine.modify_channel(self)
-
-        self._processing_events = False
 
     def _handle_read_event(self):
         """

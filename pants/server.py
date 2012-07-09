@@ -27,7 +27,7 @@ import socket
 import ssl
 import weakref
 
-from pants._channel import _Channel
+from pants._channel import _Channel, HAS_IPV6
 from pants.stream import Stream
 
 
@@ -407,7 +407,7 @@ class _SlaveServer(Server):
     familes.
     """
     def __init__(self, engine, server, addr, backlog):
-        StreamServer.__init__(self, engine=engine)
+        Server.__init__(self, engine=engine)
         self.server = server
 
         # Now, listen our way.
