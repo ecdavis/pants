@@ -18,10 +18,8 @@
 """
 The core Pants classes and objects.
 
-Exports :class:`pants.basic.Client`, :class:`pants.basic.Connection`,
-:class:`pants.basic.Server`, :class:`pants.stream.Stream`,
-:class:`pants.stream.StreamServer` and the global
-:class:`pants.engine.Engine` instance.
+Exports the global engine, :class:`pants.stream.Stream` and
+:class:`pants.server.Server`.
 """
 
 ###############################################################################
@@ -30,10 +28,10 @@ Exports :class:`pants.basic.Client`, :class:`pants.basic.Connection`,
 
 import logging
 
-from pants._channel import HAS_IPV6
+from pants._channel import HAS_IPV6, HAS_UNIX
 from pants.engine import Engine
-from pants.basic import Client, Connection, Server
-from pants.stream import Stream, StreamServer
+from pants.server import Server
+from pants.stream import Stream
 
 
 ###############################################################################
@@ -45,10 +43,9 @@ __version__ = "0.10.1"
 
 __all__ = [
     "__authors__", "__version__",  # Metadata
-    "HAS_IPV6",  # Constants
+    "HAS_IPV6", "HAS_UNIX",  # Constants
     "engine",  # Core
-    "Stream", "StreamServer",  # Low-level networking
-    "Client", "Connection", "Server",  # High-level networking
+    "Stream", "Server",  # TCP Networking
     ]
 
 
