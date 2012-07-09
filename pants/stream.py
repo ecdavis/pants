@@ -345,7 +345,7 @@ class Stream(_Channel):
         if native_resolve:
             self._do_connect(address, family)
         else:
-            self._resolve_addr(address, family, self._do_connect)
+            self._resolve_address(address, family, self._do_connect)
 
         return self
 
