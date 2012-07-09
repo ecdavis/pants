@@ -341,7 +341,6 @@ class _Channel(object):
             raise ValueError("Unsupported socket type.")
 
         sock.setblocking(False)
-        self.fileno = sock.fileno()
         self._socket = sock
 
     def _socket_connect(self, addr):
@@ -405,12 +404,11 @@ class _Channel(object):
         Close the socket.
         """
         try:
-            self._socket.shutdown()
+            self._socket.shutdown(socket.SHUT_RDWR)
             self._socket.close()
         except (AttributeError, socket.error):
             return
         finally:
-            self.fileno = None
             self._socket = None
             self._closed = True
 
