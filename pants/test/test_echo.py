@@ -23,13 +23,13 @@ import pants
 
 from pants.test._pants_util import *
 
-class Echo(pants.Connection):
+class Echo(pants.Stream):
     def on_read(self, data):
         self.write(data)
 
 class TestEcho(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(Echo).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=Echo).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_echo_with_one_client(self):

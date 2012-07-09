@@ -24,7 +24,7 @@ import pants
 
 from pants.test._pants_util import *
 
-class FileSender(pants.Connection):
+class FileSender(pants.Stream):
     def on_connect(self):
         with open(os.path.dirname(__file__) + "/data.txt", 'r') as test_file:
             # The file is flushed here to get around an awkward issue
@@ -34,7 +34,7 @@ class FileSender(pants.Connection):
 
 class TestSendfile(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(FileSender).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=FileSender).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_sendfile(self):

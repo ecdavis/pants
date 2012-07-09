@@ -23,7 +23,7 @@ import pants
 
 from pants.test._pants_util import *
 
-class LineOriented(pants.Connection):
+class LineOriented(pants.Stream):
     def on_connect(self):
         self.read_delimiter = '\r\n'
 
@@ -32,7 +32,7 @@ class LineOriented(pants.Connection):
 
 class TestReadDelimiterString(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(LineOriented).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=LineOriented).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_read_delimiter_string(self):
@@ -49,7 +49,7 @@ class TestReadDelimiterString(PantsTestCase):
         PantsTestCase.tearDown(self)
         self.server.close()
 
-class ChunkOriented(pants.Connection):
+class ChunkOriented(pants.Stream):
     def on_connect(self):
         self.read_delimiter = 4
 
@@ -58,7 +58,7 @@ class ChunkOriented(pants.Connection):
 
 class TestReadDelimiterChunk(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(ChunkOriented).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=ChunkOriented).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_read_delimiter_number(self):

@@ -33,9 +33,9 @@ SSL_OPTIONS = {
     'keyfile': CERT_PATH
     }
 
-class GoogleClient(pants.Client):
+class GoogleClient(pants.Stream):
     def __init__(self, **kwargs):
-        pants.Client.__init__(self, **kwargs)
+        pants.Stream.__init__(self, **kwargs)
 
         self.on_ssl_handshake_called = False
         self.on_connect_called = False
@@ -73,14 +73,14 @@ class TestSSLClient(PantsTestCase):
     def tearDown(self):
         self.client.close()
 
-class Echo(pants.Connection):
+class Echo(pants.Stream):
     def on_read(self, data):
         self.write(data)
 
 @unittest.skipIf(not CERT_EXISTS, "no SSL certificate present in unit test directory")
 class TestSSLServer(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(Echo, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=Echo, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_ssl_server(self):
@@ -98,7 +98,7 @@ class TestSSLServer(PantsTestCase):
         PantsTestCase.tearDown(self)
         self.server.close()
 
-class FileSender(pants.Connection):
+class FileSender(pants.Stream):
     def on_connect(self):
         with open(os.path.dirname(__file__) + "/data.txt", 'r') as test_file:
             # The file is flushed here to get around an awkward issue
@@ -109,7 +109,7 @@ class FileSender(pants.Connection):
 @unittest.skipIf(not CERT_EXISTS, "no SSL certificate present in unit test directory")
 class TestSSLSendfile(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(FileSender, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=FileSender, ssl_options=SSL_OPTIONS).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_sendfile(self):

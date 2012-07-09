@@ -23,14 +23,14 @@ import pants
 
 from pants.test._pants_util import *
 
-class EchoToAll(pants.Connection):
+class EchoToAll(pants.Stream):
     def on_read(self, data):
         for channel in self.server.channels.itervalues():
             channel.write(data)
 
 class TestEchoToAll(PantsTestCase):
     def setUp(self):
-        self.server = pants.Server(EchoToAll).listen(('127.0.0.1', 4040))
+        self.server = pants.Server(ConnectionClass=EchoToAll).listen(('127.0.0.1', 4040))
         PantsTestCase.setUp(self)
 
     def test_echo_to_all_with_one_client(self):
