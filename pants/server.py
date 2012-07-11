@@ -69,7 +69,7 @@ class Server(_Channel):
     """
     ConnectionClass = Stream
 
-    def __init__(self, **kwargs):
+    def __init__(self, ConnectionClass=None, **kwargs):
         sock = kwargs.get("socket", None)
         if sock and sock.type != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a socket type other than SOCK_STREAM."
@@ -93,8 +93,8 @@ class Server(_Channel):
             self.startSSL(kwargs["ssl_options"])
 
         # Connection class
-        if kwargs.get("ConnectionClass", None) is not None:
-            self.ConnectionClass = kwargs["ConnectionClass"]
+        if ConnectionClass is not None:
+            self.ConnectionClass = ConnectionClass
         self.channels = weakref.WeakValueDictionary()
 
     ##### Properties ##########################################################
