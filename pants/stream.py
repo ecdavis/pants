@@ -87,9 +87,9 @@ class Stream(_Channel):
         self._local_address = None
 
         # I/O attributes
-        self.read_delimiter = None
+        self._read_delimiter = None
         self._recv_buffer = ""
-        self._recv_buffer_size_limit = 2 ** 16  # 64kb
+        self._recv_buffer_size_limit = self._buffer_size
         self._send_buffer = []
 
         # Channel state
@@ -188,6 +188,8 @@ class Stream(_Channel):
         else:
             raise TypeError("read_delimiter must be None, a string, an int, or a long")
 
+    # Setting this at the class level makes it easy to override on a
+    # per-class basis.
     _buffer_size = 2 ** 16  # 64kb
 
     @property
