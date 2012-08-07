@@ -22,10 +22,13 @@ import unittest
 import pants
 
 class PantsTestCase(unittest.TestCase):
+    _engine_thread = None
+
     def setUp(self):
         self._engine_thread = threading.Thread(target=pants.engine.start)
         self._engine_thread.start()
 
     def tearDown(self):
         pants.engine.stop()
-        self._engine_thread.join(1.0)
+        if self._engine_thread:
+            self._engine_thread.join(1.0)

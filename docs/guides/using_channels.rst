@@ -209,7 +209,7 @@ Data in the form of a string or a file can be written to the stream::
 And the stream can be closed - either after any remaining data is written or
 immediately::
 
-    stream.end() # Wait for any remaining data to be written, then close.
+    stream.close(True) # Wait for any remaining data to be written, then close.
     stream.close() # Close immediately.
 
 A streaming server can be told to listen for new connections::

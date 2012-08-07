@@ -107,7 +107,7 @@ class Application(object):
                 char, = request.match.groups()
                 return 'The character is %s!' % char
 
-        That is, essentially, equivilent to::
+        That is, essentially, equivalent to::
 
             @app.route("/char/<char>/")
             def my_route(char):
@@ -640,7 +640,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
 
     if message is None:
         message = HTTP_MESSAGES.get(status,
-                                    u"An unspecified error has occured.")
+                                    u"An unspecified error has occurred.")
 
         values = request.__dict__.copy()
         values['uri'] = decode(urllib.unquote(values['uri']))

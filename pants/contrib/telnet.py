@@ -20,7 +20,7 @@
 # Imports
 ###############################################################################
 
-from pants import Connection, Server
+from pants import Stream, Server
 
 
 ###############################################################################
@@ -28,7 +28,7 @@ from pants import Connection, Server
 ###############################################################################
 
 import logging
-log = logging.getLogger("pants")
+log = logging.getLogger(__name__)
 
 
 ###############################################################################
@@ -48,7 +48,7 @@ SE   = chr(240)  # Subnegotiation End
 # TelnetConnection Class
 ###############################################################################
 
-class TelnetConnection(Connection):
+class TelnetConnection(Stream):
     """
     A basic implementation of a Telnet connection.
 
@@ -58,8 +58,8 @@ class TelnetConnection(Connection):
     relevant placeholder method. This class should be subclassed to
     provide functionality for individual commands and options.
     """
-    def __init__(self, *args):
-        Connection.__init__(self, *args)
+    def __init__(self, *args, **kwargs):
+        Stream.__init__(self, *args, **kwargs)
 
         # Initialize Stuff
         self._telnet_data = ""

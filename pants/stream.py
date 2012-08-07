@@ -540,7 +540,7 @@ class Stream(_Channel):
         family     The detected socket family or None if address
                    resolution failed.
         error      *Optional.* Error information or None if no error
-                   occured.
+                   occurred.
         =========  =====================================================
         """
         if not address:
@@ -905,7 +905,7 @@ class StreamBufferOverflow(Exception):
 
 class StreamConnectError(Exception):
     """
-    Raised when an error has occured during an attempt to connect a
+    Raised when an error has occurred during an attempt to connect a
     stream to a remote host.
     """
     pass

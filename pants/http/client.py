@@ -137,7 +137,7 @@ def _port(parts):
 # _HTTPStream Class
 ###############################################################################
 
-class _HTTPStream(Client):
+class _HTTPStream(Stream):
     """
     The _HTTPStream is a basic Pants client with an extra function for
     determining if it can connect to a given host without being destroyed and
@@ -149,7 +149,7 @@ class _HTTPStream(Client):
     _host = None
 
     def __init__(self, client, *args, **kwargs):
-        Client.__init__(self, *args, **kwargs)
+        Stream.__init__(self, *args, **kwargs)
         self.client = client
 
         # This should be true when connected to certain proxies.
@@ -172,7 +172,7 @@ class _HTTPStream(Client):
         else:
             host, port = host.split(':')
             port = int(port)
-            if host != self._host or port != self.remote_addr[-1]:
+            if host != self._host or port != self.remote_address[-1]:
                 return False
 
         return True
@@ -186,7 +186,7 @@ class _HTTPStream(Client):
         if self.connected:
             self._safely_call(self.on_connect)
         else:
-            Client.connect(self, addr, native_resolve)
+            Stream.connect(self, addr, native_resolve)
 
     def on_connect(self):
         self.client._on_connect()
@@ -196,6 +196,9 @@ class _HTTPStream(Client):
 
     def on_connect_error(self, err):
         self.client._on_connect_error(err)
+
+    def on_read_error(self, err):
+        self.client._do_error(err)
 
     def on_overflow_error(self, err):
         self.client._do_error(err)
@@ -325,7 +328,7 @@ class HTTPClient(object):
         ============  ============
         response      A :class:`HTTPResponse` instance with information about the response. Notably, with the ``host`` to expect.
         certificate   A dictionary representing the certificate that wasn't automatically verified.
-        exception     A CertificateError instance with information about the error that occured.
+        exception     A CertificateError instance with information about the error that occurred.
         ============  ============
         """
         return False
@@ -337,7 +340,7 @@ class HTTPClient(object):
         ==========  ============
         Argument    Description
         ==========  ============
-        exception   An Exception instance with information about the error that occured.
+        exception   An Exception instance with information about the error that occurred.
         ==========  ============
         """
         pass
@@ -453,7 +456,7 @@ class HTTPClient(object):
                 log.debug("Closing unusable stream for %r." % self)
                 self._want_close = True
                 self._no_process = False
-                self._stream.end()
+                self._stream.close()
                 return
 
         # Set the timeout timer and log.
@@ -616,8 +619,7 @@ class HTTPClient(object):
             # error it.
             self._want_close = False
             if self._requests:
-                request = self._requests.pop(0)
-                response = request.response
+                request = self._requests[0]
                 self._no_process = False
                 self._do_error(RequestClosed("The server closed the "
                                              "connection."))
@@ -764,7 +766,7 @@ class HTTPClient(object):
 
         # There must not be a body, so go ahead and be done.
         else:
-            # We've got a reponse.
+            # We've got a response.
             self._on_response()
             return
 
@@ -808,7 +810,7 @@ class HTTPClient(object):
         # Keep processing, if needed.
         self._process()
 
-    ##### Length-Based Reponses ###############################################
+    ##### Length-Based Responses ##############################################
 
     def _read_forever(self, data):
         """
@@ -949,7 +951,7 @@ class HTTPClient(object):
         bytes = len(data)
         response.remaining -= bytes
         response.total += bytes
-        self._stream.read_delmiter = min(CHUNK_SIZE, response.remaining)
+        self._stream.read_delimiter = min(CHUNK_SIZE, response.remaining)
 
         # Pass the data through our decoder.
         data = data[:-2]

@@ -151,7 +151,7 @@ class FileServer(object):
         except (AttributeError, IndexError):
             path = request.path
 
-        # Conver the path to unicode.
+        # Convert the path to unicode.
         path = decode(urllib.unquote(path))
 
         # Strip off a starting quote.

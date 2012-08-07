@@ -29,7 +29,7 @@ from pants.stream import Stream
 # Logging
 ###############################################################################
 
-log = logging.getLogger('irc')
+log = logging.getLogger(__name__)
 
 ###############################################################################
 # Constants

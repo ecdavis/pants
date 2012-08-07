@@ -34,7 +34,7 @@ if os.name == 'nt':
 else:
     from time import time
 
-from pants import Client, Connection, Server
+from pants import Stream, Server
 from pants import __version__ as pants_version
 from pants.engine import Engine
 
@@ -68,7 +68,7 @@ HTTP = {
     200: 'OK',
     201: 'Created',
     202: 'Accepted',
-    203: 'Non-Authorative Information',
+    203: 'Non-Authoritative Information',
     204: 'No Content',
     205: 'Reset Content',
     206: 'Partial Content',

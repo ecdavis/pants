@@ -30,7 +30,7 @@ from pants.http.utils import *
 # HTTPConnection Class
 ###############################################################################
 
-class HTTPConnection(Connection):
+class HTTPConnection(Stream):
     """
     Instances of this class represent connections received by an
     :class:`HTTPServer`, and perform all the actual logic of receiving and
@@ -42,8 +42,8 @@ class HTTPConnection(Connection):
 
     You will almost never access this class directly.
     """
-    def __init__(self, *args):
-        Connection.__init__(self, *args)
+    def __init__(self, *args, **kwargs):
+        Stream.__init__(self, *args, **kwargs)
 
         # Request State Storage
         self.current_request = None
@@ -108,7 +108,7 @@ class HTTPConnection(Connection):
 
         if disconnect:
             self.on_read = None
-            self.end()
+            self.close(True)
         else:
             self._await_request()
 
@@ -169,7 +169,7 @@ class HTTPConnection(Connection):
 
         except BadRequest, e:
             log.info('Bad request from %r: %s',
-                self.remote_addr, e)
+                self.remote_address, e)
             
             self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
             if e.message:
@@ -179,7 +179,7 @@ class HTTPConnection(Connection):
                 self.write(e.message)
             else:
                 self.write(CRLF)
-            self.end()
+            self.close(True)
             return
 
         try:
@@ -191,7 +191,7 @@ class HTTPConnection(Connection):
                 self.close()
             else:
                 request.send_response("500 Internal Server Error", 500)
-                self.end()
+                self.close(True)
 
     def _read_request_body(self, data):
         """
@@ -219,10 +219,10 @@ class HTTPConnection(Connection):
 
         except BadRequest, e:
             log.info('Bad request from %r: %s',
-                self.remote_addr, e)
+                self.remote_address, e)
 
             request.send_response(e.message, e.code)
-            self.end()
+            self.close(True)
             return
 
         try:
@@ -233,7 +233,7 @@ class HTTPConnection(Connection):
                 self.close()
             else:
                 request.send_response("500 Internal Server Error", 500)
-                self.end()
+                self.close(True)
 
 ###############################################################################
 # HTTPRequest Class
@@ -277,7 +277,7 @@ class HTTPRequest(object):
             if remote_ip is None:
                 remote_ip = self.headers.get('X-Forwarded-For')
                 if remote_ip is None:
-                    remote_ip = connection.remote_addr
+                    remote_ip = connection.remote_address
                     if not isinstance(remote_ip, str):
                         remote_ip = remote_ip[0]
                 else:
@@ -286,7 +286,7 @@ class HTTPRequest(object):
             self.remote_ip = remote_ip
             self.protocol = self.headers.get('X-Forwarded-Proto', protocol)
         else:
-            self.remote_ip = connection.remote_addr
+            self.remote_ip = connection.remote_address
             if not isinstance(self.remote_ip, str):
                 self.remote_ip = self.remote_ip[0]
             self.protocol   = protocol
@@ -404,7 +404,7 @@ class HTTPRequest(object):
         =========  ===========  ============
         name                    The name of the cookie to set.
         value                   The value of the cookie.
-        expires    ``2592000``  *Optional.* How long, in seconds, the cookie should last before expiring. The default value is equivilent to 30 days.
+        expires    ``2592000``  *Optional.* How long, in seconds, the cookie should last before expiring. The default value is equivalent to 30 days.
         =========  ===========  ============
 
         Additional arguments, such as ``path`` and ``httponly`` may be set by
@@ -660,7 +660,7 @@ class HTTPServer(Server):
     keep_alive        True      *Optional.* Whether or not multiple requests are allowed over a single connection.
     ssl_options       None      *Optional.* SSL is not currently implemented in Pants, and this will not work. A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
     cookie_secret     None      *Optional.* A string to use when signing secure cookies.
-    xheaders          False     *Optional.* Whether or not to use ``X-Forwarded-For`` and ``X-Forwared-Proto`` headers.
+    xheaders          False     *Optional.* Whether or not to use ``X-Forwarded-For`` and ``X-Forwarded-Proto`` headers.
     ================  ========  ============
     """
     ConnectionClass = HTTPConnection

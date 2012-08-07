@@ -62,8 +62,8 @@ class Datagram(_Channel):
         _Channel.__init__(self, **kwargs)
 
         # Socket
-        self.remote_addr = None
-        self.local_addr = None
+        self.remote_address = None
+        self.local_address = None
 
         # I/O attributes
         self.read_delimiter = None
@@ -144,7 +144,7 @@ class Datagram(_Channel):
 
     ##### I/O Methods #########################################################
 
-    def write(self, data, addr=None, flush=False):
+    def write(self, data, address=None, flush=False):
         """
         Write data to the channel.
 
@@ -152,7 +152,7 @@ class Datagram(_Channel):
         Arguments   Description
         ==========  ============
         data        A string of data to write to the channel.
-        addr        The remote address to write the data to.
+        address     The remote address to write the data to.
         flush       If True, flush the internal write buffer.
         ==========  ============
         """
@@ -160,14 +160,14 @@ class Datagram(_Channel):
             log.warning("Attempted to write to closed %r." % self)
             return
 
-        if addr is None:
-            addr = self.remote_addr
-            if addr is None:
+        if address is None:
+            address = self.remote_address
+            if address is None:
                 log.warning("Attempted to write to %r with no remote "
                     "address." % self)
                 return
 
-        self._send_buffer.append((data, addr))
+        self._send_buffer.append((data, address))
 
         if flush:
             self._process_send_buffer()
@@ -190,12 +190,12 @@ class Datagram(_Channel):
     def _update_addr(self):
         """
         Update the channel's
-        :attr:`~pants.datagram.Datagram.local_addr` attribute.
+        :attr:`~pants.datagram.Datagram.local_address` attribute.
         """
         if self.listening:
-            self.local_addr = self._socket.getsockname()
+            self.local_address = self._socket.getsockname()
         else:
-            self.local_addr = None
+            self.local_address = None
 
     ##### Internal Event Handler Methods ######################################
 
@@ -253,7 +253,7 @@ class Datagram(_Channel):
         """
         for addr in self._recv_buffer.keys()[:]:
             buf = self._recv_buffer[addr]
-            self.remote_addr = addr
+            self.remote_address = addr
 
             while buf:
                 delimiter = self.read_delimiter
@@ -284,7 +284,7 @@ class Datagram(_Channel):
                 if self._closed:
                     break
 
-            self.remote_addr = None
+            self.remote_address = None
 
             if buf:
                 self._recv_buffer[addr] = buf

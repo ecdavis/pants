@@ -91,6 +91,8 @@ class WebSocketConnection(object):
     protocols = None
     read_delimiter = EntireMessage
 
+    allow_old_handshake = False
+
     def __init__(self, request):
         # Store the request and play nicely with web.
         self._connection = request.connection
@@ -103,9 +105,10 @@ class WebSocketConnection(object):
         self._read_buffer = u""
 
         self.connected = False
+        self._closed = False
 
-        # Set remote/local addr early for on_handshake.
-        self._update_addr()
+        # Set remote/local address early for on_handshake.
+        self._update_address()
 
         # First up, make sure we're dealing with an actual WebSocket request.
         # If we aren't, return a simple 426 Upgrade Required page.
@@ -117,7 +120,7 @@ class WebSocketConnection(object):
             fail = True
 
         # It's a WebSocket. Rejoice. Make sure the handshake information is
-        # all acceptible.
+        # all acceptable.
         elif not self._safely_call(self.on_handshake, request, headers):
             fail = True
 
@@ -127,6 +130,7 @@ class WebSocketConnection(object):
             if not 'Sec-WebSocket-Key' in request.headers:
                 fail = True
             else:
+
                 accept = base64.b64encode(hashlib.sha1(
                     request.headers['Sec-WebSocket-Key'] + WEBSOCKET_KEY
                     ).digest())
@@ -140,6 +144,10 @@ class WebSocketConnection(object):
                 if self.version not in WEBSOCKET_VERSIONS:
                     headers['Sec-WebSocket-Version'] = False
                     fail = True
+
+        elif not self.allow_old_handshake:
+            # No old WebSockets allowed.
+            fail = True
 
         else:
             # Old WebSockets. Wut?
@@ -227,53 +235,46 @@ class WebSocketConnection(object):
 
     ##### Control Methods #####################################################
 
-    def close(self):
+    def close(self, flush=False, reason=1000, message=None):
         """
-        Close the WebSocket connection immediately.
+        Close the WebSocket connection. If flush is True, wait for any remaining
+        data to be sent and send a close frame before closing the connection.
+
+        =========  ==========  ============
+        Argument   Default     Description
+        =========  ==========  ============
+        flush      ``False``   *Optional.* If True, ensure all the data gets sent before closing.
+        reason     ``1000``    *Optional.* The reason the socket is closing, from the ``CLOSE_REASONS`` dictionary.
+        message    ``None``    *Optional.* A message string to send with the reason code, rather than the default.
+        =========  ==========  ============
         """
         if self._connection is None:
             return
 
-        if hasattr(self, '_request'):
-            del self._request
-        if hasattr(self, '_headers'):
-            del self._headers
+        if flush:
+            if not self.version:
+                self._connection.close(True)
+            else:
+                # Look up the reason.
+                if not message:
+                    message = CLOSE_REASONS.get(reason, 'Unknown Close')
+                reason = struct.pack("!H", reason) + message
+
+                self.write(reason, frame=FRAME_CLOSE)
+                self._connection.close(True)
+            return
 
         self.read_delimiter = None
         self._read_buffer = u""
         self._recv_buffer = ""
 
         self.connected = False
-        self._update_addr()
+        self._closed = True
+        self._update_address()
 
-        self._connection.close()
-        self._connection = None
-
-    def end(self, reason=1000, message=None):
-        """
-        Close the WebSocket connection nicely, waiting for any remaining data
-        to be sent and sending a close frame before ending.
-
-        =========  =========  ============
-        Argument   Default    Description
-        =========  =========  ============
-        reason     ``1000``   *Optional.* The reason the socket is closing, from the ``CLOSE_REASONS`` dictionary.
-        message    ``None``   *Optional.* A message string to send with the reason code, rather than the default.
-        =========  =========  ============
-        """
-        if self._connection is None:
-            return
-
-        if not self.version:
-            self._connection.end()
-        else:
-            # Look up the reason.
-            if not message:
-                message = CLOSE_REASONS.get(reason, 'Unknown Close')
-            reason = struct.pack("!H", reason) + message
-
-            self.write(reason, frame=FRAME_CLOSE)
-            self._connection.end()
+        if self._connection and self._connection.connected:
+            self._connection.close()
+            self._connection = None
 
     ##### Public Event Handlers ###############################################
 
@@ -400,17 +401,17 @@ class WebSocketConnection(object):
         except Exception:
             log.exception("Exception raised on %r." % self)
 
-    def _update_addr(self):
+    def _update_address(self):
         """
-        Update the WebSocket's ``remote_addr`` and ``local_addr`` attributes
-        with the values provided by the associated :class:`~pants.contrib.http.HTTPConnection`.
+        Update the WebSocket's ``remote_address`` and ``local_address``
+        attributes with the values provided by the associated :class:`~pants.contrib.http.HTTPConnection`.
         """
-        if self.connected and self._connection:
-            self.remote_addr = self._connection.remote_addr
-            self.local_addr = self._connection.local_addr
+        if not self._closed and self._connection:
+            self.remote_address = self._connection.remote_address
+            self.local_address = self._connection.local_address
         else:
-            self.remote_addr = None
-            self.local_addr = None
+            self.remote_address = None
+            self.local_address = None
 
     ##### Internal Event Handler Methods ######################################
 
@@ -508,11 +509,12 @@ class WebSocketConnection(object):
                 reason = 1000
                 message = None
 
-            self.end(reason, message)
+            self.close(True, reason, message)
             return
 
         elif opcode == FRAME_PING:
-            self.write(data, frame=FRAME_PONG)
+            if self.connected:
+                self.write(data, frame=FRAME_PONG)
 
         elif opcode == FRAME_BINARY and self.read_delimiter is EntireMessage:
             self._safely_call(self.on_read, data)
@@ -522,7 +524,7 @@ class WebSocketConnection(object):
             try:
                 data = data.decode('utf-8')
             except UnicodeDecodeError:
-                self.end(reason=1007)
+                self.close(True, reason=1007)
                 return
 
         else:
@@ -535,7 +537,15 @@ class WebSocketConnection(object):
         """
         Close the WebSocket.
         """
-        self.close()
+        if hasattr(self, '_request'):
+            del self._request
+        if hasattr(self, '_headers'):
+            del self._headers
+
+        self.connected = False
+        self._closed = True
+        self._update_address()
+        self._safely_call(self.on_close)
 
     def _con_write(self):
         if self.connected:

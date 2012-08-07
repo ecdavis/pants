@@ -685,10 +685,10 @@ class _Channel(object):
                 if ':' in i:
                     if not HAS_IPV6:
                         continue
-                    cb((i,) + addr[1:], socket.AF_INET6)
+                    cb((i,) + address[1:], socket.AF_INET6)
                     return
                 else:
-                    cb((i,) + addr[1:], socket.AF_INET)
+                    cb((i,) + address[1:], socket.AF_INET)
                     return
             else:
                 cb(None, None, FAMILY_ERROR)

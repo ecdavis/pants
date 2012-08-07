@@ -12,7 +12,7 @@ The ultra-simple Hello World server using Pants::
     class HelloWorld(Connection):
         def on_connect(self):
             self.write("Hello, World!")
-            self.end()
+            self.close(True)
 
     Server(HelloWorld).listen(4040)
     engine.start()

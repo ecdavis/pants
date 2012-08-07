@@ -105,8 +105,8 @@ class WSGIConnector(object):
             'wsgi.run_once'     : False
         }
 
-        if isinstance(request.connection.server.local_addr, tuple):
-            environ['SERVER_PORT'] = request.connection.server.local_addr[1]
+        if isinstance(request.connection.server.local_address, tuple):
+            environ['SERVER_PORT'] = request.connection.server.local_address[1]
 
         if hasattr(request, 'arguments'):
             environ['wsgiorg.routing_args'] = (request.arguments, {})

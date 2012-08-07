@@ -705,8 +705,8 @@ class _DNSStream(Stream):
         except TooShortError:
             return
 
-        if self.remote_addr and isinstance(self.remote_addr, tuple):
-            m.server = '%s:%d' % self.remote_addr
+        if self.remote_address and isinstance(self.remote_address, tuple):
+            m.server = '%s:%d' % self.remote_address
 
         if self.id in self.resolver._tcp:
             del self.resolver._tcp[self.id]
@@ -888,8 +888,8 @@ class Resolver(object):
         #    return
 
         if not data.server:
-            if self._udp and isinstance(self._udp.remote_addr, tuple):
-                data.server = '%s:%d' % self._udp.remote_addr
+            if self._udp and isinstance(self._udp.remote_address, tuple):
+                data.server = '%s:%d' % self._udp.remote_address
             else:
                 data.server = '%s:%d' % (self.servers[0], DNS_PORT)
 

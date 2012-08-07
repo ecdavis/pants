@@ -164,7 +164,7 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
                 except (AttributeError, socket.error):
                     pass
 
-            self.remote_addr = (data, self._socks_port)
+            self.remote_address = (data, self._socks_port)
 
             # Cleanup!
             self.on_read = self._socks_read

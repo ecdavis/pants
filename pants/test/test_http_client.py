@@ -173,7 +173,6 @@ class BadHostTest(HTTPTestCase):
 class BadPortTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
-        print response
 
     def on_error(self, response, error):
         self.got_response = True
@@ -232,7 +231,6 @@ class RedirectLimitTest(HTTPTestCase):
 
         if not (len(response.history) == 10 and response.status_code == 302):
             self.response_valid = False
-            print response.status_code
 
     def test_limit(self):
         self.client.get("http://httpbin.org/redirect/12")
@@ -310,7 +308,7 @@ class HTTPSTest(HTTPTestCase):
         self.start()
 
 
-@unittest.skipIf(not VERIFY_SSL, "Unable to verify SSL certificats without CA bundle. Install certifi and backports.ssl_match_hostname.")
+@unittest.skipIf(not VERIFY_SSL, "Unable to verify SSL certificates without CA bundle. Install certifi and backports.ssl_match_hostname.")
 class BadCertTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
@@ -325,7 +323,7 @@ class BadCertTest(HTTPTestCase):
         self.start()
 
 
-@unittest.skipIf(not VERIFY_SSL, "Unable to verify SSL certificats without CA bundle. Install certifi and backports.ssl_match_hostname.")
+@unittest.skipIf(not VERIFY_SSL, "Unable to verify SSL certificates without CA bundle. Install certifi and backports.ssl_match_hostname.")
 class SSLOverrideTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
