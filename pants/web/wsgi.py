@@ -78,13 +78,54 @@ class WSGIConnector(object):
         # Make sure this plays nice with Web.
         request.auto_finish = False
 
-        def start_response(status, head):
-            request.send_status(status)
-            if not isinstance(head, dict):
-                head = dict(head)
-            request.send_headers(head)
+        request._headers = None
+        request._head_status = None
+        request._chunk_it = False
 
-            return request.write
+        def write(data):
+            if not request._started:
+                # Before the first output, send the headers.
+                # But before that, figure out if we've got a set length.
+                for k,v in request._headers:
+                    if k.lower() == 'content-length' or k.lower() == 'transfer-encoding':
+                        break
+                else:
+                    request._headers.append(('Transfer-Encoding', 'chunked'))
+                    request._chunk_it = True
+
+                request.send_status(request._head_status)
+                request.send_headers(request._headers)
+
+            if request._chunk_it:
+                request.write("%x\r\n%s\r\n" % (len(data), data))
+            else:
+                request.write(data)
+
+        def start_response(status, head, exc_info=None):
+            if exc_info:
+                try:
+                    if request._started:
+                        raise exc_info[0], exc_info[1], exc_info[2]
+                finally:
+                    exc_info = None
+
+            elif request._head_status is not None:
+                raise RuntimeError("Headers already set.")
+
+            if not isinstance(status, (int, str)):
+                raise ValueError("status must be a string or int")
+            if not isinstance(head, list):
+                if isinstance(head, dict):
+                    head = [(k,v) for k,v in head.iteritems()]
+                else:
+                    try:
+                        head = list(head)
+                    except ValueError:
+                        raise ValueError("headers must be a list")
+
+            request._head_status = status
+            request._headers = head
+            return write
 
         # Build an environment for the WSGI application.
         environ = {
@@ -124,18 +165,40 @@ class WSGIConnector(object):
         # Run the WSGI Application.
         try:
             result = self.app(environ, start_response)
-        except Exception, e:
+
+            if result:
+                try:
+                    if isinstance(result, str):
+                        write(result)
+                    else:
+                        for data in result:
+                            if data:
+                                write(data)
+                finally:
+                    try:
+                        if hasattr(result, 'close'):
+                            result.close()
+                    except Exception:
+                        log.warning("Exception running result.close() for: "
+                                    "%s %s", request.method, request.path,
+                            exc_info=True)
+                    result = None
+
+        except Exception:
             log.exception('Exception running WSGI application for: %s %s',
                 request.method, request.path)
+
+            # If we've started, bad stuff.
+            if request._started:
+                # We can't recover, so close the connection.
+                if request._chunk_it:
+                    request.write("0\r\n\r\n\r\n")
+                request.connection.close(True)
+                return
 
             # Use the default behavior if we're not debugging.
             if not self.debug:
                 raise
-
-            if request._started:
-                # We can't recover, so close the connection.
-                request.connection.close()
-                return
 
             resp = u''.join([
                 u"<h2>Traceback</h2>\n",
@@ -156,14 +219,10 @@ class WSGIConnector(object):
             request.finish()
             return
 
-        # Finish up anything in result.
-        if result:
-            try:
-                for thing in result:
-                    request.write(thing)
-            finally:
-                if hasattr(result, 'close'):
-                    result.close()
-                del result
+        # Finish up here.
+        if not request._started:
+            write('')
+        if request._chunk_it:
+            request.write("0\r\n\r\n\r\n")
 
         request.finish()

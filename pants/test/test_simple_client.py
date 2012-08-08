@@ -58,8 +58,10 @@ class TestSimpleClient(PantsTestCase):
         self.assertTrue(self.client.on_close_called)
 
     def test_simple_client_with_pants_resolve(self):
-        self.client.connect(('google.com', 80), native_resolve=False)
-        self._engine_thread.join(5.0) # Give it plenty of time to talk to Google.
+        # Switched to httpbin.org from google.come because the lack of IPv6
+        # routing was making it fail with Google.
+        self.client.connect(('httpbin.org', 80), native_resolve=False)
+        self._engine_thread.join(5.0) # Give it plenty of time to talk to httpbin.
         self.assertTrue(self.client.on_connect_called)
         self.assertTrue(self.client.on_read_called)
         self.assertTrue(self.client.on_close_called)

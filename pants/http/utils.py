@@ -292,7 +292,9 @@ def read_headers(data, target=None):
             raise BadRequest('Illegal header line: %r' % line)
         if line[0] in ' \t':
             val = line.strip()
+            mline = True
         else:
+            mline = False
             try:
                 key, sep, val = line.partition(':')
             except ValueError:
@@ -301,8 +303,21 @@ def read_headers(data, target=None):
             key = key.rstrip()
             val = val.strip()
 
+            try:
+                val = int(val)
+            except ValueError:
+                pass
+
         if key in target:
-            if key in COMMA_HEADERS:
+            if mline:
+                if isinstance(target[key], list):
+                    if target[key]:
+                        target[key][-1] += ' ' + val
+                    else:
+                        target[key].append(val)
+                else:
+                    target[key] += ' ' + val
+            elif key in COMMA_HEADERS:
                 target[key] = '%s, %s' % (target[key], val)
             elif isinstance(target[key], list):
                 target[key].append(val)

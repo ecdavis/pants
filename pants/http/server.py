@@ -526,18 +526,28 @@ class HTTPRequest(object):
         self._started = True
         out = []
         append = out.append
-        for key in headers:
-            val = headers[key]
-            if type(val) is list:
-                for v in val:
-                    append('%s: %s' % (key, v))
-            else:
+        if isinstance(headers, (tuple,list)):
+            hv = headers
+            headers = []
+            for key, val in hv:
+                headers.append(key.lower())
                 append('%s: %s' % (key, val))
+        else:
+            hv = headers
+            headers = []
+            for key in hv:
+                headers.append(key.lower())
+                val = hv[key]
+                if type(val) is list:
+                    for v in val:
+                        append('%s: %s' % (key, v))
+                else:
+                    append('%s: %s' % (key, val))
 
-        if not 'Date' in headers and self.version == 'HTTP/1.1':
+        if not 'date' in headers and self.version == 'HTTP/1.1':
             append('Date: %s' % date(datetime.utcnow()))
 
-        if not 'Server' in headers:
+        if not 'server' in headers:
             append('Server: %s' % SERVER)
 
         if cookies and hasattr(self, '_cookies_out'):
