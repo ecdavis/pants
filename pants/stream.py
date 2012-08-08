@@ -770,9 +770,9 @@ class Stream(_Channel):
         if not self._ssl_socket_wrapped:
             try:
                 self._socket = ssl.wrap_socket(self._socket, **ssl_options)
-            except ssl.SSLError, e:
+            except ssl.SSLError, err:
                 self._ssl_enabling = True
-                self._safely_call(self.on_ssl_error, e)
+                self._safely_call(self.on_ssl_error, err)
                 return 0
             else:
                 self._ssl_socket_wrapped = True
@@ -783,6 +783,7 @@ class Stream(_Channel):
             bytes_sent = self._ssl_do_handshake()
         except Exception, err:
             self._safely_call(self.on_ssl_handshake_error, err)
+            return 0
         
         # Unlike strings and files, the SSL handshake is not re-added to
         # the queue. This is because the stream's state has been
