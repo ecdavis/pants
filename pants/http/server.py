@@ -633,13 +633,14 @@ class HTTPRequest(object):
     ##### Internal Event Handlers #############################################
 
     def _parse_uri(self):
-        path, query = urlparse.urlsplit(self.uri)[2:4]
-        self.path   = path
-        self.query  = query
+        data = urlparse.urlsplit("//%s%s" % (self.host, self.uri))
+        self.path   = data.path
+        self.query  = data.query
+        self.hostname = data.hostname
 
         self.get = get = {}
-        if query:
-            for key, val in urlparse.parse_qs(query, False).iteritems():
+        if data.query:
+            for key, val in urlparse.parse_qs(data.query, False).iteritems():
                 if len(val) == 1:
                     val = val[0]
                 get[key] = val

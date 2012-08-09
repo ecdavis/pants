@@ -107,6 +107,14 @@ DATE_FORMATS = (
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
 
+# The Console JS
+try:
+    with open(os.path.join(DATA_DIR, "console.js"), "rb") as f:
+        CONSOLE_JS = f.read()
+except IOError:
+    log.debug("Unable to load pants.web console JS from %r." % DATA_DIR)
+    CONSOLE_JS = ""
+
 # The Main CSS
 try:
     with open(os.path.join(DATA_DIR, "main.css"), "rb") as f:
