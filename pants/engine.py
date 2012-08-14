@@ -540,6 +540,9 @@ class _Select(object):
         self._e.discard(fileno)
 
     def poll(self, timeout):
+        # Note that select() won't raise "hangup" events. There's no way
+        # around this and no way to determine whether a hangup or an
+        # error occured. C'est la vie.
         events = {}
         r, w, e, = select.select(self._r, self._w, self._e, timeout)
 
