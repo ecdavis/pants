@@ -171,15 +171,18 @@ class _Channel(object):
     def close(self):
         """
         Close the channel.
-        
+
         This method does not call the on_close() event handler -
         subclasses are responsible for that functionality.
         """
         if self._closed:
             return
 
-        self.engine.remove_channel(self)
-        self._socket_close()
+        if self._socket is not None:
+            self.engine.remove_channel(self)
+            self._socket_close()
+        else:
+            self._closed = True
         self._events = Engine.ALL_EVENTS
         self._processing_events = False
 
@@ -612,7 +615,7 @@ class _Channel(object):
         """
         Given an address, returns the address family and - if
         necessary - properly formats the address.
-        
+
         A string is treated as an AF_UNIX address. An integer or long is
         converted to a 2-tuple of the form ('', number). A 2-tuple is
         treated as an AF_INET address and a 4-tuple is treated as an
@@ -620,7 +623,7 @@ class _Channel(object):
 
         Will raise an InvalidAddressFormatError if the given address is
         from an unknown or unsupported family.
-        
+
         ========= ============
         Argument  Description
         ========= ============
