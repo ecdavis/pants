@@ -638,15 +638,20 @@ class _Channel(object):
         if isinstance(address, (int, long)):
             address = ('', address)
 
-        if len(address) == 2:
-            return address, socket.AF_INET
-        elif len(address) == 4:
-            if HAS_IPV6:
-                return address, socket.AF_INET6
-            else:
-                raise InvalidAddressFormatError("AF_INET6 not supported.")
+        try:
+            if len(address) == 2:
+                return address, socket.AF_INET
+            elif len(address) == 4:
+                if HAS_IPV6:
+                    return address, socket.AF_INET6
+                else:
+                    raise InvalidAddressFormatError("AF_INET6 not supported.")
+        except TypeError:
+            # Address does not have a length.
+            raise InvalidAddressFormatError("Invalid address: %r" % address)
 
-        raise InvalidAddressFormatError("Invalid address: %r" % address)
+        # Using %r here can sometimes raise a TypeError.
+        raise InvalidAddressFormatError("Invalid address: %s" % repr(address))
 
     def _resolve_address(self, address, family, cb):
         """
