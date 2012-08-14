@@ -53,23 +53,23 @@ class WSGIConnector(object):
         self.app = application
         self.debug = debug
 
-    def attach(self, application, path, domain=None):
+    def attach(self, application, rule, methods=('HEAD','GET','POST','PUT')):
         """
         Attach the WSGIConnector to an instance of
         :class:`pants.web.Application` at the given route.
 
-        ============  ========  ============
-        Argument      Default   Description
-        ============  ========  ============
-        application             The :class:`~pants.web.Application` to attach to.
-        path                    The path to serve requests from.
-        domain        None      *Optional.* The domain to serve requests upon.
-        ============  ========  ============
+        ============  ============
+        Argument      Description
+        ============  ============
+        application   The :class:`~pants.web.Application` to attach to.
+        rule          The path to serve requests from.
+        methods       *Optional.* The HTTP methods to accept.
+        ============  ============
         """
-        path = re.compile("^%s(.*)$" % re.escape(path))
-        application._insert_route(
-            path, self, domain, "WSGIConnector", ['HEAD','GET','POST','PUT'],
-            None, None)
+        if not rule.endswith('/'):
+            rule += '/'
+
+        application.basic_route(rule + '<regex("(.*)"):path>', methods=methods, func=self)
 
     def __call__(self, request):
         """
