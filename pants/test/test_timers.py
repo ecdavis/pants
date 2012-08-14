@@ -19,96 +19,102 @@
 import time
 import unittest
 
-import pants
+from mock import MagicMock, call
+
+from pants.engine import Engine
 
 class TestTimers(unittest.TestCase):
     def setUp(self):
         self.times_called = []
-        pants.engine._callbacks = []
-        pants.engine._deferreds = []
+        self.engine = Engine()
 
     def timer(self):
-        self.times_called.append(time.time())
+        self.times_called.append(self.engine.time)
 
     def test_callback(self):
-        pants.engine.callback(self.timer)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        self.assertEquals(len(self.times_called), 1)
+        timer = MagicMock()
+        self.engine.callback(timer)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        timer.assert_called_once_with()
 
     def test_callback_cancel(self):
-        cancel_callback = pants.engine.callback(self.timer)
+        timer = MagicMock()
+        cancel_callback = self.engine.callback(timer)
         cancel_callback()
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        self.assertEquals(len(self.times_called), 0)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        self.assertRaises(AssertionError, timer.assert_called_with)
 
     def test_loop(self):
-        pants.engine.loop(self.timer)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        self.assertEquals(len(self.times_called), 3)
+        timer = MagicMock()
+        self.engine.loop(timer)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        timer.assert_has_calls([call() for _ in range(3)])
 
     def test_loop_cancel(self):
-        cancel_loop = pants.engine.loop(self.timer)
-        pants.engine.poll(0.01)
-        pants.engine.poll(0.01)
-        self.assertEquals(len(self.times_called), 2)
+        timer = MagicMock()
+        cancel_loop = self.engine.loop(timer)
+        self.engine.poll(0.01)
+        self.engine.poll(0.01)
+        timer.assert_has_calls([call() for _ in range(2)])
         cancel_loop()
-        pants.engine.poll(0.01)
-        self.assertEquals(len(self.times_called), 2)
+        self.engine.poll(0.01)
+        timer.assert_has_calls([call() for _ in range(2)])
 
     def test_defer(self):
-        expected_time = time.time() + 0.01
-        pants.engine.defer(0.01, self.timer)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        self.assertEquals(len(self.times_called), 1)
+        self.engine.poll(0.01)
+        timer = MagicMock(side_effect=self.timer)
+        expected_time = self.engine.time + 0.01
+        self.engine.defer(0.01, timer)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        timer.assert_called_once_with()
         self.assertLess(abs(expected_time - self.times_called[0]), 0.01)
 
     def test_defer_cancel(self):
-        cancel_defer = pants.engine.defer(0.01, self.timer)
+        timer = MagicMock()
+        cancel_defer = self.engine.defer(0.01, timer)
         cancel_defer()
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        self.assertEquals(len(self.times_called), 0)
-
-    def test_defer_with_zero_delay(self):
-        self.assertRaises(ValueError, pants.engine.defer, 0, self.timer)
-
-    def test_defer_with_negative_delay(self):
-        self.assertRaises(ValueError, pants.engine.defer, -1.0, self.timer)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        self.assertRaises(AssertionError, timer.assert_called_with)
 
     def test_cycle(self):
-        expected_times = [time.time() + 0.01, time.time() + 0.02, time.time() + 0.03]
-        pants.engine.cycle(0.01, self.timer)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        self.assertEquals(len(self.times_called), 3)
-        self.assertLess(abs(expected_times[0] - self.times_called[0]), 0.01)
-        self.assertLess(abs(expected_times[1] - self.times_called[1]), 0.01)
-        self.assertLess(abs(expected_times[2] - self.times_called[2]), 0.01)
+        self.engine.poll(0.01)
+        timer = MagicMock(side_effect=self.timer)
+        expected_times = [
+            self.engine.time + 0.01,
+            self.engine.time + 0.02,
+            self.engine.time + 0.03
+            ]
+        self.engine.cycle(0.01, timer)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        timer.assert_has_calls([call() for _ in range(3)])
+        for i in range(3):
+            self.assertLess(abs(expected_times[i] - self.times_called[i]), 0.01)
 
     def test_cycle_cancel(self):
-        expected_times = [time.time() + 0.01, time.time() + 0.02, time.time() + 0.03]
-        cancel_cycle = pants.engine.cycle(0.01, self.timer)
-        pants.engine.poll(0.2)
-        pants.engine.poll(0.2)
-        self.assertEquals(len(self.times_called), 2)
+        self.engine.poll(0.01)
+        timer = MagicMock(side_effect=self.timer)
+        expected_times = [
+            self.engine.time + 0.01,
+            self.engine.time + 0.02
+            ]
+        cancel_cycle = self.engine.cycle(0.01, timer)
+        self.engine.poll(0.2)
+        self.engine.poll(0.2)
+        timer.assert_has_calls([call() for _ in range(2)])
         cancel_cycle()
-        pants.engine.poll(0.2)
-        self.assertEquals(len(self.times_called), 2)
-        self.assertLess(abs(expected_times[0] - self.times_called[0]), 0.01)
-        self.assertLess(abs(expected_times[1] - self.times_called[1]), 0.01)
-
-    def test_cycle_with_zero_delay(self):
-        self.assertRaises(ValueError, pants.engine.cycle, 0, self.timer)
-
-    def test_cycle_with_negative_delay(self):
-        self.assertRaises(ValueError, pants.engine.cycle, -1.0, self.timer)
+        self.engine.poll(0.2)
+        timer.assert_has_calls([call() for _ in range(2)])
+        for i in range(2):
+            self.assertLess(abs(expected_times[i] - self.times_called[i]), 0.01)
