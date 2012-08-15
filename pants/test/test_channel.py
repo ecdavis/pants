@@ -395,7 +395,11 @@ class TestChannelSocketSendTo(unittest.TestCase):
 
 class TestChannelSocketSendfile(unittest.TestCase):
     def setUp(self):
+        self._sendfile = pants._channel.sendfile
         self.channel = _Channel()
+
+    def tearDown(self):
+        pants._channel.sendfile = self._sendfile
 
     def test_socket_sendfile(self):
         chunk = "foo"
