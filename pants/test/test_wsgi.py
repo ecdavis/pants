@@ -45,9 +45,10 @@ class WSGITestCase(PantsTestCase):
         raise NotImplementedError
 
     def setUp(self):
-        self.server = HTTPServer(WSGIConnector(self.application, debug=True))
+        engine = Engine.instance()
+        self.server = HTTPServer(WSGIConnector(self.application, debug=True), engine=engine)
         self.server.listen(('127.0.0.1', 4040))
-        PantsTestCase.setUp(self)
+        PantsTestCase.setUp(self, engine)
 
     def tearDown(self):
         PantsTestCase.tearDown(self)

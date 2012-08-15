@@ -19,16 +19,19 @@
 import threading
 import unittest
 
-import pants
+from pants.engine import Engine
 
 class PantsTestCase(unittest.TestCase):
     _engine_thread = None
 
-    def setUp(self):
-        self._engine_thread = threading.Thread(target=pants.engine.start)
+    def setUp(self, engine=None):
+        if not engine:
+            engine = Engine.instance()
+        self._engine = engine
+        self._engine_thread = threading.Thread(target=self._engine.start)
         self._engine_thread.start()
 
     def tearDown(self):
-        pants.engine.stop()
+        self._engine.stop()
         if self._engine_thread:
             self._engine_thread.join(1.0)

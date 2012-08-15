@@ -22,7 +22,8 @@
 
 import Cookie
 import pprint
-import urlparse
+
+from urlparse import parse_qsl
 
 from pants.http.utils import *
 
@@ -119,29 +120,28 @@ class HTTPConnection(Stream):
         the headers are valid, call the server's request handler.
         """
         try:
-            ind = data.find(CRLF)
-            if ind == -1:
-                initial_line = data
-                data = ''
-            else:
-                initial_line = data[:ind]
-                data = data[ind+2:]
+            initial_line, _, data = data.partition(CRLF)
+
             try:
                 method, uri, http_version = initial_line.split(' ')
-                if not http_version.startswith('HTTP/'):
-                    raise BadRequest(
-                        'Invalid HTTP protocol version.',
-                        code='505 HTTP Version Not Supported')
-            except:
+            except ValueError:
                 raise BadRequest('Invalid HTTP request line.')
 
+            if not http_version.startswith('HTTP/'):
+                raise BadRequest('Invalid HTTP protocol version.',
+                                 code='505 HTTP Version Not Supported')
+
             # Parse the headers.
-            headers = read_headers(data) if data else {}
+            if data:
+                headers = read_headers(data)
+            else:
+                headers = {}
 
             # If we're secure, we're HTTPs.
-            protocol = 'http'
             if self.ssl_enabled:
-                 protocol = 'https'
+                protocol = 'https'
+            else:
+                protocol = 'http'
 
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
@@ -150,7 +150,6 @@ class HTTPConnection(Stream):
             # If we have a Content-Length header, read the request body.
             length = headers.get('Content-Length')
             if length:
-                length = int(length)
                 if length > self.server.max_request:
                     raise BadRequest((
                         'Provided Content-Length (%d) larger than server '
@@ -167,16 +166,16 @@ class HTTPConnection(Stream):
                 self.read_delimiter = length
                 return
 
-        except BadRequest, e:
+        except BadRequest as err:
             log.info('Bad request from %r: %s',
-                self.remote_address, e)
+                self.remote_address, err)
             
-            self.write('HTTP/1.1 %s%s' % (e.code, CRLF))
-            if e.message:
+            self.write('HTTP/1.1 %s%s' % (err.code, CRLF))
+            if err.message:
                 self.write('Content-Type: text/html%s' % CRLF)
-                self.write('Content-Length: %d%s' % (len(e.message),
+                self.write('Content-Length: %d%s' % (len(err.message),
                                                      DOUBLE_CRLF))
-                self.write(e.message)
+                self.write(err.message)
             else:
                 self.write(CRLF)
             self.close(True)
@@ -205,23 +204,30 @@ class HTTPConnection(Stream):
             content_type = request.headers.get('Content-Type', '')
             if request.method in ('POST','PUT'):
                 if content_type.startswith('application/x-www-form-urlencoded'):
-                    for key, val in urlparse.parse_qs(data, False).iteritems():
-                        request.post[key] = val
+                    post = request.post
+                    for key, val in parse_qsl(data, False):
+                        if key in post:
+                            if isinstance(post[key], list):
+                                post[key].append(val)
+                            else:
+                                post[key] = [post[key], val]
+                        else:
+                            post[key] = val
 
                 elif content_type.startswith('multipart/form-data'):
                     for field in content_type.split(';'):
-                        key, sep, value = field.strip().partition('=')
+                        key, _, value = field.strip().partition('=')
                         if key == 'boundary' and value:
                             parse_multipart(request, value, data)
                             break
                     else:
                         log.warning('Invalid multipart/form-data.')
 
-        except BadRequest, e:
+        except BadRequest as err:
             log.info('Bad request from %r: %s',
-                self.remote_address, e)
+                self.remote_address, err)
 
-            request.send_response(e.message, e.code)
+            request.send_response(err.message, err.code)
             self.close(True)
             return
 
@@ -265,29 +271,33 @@ class HTTPRequest(object):
                  protocol='http'):
         self.body       = ''
         self.connection = connection
-        self.headers    = headers or {}
         self.method     = method
         self.uri        = uri
         self.version    = http_version
         self._started   = False
 
+        if headers is None:
+            self.headers = {}
+        else:
+            self.headers = headers
+
         # X-Headers
         if connection.server.xheaders:
             remote_ip = self.headers.get('X-Real-IP')
-            if remote_ip is None:
+            if not remote_ip:
                 remote_ip = self.headers.get('X-Forwarded-For')
-                if remote_ip is None:
+                if not remote_ip:
                     remote_ip = connection.remote_address
-                    if not isinstance(remote_ip, str):
+                    if not isinstance(remote_ip, basestring):
                         remote_ip = remote_ip[0]
                 else:
-                    remote_ip = remote_ip.split(',')[0].strip()
+                    remote_ip = remote_ip.partition(',')[0].strip()
 
             self.remote_ip = remote_ip
             self.protocol = self.headers.get('X-Forwarded-Proto', protocol)
         else:
             self.remote_ip = connection.remote_address
-            if not isinstance(self.remote_ip, str):
+            if not isinstance(self.remote_ip, basestring):
                 self.remote_ip = self.remote_ip[0]
             self.protocol   = protocol
 
@@ -633,17 +643,29 @@ class HTTPRequest(object):
     ##### Internal Event Handlers #############################################
 
     def _parse_uri(self):
-        data = urlparse.urlsplit("//%s%s" % (self.host, self.uri))
-        self.path   = data.path
-        self.query  = data.query
-        self.hostname = data.hostname
+        # Do this ourselves because urlparse is too heavy.
+        self.path, _, query = self.uri.partition('?')
+        self.query, _, self.fragment = query.partition('#')
+        netloc = self.host.lower()
+
+        # In-lined the hostname logic
+        if '[' in netloc and ']' in netloc:
+            self.hostname = netloc.split(']')[0][1:]
+        elif ':' in netloc:
+            self.hostname = netloc.split(':')[0]
+        else:
+            self.hostname = netloc
 
         self.get = get = {}
-        if data.query:
-            for key, val in urlparse.parse_qs(data.query, False).iteritems():
-                if len(val) == 1:
-                    val = val[0]
-                get[key] = val
+        if self.query:
+            for key, val in parse_qsl(self.query, False):
+                if key in get:
+                    if isinstance(get[key], list):
+                        get[key].append(val)
+                    else:
+                        get[key] = [get[key], val]
+                else:
+                    get[key] = val
 
 ###############################################################################
 # HTTPServer Class
@@ -669,7 +691,6 @@ class HTTPServer(Server):
     request_handler             A callable that accepts a single argument. That argument is an instance of the :class:`HTTPRequest` class representing the current request.
     max_request       10 MiB    *Optional.* The maximum allowed length, in bytes, of an HTTP request body. This should be kept small, as the entire request body will be held in memory.
     keep_alive        True      *Optional.* Whether or not multiple requests are allowed over a single connection.
-    ssl_options       None      *Optional.* SSL is not currently implemented in Pants, and this will not work. A dictionary of options for establishing SSL connections. If this is set, the server will serve requests via HTTPS. The keys and values provided by the dictionary should mimic the arguments taken by :func:`ssl.wrap_socket`.
     cookie_secret     None      *Optional.* A string to use when signing secure cookies.
     xheaders          False     *Optional.* Whether or not to use ``X-Forwarded-For`` and ``X-Forwarded-Proto`` headers.
     ================  ========  ============
@@ -677,15 +698,14 @@ class HTTPServer(Server):
     ConnectionClass = HTTPConnection
 
     def __init__(self, request_handler, max_request=10485760, keep_alive=True,
-                    ssl_options=None, cookie_secret=None, xheaders=False):
-        Server.__init__(self)
+                    cookie_secret=None, xheaders=False, **kwargs):
+        Server.__init__(self, **kwargs)
 
         # Storage
         self.request_handler    = request_handler
         self.max_request        = max_request
         self.keep_alive         = keep_alive
         self.xheaders           = xheaders
-        self.ssl_options        = ssl_options
 
         self._cookie_secret     = cookie_secret
 
@@ -700,29 +720,44 @@ class HTTPServer(Server):
     def cookie_secret(self, val):
         self._cookie_secret = val
 
-    def listen(self, addr=None, backlog=1024):
+    def listen(self, address=None, backlog=1024, slave=True):
         """
-        Begins listening on the given host and port.
+        Begins listening for connections to the HTTP server.
 
-        =========  ==================  ============
-        Argument   Default             Description
-        =========  ==================  ============
-        addr       ``80`` or ``443``   *Optional.* The address for the server to listen on. If this isn't specified, it will be set to either port 80 or port 443, depending on security, and listen on INADDR_ANY.
-        backlog    ``1024``            *Optional.* The maximum number of connection attempts to queue.
-        =========  ==================  ============
+        The given ``address`` is resolved, the server is bound to the address,
+        and it then begins listening for connections. If an address isn't
+        specified, the server will listen on either port 80 or port 443 by
+        default.
+
+        .. seealso::
+
+            See :func:`pants.server.Server.listen` for more information on
+            listening servers.
+
+        =========  ============================================================
+        Argument   Description
+        =========  ============================================================
+        address    *Optional.* The local address to listen for connections on.
+                   If this isn't specified, it will be set to either port 80
+                   or port 443, depending on the SSL state, and listen
+                   on INADDR_ANY.
+        backlog    *Optional.* The maximum size of the connection queue.
+        slave      *Optional.* If True, this will cause a Server listening on
+                   IPv6 INADDR_ANY to create a slave Server that listens on
+                   the IPv4 INADDR_ANY.
+        =========  ============================================================
         """
-        if addr is None or isinstance(addr, (list,tuple)) and len(addr) > 1 and addr[1] is None:
-            if self.ssl_options:
+        if address is None or isinstance(address, (list,tuple)) and \
+                              len(address) > 1 and address[1] is None:
+            if self.ssl_enabled:
                 port = 443
             else:
                 port = 80
 
-            if addr is None:
-                addr = port
+            if address is None:
+                address = port
             else:
-                addr = tuple(addr[0] + (port,) + addr[2:])
+                address = tuple(address[0] + (port,) + address[2:])
 
-        Server.listen(self, addr, backlog)
-
-        if self.ssl_options:
-            self.startSSL(self.ssl_options)
+        return Server.listen(self, address=address, backlog=backlog,
+                                slave=slave)

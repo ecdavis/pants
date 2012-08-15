@@ -24,7 +24,7 @@ import unittest
 import json
 
 from pants.http import HTTPClient
-from pants import engine
+from pants.engine import Engine
 
 from pants.test._pants_util import *
 
@@ -42,7 +42,35 @@ except RuntimeError:
 # The Test Case Base
 ###############################################################################
 
-class HTTPTestCase(PantsTestCase):
+class HTTPTestCase(unittest.TestCase):
+    def setUp(self):
+        self.engine = Engine.instance()
+        self.client = HTTPClient(self.on_response, self.on_headers, self.on_progress, self.on_ssl_error, self.on_error, engine=self.engine)
+
+    def start(self, timeout=5.0):
+        self._timeout = self.engine.defer(timeout, self.timeout)
+        self.engine.start()
+
+        self.assertTrue(self.got_response)
+        self.assertTrue(self.response_valid)
+
+    def timeout(self):
+        self.stop()
+        raise AssertionError("Timed out.")
+
+    def stop(self):
+        self._timeout()
+        del self._timeout
+        self.engine.stop()
+
+    def tearDown(self):
+        if self.client._stream:
+            self.client._want_close = True
+            self.client._no_process = True
+            self.client._stream.close()
+            self.client._stream = None
+        del self.client
+        del self.engine
 
     got_response = False
     response_valid = True
@@ -62,31 +90,6 @@ class HTTPTestCase(PantsTestCase):
 
     def on_error(self, response, error):
         pass
-
-    def setUp(self):
-        engine.stop()
-        self.client = HTTPClient(self.on_response, self.on_headers,
-                            self.on_progress, self.on_ssl_error, self.on_error)
-
-    def start(self, timeout=5.0):
-        PantsTestCase.setUp(self)
-
-        self._engine_thread.join(timeout)
-        self.assertTrue(self.got_response)
-        self.assertTrue(self.response_valid)
-
-    def stop(self):
-        engine.stop()
-
-    def tearDown(self):
-        if self.client._stream:
-            self.client._want_close = True
-            self.client._no_process = True
-            self.client._stream.close()
-            self.client._stream = None
-        del self.client
-
-        PantsTestCase.tearDown(self)
 
 ###############################################################################
 # The Cases
@@ -145,6 +148,7 @@ class HostChangeTest(HTTPTestCase):
 class TimeoutTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
+        print response
         self.response_valid = False
 
     def on_error(self, response, error):
@@ -168,6 +172,7 @@ class BadHostTest(HTTPTestCase):
     def test_bad_host(self):
         self.client.get("http://www.python.rog/")
         self.start()
+
 
 
 class BadPortTest(HTTPTestCase):

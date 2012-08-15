@@ -133,7 +133,7 @@ class CaseInsensitiveDict(dict):
     def __setitem__(self, key, value):
         key = self.caseless_keys.get(key.lower(), key)
         dict.__setitem__(self, key, value)
-        self._caseless_keys = None
+        self._caseless_keys[key.lower()] = key
 
     def __delitem__(self, key):
         key = self.caseless_keys.get(key.lower(), key)

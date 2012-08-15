@@ -27,6 +27,7 @@ except ImportError:
     requests = None
 
 from pants.http import HTTPServer
+from pants.engine import Engine
 
 from pants.test._pants_util import *
 
@@ -39,9 +40,10 @@ class HTTPTestCase(PantsTestCase):
         raise NotImplementedError
 
     def setUp(self):
-        self.server = HTTPServer(self.request_handler)
+        engine = Engine.instance()
+        self.server = HTTPServer(self.request_handler, engine=engine)
         self.server.listen(('127.0.0.1', 4040))
-        PantsTestCase.setUp(self)
+        PantsTestCase.setUp(self, engine)
 
     def tearDown(self):
         PantsTestCase.tearDown(self)
@@ -57,7 +59,7 @@ class BasicTest(HTTPTestCase):
         request.send_response("Hello, World!")
 
     def test_basic(self):
-        response = requests.get("http://127.0.0.1:4040/")
+        response = requests.get("http://127.0.0.1:4040/", timeout=50) #0.5)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Hello, World!")
 
@@ -67,7 +69,7 @@ class ExceptionTest(HTTPTestCase):
         print pie
 
     def test_exception(self):
-        response = requests.get("http://127.0.0.1:4040/")
+        response = requests.get("http://127.0.0.1:4040/", timeout=0.5)
         self.assertEqual(response.status_code, 500)
 
 @unittest.skipIf(requests is None, "requests library not installed")
@@ -81,7 +83,7 @@ class CookieTest(HTTPTestCase):
 
     def test_cookies(self):
         response = requests.get("http://127.0.0.1:4040/",
-                                cookies={"foo": "bar"})
+                                cookies={"foo": "bar"}, timeout=0.5)
         self.assertEqual(response.cookies["bar"], "foo")
 
 @unittest.skipIf(requests is None, "requests library not installed")
@@ -91,6 +93,6 @@ class ResponseBody(HTTPTestCase):
         request.send_response(json.dumps(list(reversed(data))))
 
     def test_body(self):
-        response = requests.post("http://127.0.0.1:4040/", json.dumps(range(50)))
+        response = requests.post("http://127.0.0.1:4040/", json.dumps(range(50)), timeout=0.5)
         data = json.loads(response.text)
         self.assertListEqual(data, range(49, -1, -1))

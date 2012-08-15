@@ -253,7 +253,11 @@ class HTTPClient(object):
         """ Initialize the HTTPClient and start the first session. """
 
         # Figure out our engine.
-        self.engine = kwargs.get('engine', Engine.instance())
+        if 'engine' in kwargs:
+            self.engine = Engine.instance()
+            del kwargs['engine']
+        else:
+            self.engine = Engine.instance()
 
         # Internal State
         self._stream = None
