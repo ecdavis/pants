@@ -358,7 +358,11 @@ class Server(_Channel):
         self._safely_call(self.on_listen)
 
         if slave and not isinstance(addr, str) and addr[0] == '' and HAS_IPV6:
-            self._slave = _SlaveServer(self.engine, self, addr, backlog)
+            # Silently fail if we can't make a slave.
+            try:
+                self._slave = _SlaveServer(self.engine, self, addr, backlog)
+            except Exception:
+                self._slave = None
 
     ##### Internal Event Handler Methods ######################################
 
