@@ -278,7 +278,7 @@ class Server(_Channel):
         Close all active connections to the server.
         """
         for channel in self.channels.values():
-            channel.close()
+            channel.close(flush=False)
 
     ##### Public Error Handlers ###############################################
 

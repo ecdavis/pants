@@ -121,7 +121,7 @@ class Stream(_Channel):
             return self._socket.getpeername()
         else:
             return None
-    
+
     @remote_address.setter
     def remote_address(self, val):
         self._remote_address = val
@@ -136,7 +136,7 @@ class Stream(_Channel):
             return self._socket.getsockname()
         else:
             return None
-    
+
     @local_address.setter
     def local_address(self, val):
         self._local_address = val
@@ -351,7 +351,7 @@ class Stream(_Channel):
 
         return self
 
-    def close(self, flush=False):
+    def close(self, flush=True):
         """
         Close the channel.
         """
@@ -506,7 +506,7 @@ class Stream(_Channel):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     def on_ssl_error(self, exception):
         """
@@ -522,7 +522,7 @@ class Stream(_Channel):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     ##### Internal Methods ####################################################
 
@@ -562,7 +562,7 @@ class Stream(_Channel):
         try:
             connected = self._socket_connect(address)
         except socket.error, err:
-            self.close()
+            self.close(flush=False)
             e = StreamConnectError(err.errno, err.strerror)
             self._safely_call(self.on_connect_error, e)
             return
@@ -588,7 +588,7 @@ class Stream(_Channel):
                 return
 
             if data is None:
-                self.close()
+                self.close(flush=False)
                 return
             elif len(data) == 0:
                 break
@@ -622,7 +622,7 @@ class Stream(_Channel):
             return
 
         self._process_send_buffer()
-    
+
     def _handle_error_event(self):
         """
         Handle an error event raised on the channel.
@@ -716,7 +716,7 @@ class Stream(_Channel):
             self._safely_call(self.on_write)
 
             if self._closing:
-                self.close()
+                self.close(flush=False)
 
     def _process_send_string(self, data):
         """
@@ -784,7 +784,7 @@ class Stream(_Channel):
         except Exception, err:
             self._safely_call(self.on_ssl_handshake_error, err)
             return 0
-        
+
         # Unlike strings and files, the SSL handshake is not re-added to
         # the queue. This is because the stream's state has been
         # modified and the handshake will continue until it's complete.
@@ -833,7 +833,7 @@ class Stream(_Channel):
                 return 0
             else:
                 raise
-        
+
         # SSLSocket.send() can return 0 rather than raise an exception
         # if it needs a write event.
         if self.ssl_enabled and bytes_sent == 0:
@@ -872,7 +872,7 @@ class Stream(_Channel):
                 self._start_waiting_for_write_event()
                 return 0
             elif err[0] in (ssl.SSL_ERROR_EOF, ssl.SSL_ERROR_ZERO_RETURN):
-                self.close()
+                self.close(flush=False)
                 return 0
             elif err[0] == ssl.SSL_ERROR_SSL:
                 self._safely_call(self.on_ssl_handshake_error, err)
@@ -881,7 +881,7 @@ class Stream(_Channel):
                 raise
         except socket.error, err:
             if err[0] in (errno.ECONNRESET, errno.EPIPE):
-                self.close()
+                self.close(flush=False)
                 return 0
             else:
                 raise

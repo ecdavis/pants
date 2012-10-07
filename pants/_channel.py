@@ -168,12 +168,21 @@ class _Channel(object):
 
     ##### Control Methods #####################################################
 
-    def close(self):
+    def close(self, flush=True):
         """
         Close the channel.
 
         This method does not call the on_close() event handler -
         subclasses are responsible for that functionality.
+
+        =========  =====================================================
+        Argument   Description
+        =========  =====================================================
+        flush      If True, the channel will try to flush any
+                   internally buffered data before actually closing.
+                   :class:`~pants._channel._Channel` does not do any
+                   internal buffering itself, but its subclasses may.
+        =========  =====================================================
         """
         if self._closed:
             return
@@ -256,7 +265,7 @@ class _Channel(object):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     def on_read_error(self, exception):
         """
@@ -272,7 +281,7 @@ class _Channel(object):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     def on_write_error(self, exception):
         """
@@ -288,7 +297,7 @@ class _Channel(object):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     def on_overflow_error(self, exception):
         """
@@ -304,7 +313,7 @@ class _Channel(object):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     def on_error(self, exception):
         """
@@ -321,7 +330,7 @@ class _Channel(object):
         ==========  ============
         """
         log.exception(exception)
-        self.close()
+        self.close(flush=False)
 
     ##### Socket Method Wrappers ##############################################
 
@@ -494,7 +503,7 @@ class _Channel(object):
                 self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
-                self.close()
+                self.close(flush=False)
                 return 0
             else:
                 raise
@@ -520,7 +529,7 @@ class _Channel(object):
                 self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
-                self.close()
+                self.close(flush=False)
                 return 0
             else:
                 raise
@@ -549,7 +558,7 @@ class _Channel(object):
                 self._start_waiting_for_write_event()
                 return 0
             elif err[0] == errno.EPIPE:
-                self.close()
+                self.close(flush=False)
                 return 0
             else:
                 raise
@@ -775,7 +784,7 @@ class _Channel(object):
         err, errstr = self._get_socket_error()
         if err != 0:
             log.error("Socket error on %r: %s (%d)" % (self, errstr, err))
-            self.close()
+            self.close(flush=False)
 
     def _handle_hangup_event(self):
         """
@@ -784,7 +793,7 @@ class _Channel(object):
         By default, logs the hangup and closes the channel.
         """
         log.debug("Hang up on %r." % self)
-        self.close()
+        self.close(flush=False)
 
 
 ###############################################################################

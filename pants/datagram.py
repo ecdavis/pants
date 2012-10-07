@@ -104,7 +104,7 @@ class Datagram(_Channel):
         try:
             self._socket_bind(addr)
         except socket.error:
-            self.close()
+            self.close(flush=False)
             raise
 
         self.listening = True
@@ -112,10 +112,11 @@ class Datagram(_Channel):
 
         return self
 
-    def close(self):
+    def close(self, flush=True):
         """
         Close the channel.
         """
+        # TODO Implement flushing functionality.
         if self._closed:
             return
 
@@ -134,11 +135,12 @@ class Datagram(_Channel):
         """
         Close the channel after writing is finished.
         """
+        # Integrate into Datagram.close and implement flushing.
         if self._closed or self._closing:
             return
 
         if not self._send_buffer:
-            self.close()
+            self.close(flush=False)
         else:
             self._closing = True
 
@@ -216,7 +218,7 @@ class Datagram(_Channel):
                 data, addr = self._socket_recvfrom()
             except socket.error:
                 log.exception("Exception raised by recvfrom() on %r." % self)
-                self.close()
+                self.close(flush=False)
                 return
 
             if not data:
@@ -321,7 +323,7 @@ class Datagram(_Channel):
             self._safely_call(self.on_write)
 
             if self._closing:
-                self.close()
+                self.close(flush=False)
 
 
 ###############################################################################
