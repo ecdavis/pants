@@ -349,7 +349,7 @@ class TestChannelSocketSend(unittest.TestCase):
         self.channel.close = MagicMock()
         result = self.channel._socket_send(None)
         self.assertEquals(result, 0)
-        self.channel.close.assert_called_once_with()
+        self.channel.close.assert_called_once_with(flush=False)
 
     def test_send_raises_unknown(self):
         self.sock.send = MagicMock(side_effect=Exception(-1))
@@ -387,7 +387,7 @@ class TestChannelSocketSendTo(unittest.TestCase):
         self.channel.close = MagicMock()
         result = self.channel._socket_send(None)
         self.assertEquals(result, 0)
-        self.channel.close.assert_called_once_with()
+        self.channel.close.assert_called_once_with(flush=False)
 
     def test_sendto_raises_unknown(self):
         self.sock.send = MagicMock(side_effect=Exception(-1))
@@ -433,7 +433,7 @@ class TestChannelSocketSendfile(unittest.TestCase):
         self.channel.close = MagicMock()
         result = self.channel._socket_sendfile(*args)
         self.assertEquals(result, 0)
-        self.channel.close.assert_called_once_with()
+        self.channel.close.assert_called_once_with(flush=False)
 
     def test_sendfile_raises_unknown(self):
         pants._channel.sendfile = MagicMock(side_effect=Exception((-1,)))
