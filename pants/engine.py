@@ -137,9 +137,7 @@ class Engine(object):
         try:
             while not self._shutdown:
                 self.poll(poll_timeout)
-        except KeyboardInterrupt:
-            pass
-        except SystemExit:
+        except (KeyboardInterrupt, SystemExit):
             raise
         except Exception:
             log.exception("Uncaught exception in main loop.")
