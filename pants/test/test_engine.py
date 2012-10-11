@@ -462,6 +462,13 @@ class TestSelect(unittest.TestCase):
     def setUp(self):
         self.poller = _Select()
         self.fileno = "foo"
+        # Beware: here be monkey-patching.
+        self.real_select = select.select
+        self.fake_select = MagicMock(return_value=([], [], []))
+        select.select = self.fake_select
+
+    def tearDown(self):
+        select.select = self.real_select
 
     def test_select_add_all_events(self):
         self.poller.add(self.fileno, Engine.ALL_EVENTS)
@@ -508,12 +515,11 @@ class TestSelect(unittest.TestCase):
         self.assertFalse(self.fileno in self.poller._e)
 
     def test_select_poll(self):
-        select.select = MagicMock(return_value=([], [], []))
         timeout = 10
         args = (self.poller._r, self.poller._w, self.poller._e, timeout)
         ret = self.poller.poll(timeout)
         self.assertTrue(isinstance(ret, dict))
-        select.select.assert_called_once_with(*args)
+        self.fake_select.assert_called_once_with(*args)
 
 class TestTimer(unittest.TestCase):
     def test_calling_timer_calls_cancel(self):
