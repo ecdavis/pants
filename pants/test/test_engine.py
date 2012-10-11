@@ -102,8 +102,7 @@ class TestEnginePoll(unittest.TestCase):
         self.engine = Engine()
 
     def test_poll_updates_time(self):
-        current_time = time.time()
-        self.assertTrue(current_time > self.engine.time)
+        current_time = self.engine.time
         self.engine.poll(0.02)
         self.assertTrue(self.engine.time > current_time)
 
