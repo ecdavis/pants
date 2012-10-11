@@ -58,13 +58,14 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(content_type("test.txt"), "text/plain")
 
     def test_read_headers(self):
-        headers = read_headers("""Content-Type: text/plain; charset=UTF-8
+        # read_headers is fussy now about line breaks.
+        headers = read_headers(CRLF.join("""Content-Type: text/plain; charset=UTF-8
 Content-Length: 12
 Content-Encoding: gzip
 Server: HTTPants/some-ver
 Other-Header: Blah
 Set-Cookie: fish=true;
-Set-Cookie: pie=blah""")
+Set-Cookie: pie=blah""".splitlines()))
 
         self.assertEqual(headers["content-length"], headers["Content-Length"])
         self.assertEqual(int(headers["content-length"]), 12)
