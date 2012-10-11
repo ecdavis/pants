@@ -73,6 +73,6 @@ Set-Cookie: pie=blah""".splitlines()))
 
     def test_bad_headers(self):
         with self.assertRaises(BadRequest):
-            read_headers("""Test: fish
+            read_headers(CRLF.join("""Test: fish
 
-Cake: free""")
+Cake: free""".splitlines()))
