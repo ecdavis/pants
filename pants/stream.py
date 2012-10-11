@@ -27,11 +27,21 @@ server connection handlers.
 import errno
 import functools
 import os
+import re
 import socket
 import ssl
+import struct
 
 from pants._channel import _Channel, HAS_IPV6
 from pants.engine import Engine
+from pants.util.struct_delimiter import struct_delimiter
+
+
+###############################################################################
+# Constants
+###############################################################################
+
+RegexType = type(re.compile(""))
 
 
 ###############################################################################
@@ -151,8 +161,9 @@ class Stream(_Channel):
         the stream before being passed to the
         :meth:`~pants.stream.Stream.on_read` callback. The value of the
         read delimiter determines when the data is passed to the
-        callback. Valid values are ``None``, a string, or an
-        integer/long.
+        callback. Valid values are ``None``, a string, an integer/long, a
+        compiled regular expression, or an instance of
+        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`.
 
         When the read delimiter is ``None``, data will be passed to
         :meth:`~pants.stream.Stream.on_read` immediately after it is
@@ -167,6 +178,43 @@ class Stream(_Channel):
         as the number of bytes to read before passing the data to
         :meth:`~pants.stream.Stream.on_read`.
 
+        When the read delimiter is a
+        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
+        instance, the length of the delimiter's format is calculated and fully
+        buffered before being parsed and sent to
+        :meth:`~pants.stream.Stream.on_read`. Unlike other types of read
+        delimiters, this can result in more than one argument being passed to
+        ``on_read``. Example::
+
+            from pants import Connection, struct_delimiter
+
+            class Example(Connection):
+                def on_connect(self):
+                    self.read_delimiter = struct_delimiter("!ILH")
+
+                def on_read(self, packet_type, length, id):
+                    pass
+
+        .. seealso::
+
+            ``struct_delimiter`` uses :mod:`struct`, and accepts the
+            formatting strings used by :func:`struct.pack` and
+            :func:`struct.unpack`. See :ref:`python:struct-format-strings`.
+
+        When the read delimiter is a compiled regular expression, there are two
+        possible behaviors, selected by the value of
+        :attr:`~pants.stream.Stream.regex_search`. If ``regex_search`` is True,
+        as is default, the delimiter's ``search`` method is used, and if a match
+        is found, the string before that match is passed to
+        :meth:`~pants.stream.Stream.on_read` while all data up to the end of the
+        matched content is removed from the buffer.
+
+        If ``regex_search`` is False, the delimiter's ``match`` method is used
+        instead, and if a match is found, the match object itself will be passed
+        to :meth:`~pants.stream.Stream.on_read`, giving you access to the
+        capture groups. Again, all data up to the end of the matched content is
+        removed from the buffer.
+
         Attempting to set the read delimiter to any other value will
         raise a :exc:`TypeError`.
 
@@ -177,7 +225,8 @@ class Stream(_Channel):
 
     @read_delimiter.setter
     def read_delimiter(self, value):
-        if value is None or isinstance(value, basestring):
+        if value is None or isinstance(value, basestring) or \
+                isinstance(value, RegexType):
             self._read_delimiter = value
             self._recv_buffer_size_limit = self._buffer_size
 
@@ -185,11 +234,16 @@ class Stream(_Channel):
             self._read_delimiter = value
             self._recv_buffer_size_limit = max(self._buffer_size, value)
 
+        elif isinstance(value, struct_delimiter):
+            self._read_delimiter = value
+            self._recv_buffer_size_limit = max(self._buffer_size, value.length)
+
         else:
             raise TypeError("read_delimiter must be None, a string, an int, or a long")
 
-    # Setting this at the class level makes it easy to override on a
+    # Setting these at the class level makes them easy to override on a
     # per-class basis.
+    regex_search = True
     _buffer_size = 2 ** 16  # 64kb
 
     @property
@@ -229,6 +283,9 @@ class Stream(_Channel):
         self._buffer_size = value
         if isinstance(self._read_delimiter, (int, long)):
             self._recv_buffer_size_limit = max(value, self._read_delimiter)
+        elif isinstance(self._read_delimiter, struct_delimiter):
+            self._recv_buffer_size_limit = max(value,
+                                               self._read_delimiter.length)
         else:
             self._recv_buffer_size_limit = value
 
@@ -458,6 +515,37 @@ class Stream(_Channel):
         else:
             self._start_waiting_for_write_event()
 
+    def write_packed(self, *data, **kwargs):
+        """
+        Write packed binary data to the channel.
+
+        The channel must be connected to a remote host. Additionally, the
+        current :attr:`read_delimiter` must be an instance of
+        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
+        if a format argument isn't provided.
+
+        ==========  ====================================================
+        Argument    Description
+        ==========  ====================================================
+        *data       Any number of values to be passed through
+                    :mod:`struct` and written to the remote host.
+        flush       *Optional.* If True, flush the internal write
+                    buffer. See :meth:`~pants.stream.Stream.flush`
+                    for details.
+        format      *Optional.* A formatting string to pack the
+                    provided data with. If one isn't provided, the read
+                    delimiter will be used.
+        ==========  ====================================================
+        """
+        format = kwargs.get("format", None)
+        if not format:
+            if not isinstance(self._read_delimiter, struct_delimiter):
+                raise ValueError("No format is available for writing data with "
+                                 "struct.")
+            format = self._read_delimiter[0]
+
+        self.write(struct.pack(format, *data), kwargs.get("flush", False))
+
     def flush(self):
         """
         Attempt to immediately write any internally buffered data to the
@@ -679,6 +767,47 @@ class Stream(_Channel):
                     break
                 data = self._recv_buffer[:mark]
                 self._recv_buffer = self._recv_buffer[mark + len(delimiter):]
+                self._safely_call(self.on_read, data)
+
+            elif isinstance(delimiter, struct_delimiter):
+                # Use item access because it's faster. This'll need to be
+                # changed if struct_delimiter ever changes.
+                if len(self._recv_buffer) < delimiter[1]:
+                    break
+                data = self._recv_buffer[:delimiter[1]]
+                self._recv_buffer = self._recv_buffer[delimiter[1]:]
+
+                # Safely unpack it. This should *probably* never error.
+                try:
+                    data = delimiter.unpack(data)
+                except struct.error:
+                    log.exception("Unable to unpack data on %r." % self)
+                    self.close()
+                    break
+
+                # Unlike most on_read calls, this one sends every variable of
+                # the parsed data as its own argument.
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, RegexType):
+                # Depending on regex_search, we could do this two ways.
+                if self.regex_search:
+                    match = delimiter.search(self._recv_buffer)
+                    if not match:
+                        break
+
+                    data = self._recv_buffer[:match.start()]
+                    self._recv_buffer = self._recv_buffer[match.end():]
+
+                else:
+                    # Require the match to be at the beginning.
+                    data = delimiter.match(self._recv_buffer)
+                    if not data:
+                        break
+
+                    self._recv_buffer = self._recv_buffer[data.end():]
+
+                # Send either the string or the match object.
                 self._safely_call(self.on_read, data)
 
             else:

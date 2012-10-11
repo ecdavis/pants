@@ -16,59 +16,58 @@
 #
 ###############################################################################
 """
-The core Pants classes and objects.
-
-Exports the global engine, :class:`pants.stream.Stream` and
-:class:`pants.server.Server`.
+A tuple subclass that acts as a special read_delimiter that automates the use
+of the ``struct`` module.
 """
 
 ###############################################################################
 # Imports
 ###############################################################################
 
-import logging
-
-from pants._channel import HAS_IPV6, HAS_UNIX
-from pants.engine import Engine
-from pants.server import Server
-from pants.stream import Stream
-from pants.util.struct_delimiter import struct_delimiter
-
+import operator
+import struct
 
 ###############################################################################
-# Exports
+# Constants and Storage
 ###############################################################################
 
-__authors__ = ["ecdavis", "Stendec"]
-__version__ = "0.10.1"
-
-__all__ = [
-    "__authors__", "__version__",  # Metadata
-    "HAS_IPV6", "HAS_UNIX",  # Constants
-    "engine",  # Core
-    "Stream", "Server",  # TCP Networking
-    "struct_delimiter",  # Utility Stuff
-    ]
-
+_delimiters = {}
 
 ###############################################################################
-# Objects
+# The Meta Class
 ###############################################################################
 
-#: Alias for pants.engine.Engine.instance
-engine = Engine.instance()
+class DelimiterMeta(type):
+    def __call__(cls, format):
+        if format in _delimiters:
+            return _delimiters[format]
 
+        dlmt = _delimiters[format] = super(DelimiterMeta, cls).__call__(format)
+        return dlmt
 
 ###############################################################################
-# Logging
+# The struct_delimiter Class
 ###############################################################################
 
-class NullHandler(logging.Handler):
-    """
-    A dummy handler to prevent logging errors if the user does not
-    initialise logging.
-    """
-    def emit(self, record):
-        pass
+class struct_delimiter(tuple):
 
-logging.getLogger("pants").addHandler(NullHandler())
+    __metaclass__ = DelimiterMeta
+
+    def __new__(cls, format):
+        # Create the tuple.
+            return tuple.__new__(cls, (format, struct.calcsize(format)))
+
+    def __getnewargs__(self):
+        return self[0]
+
+    def __repr__(self):
+        return "struct_delimiter(%r)" % self[0]
+
+    def pack(self, *args):
+        return struct.pack(self[0], *args)
+
+    def unpack(self, data):
+        return struct.unpack(self[0], data)
+
+    format = fmt = property(operator.itemgetter(0))
+    length = property(operator.itemgetter(1))

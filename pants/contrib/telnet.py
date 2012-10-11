@@ -20,7 +20,11 @@
 # Imports
 ###############################################################################
 
+import re
+import struct
+
 from pants import Stream, Server
+from pants.util.struct_delimiter import struct_delimiter
 
 
 ###############################################################################
@@ -34,6 +38,8 @@ log = logging.getLogger(__name__)
 ###############################################################################
 # Constants
 ###############################################################################
+
+RegexType = type(re.compile(""))
 
 # Telnet commands
 IAC  = chr(255)  # Interpret As Command
@@ -133,6 +139,42 @@ class TelnetConnection(Stream):
                     break
                 data = self._telnet_data[:mark]
                 self._telnet_data = self._telnet_data[mark + len(delimiter):]
+                self._safely_call(self.on_read, data)
+
+            elif isinstance(delimiter, struct_delimiter):
+                # Weird. Why are you using struct_delimiter in telnet? Silly
+                # person. Anyways, blah blah blah, same comment as in the
+                # delimiter handling everywhere else.
+                if len(self._telnet_data) < delimiter[1]:
+                    break
+                data = self._telnet_data[:delimiter[1]]
+                self._telnet_data = self._telnet_data[delimiter[1]:]
+
+                try:
+                    data = delimiter.unpack(data)
+                except struct.error:
+                    log.exception("Unable to unpack data on %r." % self)
+                    self.close()
+                    break
+
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, RegexType):
+                # Depending on regex_search, we could do this two ways.
+                if self.regex_search:
+                    match = delimiter.search(self._telnet_data)
+                    if not match:
+                        break
+
+                    data = self._telnet_data[:match.start()]
+                    self._telnet_data = self._telnet_data[match.end():]
+
+                else:
+                    data = delimiter.match(self._telnet_data)
+                    if not data:
+                        break
+                    self._telnet_data = self._telnet_data[data.end():]
+
                 self._safely_call(self.on_read, data)
 
             else:

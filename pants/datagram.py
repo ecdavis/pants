@@ -23,9 +23,19 @@ Low-level implementations of packet-oriented channels.
 # Imports
 ###############################################################################
 
+import re
 import socket
+import struct
 
 from pants._channel import _Channel
+from pants.util.struct_delimiter import struct_delimiter
+
+
+###############################################################################
+# Constants
+###############################################################################
+
+RegexType = type(re.compile(""))
 
 
 ###############################################################################
@@ -67,6 +77,7 @@ class Datagram(_Channel):
 
         # I/O attributes
         self.read_delimiter = None
+        self.regex_search = True
         self._recv_buffer = {}
         self._recv_buffer_size_limit = 2 ** 16  # 64kb
         self._send_buffer = []
@@ -277,6 +288,41 @@ class Datagram(_Channel):
                         break
                     data = buf[:mark]
                     buf = buf[mark + len(delimiter):]
+                    self._safely_call(self.on_read, data)
+
+                elif isinstance(delimiter, struct_delimiter):
+                    # Use item access because it's faster. This'll need to be
+                    # changed if struct_delimiter ever changes.
+                    if len(buf) < delimiter[1]:
+                        break
+                    data = buf[:delimiter[1]]
+                    buf = buf[delimiter[1]:]
+
+                    try:
+                        data = delimiter.unpack(data)
+                    except struct.error:
+                        log.warning("Unable to unpack data on %r." % self)
+                        break
+
+                    self._safely_call(self.on_read, *data)
+
+                elif isinstance(delimiter, RegexType):
+                    # Depending on regex_search, we could do this two ways.
+                    if self.regex_search:
+                        match = delimiter.search(buf)
+                        if not match:
+                            break
+
+                        data = buf[:match.start()]
+                        buf = buf[match.end():]
+
+                    else:
+                        data = delimiter.match(buf)
+                        if not data:
+                            break
+
+                        buf = buf[data.end():]
+
                     self._safely_call(self.on_read, data)
 
                 else:
