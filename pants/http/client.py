@@ -524,7 +524,7 @@ class HTTPClient(object):
             cert = self._stream._socket.getpeercert()
             try:
                 match_hostname(cert, _hostname(request.url))
-            except CertificateError, err:
+            except CertificateError as err:
                 if not self._safely_call(request.session.on_ssl_error,
                         request.response, cert, err):
                     self._do_error(err)

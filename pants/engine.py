@@ -211,7 +211,7 @@ class Engine(object):
 
         try:
             events = self._poller.poll(poll_timeout)
-        except Exception, err:
+        except Exception as err:
             if err[0] == errno.EINTR:
                 log.debug("Interrupted system call.")
                 return

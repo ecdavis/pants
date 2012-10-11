@@ -649,7 +649,7 @@ class Stream(_Channel):
 
         try:
             connected = self._socket_connect(address)
-        except socket.error, err:
+        except socket.error as err:
             self.close(flush=False)
             e = StreamConnectError(err.errno, err.strerror)
             self._safely_call(self.on_connect_error, e)
@@ -671,7 +671,7 @@ class Stream(_Channel):
         while True:
             try:
                 data = self._socket_recv()
-            except socket.error, err:
+            except socket.error as err:
                 self._safely_call(self.on_read_error, err)
                 return
 
@@ -853,7 +853,7 @@ class Stream(_Channel):
         """
         try:
             bytes_sent = self._socket_send(data)
-        except socket.error, err:
+        except socket.error as err:
             self._safely_call(self.on_write_error, err)
             return 0
 
@@ -868,7 +868,7 @@ class Stream(_Channel):
         """
         try:
             bytes_sent = self._socket_sendfile(sfile, offset, nbytes)
-        except socket.error, err:
+        except socket.error as err:
             self._safely_call(self.on_write_error, err)
             return 0
 
@@ -899,7 +899,7 @@ class Stream(_Channel):
         if not self._ssl_socket_wrapped:
             try:
                 self._socket = ssl.wrap_socket(self._socket, **ssl_options)
-            except ssl.SSLError, err:
+            except ssl.SSLError as err:
                 self._ssl_enabling = True
                 self._safely_call(self.on_ssl_error, err)
                 return 0
@@ -910,7 +910,7 @@ class Stream(_Channel):
 
         try:
             bytes_sent = self._ssl_do_handshake()
-        except Exception, err:
+        except Exception as err:
             self._safely_call(self.on_ssl_handshake_error, err)
             return 0
 
@@ -933,7 +933,7 @@ class Stream(_Channel):
         """
         try:
             return _Channel._socket_recv(self)
-        except ssl.SSLError, err:
+        except ssl.SSLError as err:
             if err[0] == ssl.SSL_ERROR_WANT_READ:
                 return ''
             else:
@@ -956,7 +956,7 @@ class Stream(_Channel):
         """
         try:
             bytes_sent = _Channel._socket_send(self, data)
-        except ssl.SSLError, err:
+        except ssl.SSLError as err:
             if err[0] == ssl.SSL_ERROR_WANT_WRITE:
                 self._start_waiting_for_write_event()
                 return 0
@@ -994,7 +994,7 @@ class Stream(_Channel):
         """
         try:
             self._socket.do_handshake()
-        except ssl.SSLError, err:
+        except ssl.SSLError as err:
             if err[0] == ssl.SSL_ERROR_WANT_READ:
                 return 0
             elif err[0] == ssl.SSL_ERROR_WANT_WRITE:
@@ -1008,7 +1008,7 @@ class Stream(_Channel):
                 return 0
             else:
                 raise
-        except socket.error, err:
+        except socket.error as err:
             if err[0] in (errno.ECONNRESET, errno.EPIPE):
                 self.close(flush=False)
                 return 0

@@ -232,7 +232,7 @@ class TestEnginePoll(unittest.TestCase):
         self.engine._poller.poll = MagicMock(side_effect=Exception(errno.EINTR))
         try:
             self.engine.poll(0.02)
-        except Exception, err:
+        except Exception as err:
             if err[0] == errno.EINTR:
                 self.fail("EINTR during polling was not caught.")
 

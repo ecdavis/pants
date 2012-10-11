@@ -369,7 +369,7 @@ class _Channel(object):
         """
         try:
             result = self._socket.connect_ex(addr)
-        except socket.error, err:
+        except socket.error as err:
             result = err[0]
 
         if not result or result == errno.EISCONN:
@@ -433,7 +433,7 @@ class _Channel(object):
         """
         try:
             return self._socket.accept()
-        except socket.error, err:
+        except socket.error as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return None, None
             else:
@@ -448,7 +448,7 @@ class _Channel(object):
         """
         try:
             data = self._socket.recv(self._recv_amount)
-        except socket.error, err:
+        except socket.error as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return ''
             elif err[0] == errno.ECONNRESET:
@@ -471,7 +471,7 @@ class _Channel(object):
         """
         try:
             data, addr = self._socket.recvfrom(self._recv_amount)
-        except socket.error, err:
+        except socket.error as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET):
                 return '', None
             else:
@@ -498,7 +498,7 @@ class _Channel(object):
         # an exception if it needs a write event.
         try:
             return self._socket.send(data)
-        except Exception, err:
+        except Exception as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0
@@ -524,7 +524,7 @@ class _Channel(object):
         """
         try:
             return self._socket.sendto(data, flags, addr)
-        except Exception, err:
+        except Exception as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0
@@ -553,7 +553,7 @@ class _Channel(object):
         """
         try:
             return sendfile(sfile, self, offset, nbytes, fallback)
-        except Exception, err:
+        except Exception as err:
             if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0

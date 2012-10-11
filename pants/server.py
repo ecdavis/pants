@@ -350,7 +350,7 @@ class Server(_Channel):
         try:
             self._socket_bind(addr)
             self._socket_listen(backlog)
-        except socket.error, err:
+        except socket.error as err:
             self.close()
             raise
 
@@ -388,7 +388,7 @@ class Server(_Channel):
                 try:
                     sock.setblocking(False)
                     sock = ssl.wrap_socket(sock, **self._ssl_options)
-                except ssl.SSLError, e:
+                except ssl.SSLError as e:
                     self._safely_call(self.on_ssl_wrap_error, sock, addr, e)
                     continue
 
@@ -433,7 +433,7 @@ class _SlaveServer(Server):
         try:
             self._socket_bind(addr)
             self._socket_listen(backlog)
-        except socket.error, err:
+        except socket.error as err:
             self.close()
             raise
 
