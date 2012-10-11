@@ -77,10 +77,10 @@ log = logging.getLogger(__name__)
 
 
 ###############################################################################
-# WebSocketConnection Class
+# WebSocket Class
 ###############################################################################
 
-class WebSocketConnection(object):
+class WebSocket(object):
     """
     An implementation of `WebSockets <http://en.wikipedia.org/wiki/WebSockets>`_
     using the HTTP server provided as :class:`pants.contrib.http.HTTPServer`
@@ -253,7 +253,7 @@ class WebSocketConnection(object):
         =========  ==========  ============
         Argument   Default     Description
         =========  ==========  ============
-        flush      ``False``   *Optional.* If True, ensure all the data gets sent before closing.
+        flush      ``True``    *Optional.* If False, closes the connection immediately, without ensuring all buffered data is sent.
         reason     ``1000``    *Optional.* The reason the socket is closing, from the ``CLOSE_REASONS`` dictionary.
         message    ``None``    *Optional.* A message string to send with the reason code, rather than the default.
         =========  ==========  ============

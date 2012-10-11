@@ -1,7 +1,7 @@
-``pants.contrib.websocket``
-***************************
+``pants.http.websocket``
+************************
 
-.. automodule:: pants.contrib.websocket
+.. automodule:: pants.http.websocket
 
 
 Constants
@@ -41,8 +41,8 @@ Constants
     ===================   ======
 
 
-WebSocketConnection
-===================
+WebSocket
+=========
 
-.. autoclass:: WebSocketConnection
+.. autoclass:: WebSocket
     :members: close, end, write, on_read, on_write, on_connect, on_close
