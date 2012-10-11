@@ -65,7 +65,7 @@ class TestChannelFileno(unittest.TestCase):
     def test_channel_fileno_with_socket(self):
         sock = socket.socket()
         channel = _Channel(socket=sock)
-        self.assertTrue(channel.fileno is sock.fileno())
+        self.assertTrue(channel.fileno == sock.fileno())
 
 class TestChannelClose(unittest.TestCase):
     def setUp(self):
@@ -173,12 +173,12 @@ class TestChannelSocketListen(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform.startswith("win"), "Windows-specific functionality.")
     def test_listen_backlog_is_corrected_on_windows(self):
-        self.channel._socket.listen(socket.SOMAXCONN+1)
+        self.channel._socket_listen(socket.SOMAXCONN+1)
         self.sock.listen.assert_called_once_with(socket.SOMAXCONN)
     
     @unittest.skipIf(sys.platform.startswith("win"), "Non-Windows-specific functionality.")
     def test_listen_backlog_is_not_corrected_on_other_platforms(self):
-        self.channel._socket.listen(socket.SOMAXCONN+1)
+        self.channel._socket_listen(socket.SOMAXCONN+1)
         self.sock.listen.assert_called_once_with(socket.SOMAXCONN+1)
 
 class TestChannelSocketClose(unittest.TestCase):
