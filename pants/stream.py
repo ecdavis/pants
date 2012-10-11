@@ -124,6 +124,19 @@ class Stream(_Channel):
     @property
     def remote_address(self):
         """
+        The remote address to which the channel is connected.
+
+        By default, this will be the value of ``socket.getpeername`` or
+        None. It is possible for user code to override the default
+        behaviour and set the value of the property manually. In order
+        to return the property to its default behaviour, user code then
+        has to delete the value. Example::
+        
+            # default behaviour
+            channel.remote_address = custom_value
+            # channel.remote_address will return custom_value now
+            del channel.remote_address
+            # default behaviour
         """
         if self._remote_address is not None:
             return self._remote_address
@@ -139,11 +152,28 @@ class Stream(_Channel):
     def remote_address(self, val):
         self._remote_address = val
 
+    @remote_address.deleter
+    def remote_address(self):
+        self._remote_address = None
+
     @property
     def local_address(self):
         """
+        The address of the channel on the local machine.
+        
+        By default, this will be the value of ``socket.getsockname`` or
+        None. It is possible for user code to override the default
+        behaviour and set the value of the property manually. In order
+        to return the property to its default behaviour, user code then
+        has to delete the value. Example::
+        
+            # default behaviour
+            channel.local_address = custom_value
+            # channel.local_address will return custom_value now
+            del channel.local_address
+            # default behaviour
         """
-        if self._remote_address is not None:
+        if self._local_address is not None:
             return self._local_address
         elif self._socket:
             try:
@@ -157,6 +187,10 @@ class Stream(_Channel):
     def local_address(self, val):
         self._local_address = val
 
+    @local_address.deleter
+    def local_address(self):
+        self._local_address = None
+
     @property
     def read_delimiter(self):
         """
@@ -167,8 +201,8 @@ class Stream(_Channel):
         the stream before being passed to the
         :meth:`~pants.stream.Stream.on_read` callback. The value of the
         read delimiter determines when the data is passed to the
-        callback. Valid values are ``None``, a string, an integer/long, a
-        compiled regular expression, or an instance of
+        callback. Valid values are ``None``, a string, an integer/long,
+        a compiled regular expression, or an instance of
         :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`.
 
         When the read delimiter is ``None``, data will be passed to
@@ -186,15 +220,15 @@ class Stream(_Channel):
 
         When the read delimiter is a
         :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
-        instance, the length of the delimiter's format is calculated and fully
-        buffered before being parsed and sent to
+        instance, the length of the delimiter's format is calculated and
+        fully buffered before being parsed and sent to
         :meth:`~pants.stream.Stream.on_read`. Unlike other types of read
-        delimiters, this can result in more than one argument being passed to
-        ``on_read``. Example::
+        delimiters, this can result in more than one argument being
+        passed to ``on_read``. Example::
 
-            from pants import Connection, struct_delimiter
+            from pants import Stream, struct_delimiter
 
-            class Example(Connection):
+            class Example(Stream):
                 def on_connect(self):
                     self.read_delimiter = struct_delimiter("!ILH")
 
@@ -207,19 +241,19 @@ class Stream(_Channel):
             formatting strings used by :func:`struct.pack` and
             :func:`struct.unpack`. See :ref:`python:struct-format-strings`.
 
-        When the read delimiter is a compiled regular expression, there are two
-        possible behaviors, selected by the value of
-        :attr:`~pants.stream.Stream.regex_search`. If ``regex_search`` is True,
-        as is default, the delimiter's ``search`` method is used, and if a match
-        is found, the string before that match is passed to
-        :meth:`~pants.stream.Stream.on_read` while all data up to the end of the
-        matched content is removed from the buffer.
+        When the read delimiter is a compiled regular expression, there
+        are two possible behaviors, selected by the value of
+        :attr:`~pants.stream.Stream.regex_search`. If ``regex_search``
+        is True, as is default, the delimiter's ``search`` method is
+        used, and if a match is found, the string before that match is
+        passed to :meth:`~pants.stream.Stream.on_read` while all data up
+        to the end of the matched content is removed from the buffer.
 
-        If ``regex_search`` is False, the delimiter's ``match`` method is used
-        instead, and if a match is found, the match object itself will be passed
-        to :meth:`~pants.stream.Stream.on_read`, giving you access to the
-        capture groups. Again, all data up to the end of the matched content is
-        removed from the buffer.
+        If ``regex_search`` is False, the delimiter's ``match`` method
+        is used instead, and if a match is found, the match object
+        itself will be passed to :meth:`~pants.stream.Stream.on_read`,
+        giving you access to the capture groups. Again, all data up to
+        the end of the matched content is removed from the buffer.
 
         Attempting to set the read delimiter to any other value will
         raise a :exc:`TypeError`.
@@ -245,7 +279,7 @@ class Stream(_Channel):
             self._recv_buffer_size_limit = max(self._buffer_size, value.length)
 
         else:
-            raise TypeError("read_delimiter must be None, a string, an int, or a long")
+            raise TypeError("Attempted to set read_delimiter to a value with an invalid type.")
 
     # Setting these at the class level makes them easy to override on a
     # per-class basis.
