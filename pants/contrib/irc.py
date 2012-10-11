@@ -66,8 +66,8 @@ class BaseIRC(Stream):
     :func:`~pants.stream.Stream.connect` and :func:`~pants.stream.Stream.listen`
     functions.
     """
-    def __init__(self, socket=None, encoding='utf-8'):
-        Stream.__init__(self, socket=socket)
+    def __init__(self, encoding='utf-8', **kwargs):
+        Stream.__init__(self, **kwargs)
 
         # Set our prefix to an empty string. This is prepended to all sent
         # commands, and useful for servers.
@@ -305,8 +305,8 @@ class IRCClient(BaseIRC):
     This implements rather more logic, and keeps track of what server it's
     connected to, its nick, and what channels it's in.
     """
-    def __init__(self, socket=None, encoding='utf-8'):
-        BaseIRC.__init__(self, socket, encoding)
+    def __init__(self, encoding='utf-8', **kwargs):
+        BaseIRC.__init__(self, encoding=encoding, **kwargs)
 
         # Internal State Stuff
         self._channels  = {}

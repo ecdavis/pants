@@ -26,6 +26,7 @@ import hmac
 import logging
 import mimetypes
 import os
+import re
 
 from datetime import datetime
 
@@ -47,6 +48,8 @@ log = logging.getLogger("pants.http")
 ###############################################################################
 # Constants
 ###############################################################################
+
+WHITESPACE = re.compile(r"\s+")
 
 SERVER      = 'HTTPants (pants/%s)' % pants_version
 SERVER_URL  = 'http://www.pantsweb.org/'
@@ -127,7 +130,7 @@ class CaseInsensitiveDict(dict):
     @property
     def caseless_keys(self):
         if not self._caseless_keys:
-            self._caseless_keys = dict((x.lower(), x) for x in self.keys())
+            self._caseless_keys = dict((x.lower() if isinstance(x, basestring) else x, x) for x in self.keys())
         return self._caseless_keys
 
     def __setitem__(self, key, value):
@@ -287,44 +290,45 @@ def read_headers(data, target=None):
     data = data.rstrip(CRLF)
     key = None
 
-    for line in data.splitlines():
-        if not line:
-            raise BadRequest('Illegal header line: %r' % line)
-        if line[0] in ' \t':
-            val = line.strip()
-            mline = True
-        else:
-            mline = False
-            try:
-                key, sep, val = line.partition(':')
-            except ValueError:
+    if data:
+        for line in data.split(CRLF):
+            if not line:
                 raise BadRequest('Illegal header line: %r' % line)
-
-            key = key.rstrip()
-            val = val.strip()
-
-            try:
-                val = int(val)
-            except ValueError:
-                pass
-
-        if key in target:
-            if mline:
-                if isinstance(target[key], list):
-                    if target[key]:
-                        target[key][-1] += ' ' + val
-                    else:
-                        target[key].append(val)
-                else:
-                    target[key] += ' ' + val
-            elif key in COMMA_HEADERS:
-                target[key] = '%s, %s' % (target[key], val)
-            elif isinstance(target[key], list):
-                target[key].append(val)
+            if key and line[0] in ' \t':
+                val = line.strip()
+                mline = True
             else:
-                target[key] = [target[key], val]
-            continue
-        target[key] = val
+                mline = False
+                try:
+                    key, val = line.split(':', 1)
+                except ValueError:
+                    raise BadRequest('Illegal header line: %r' % line)
+
+                key = key.strip()
+                val = val.strip()
+
+                try:
+                    val = int(val)
+                except ValueError:
+                    pass
+
+            if key in target:
+                if mline:
+                    if isinstance(target[key], list):
+                        if target[key]:
+                            target[key][-1] += ' ' + val
+                        else:
+                            target[key].append(val)
+                    else:
+                        target[key] += ' ' + val
+                elif key in COMMA_HEADERS:
+                    target[key] = '%s, %s' % (target[key], val)
+                elif isinstance(target[key], list):
+                    target[key].append(val)
+                else:
+                    target[key] = [target[key], val]
+                continue
+            target[key] = val
 
     if cast:
         target = CaseInsensitiveDict(target)

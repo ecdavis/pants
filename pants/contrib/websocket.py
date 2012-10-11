@@ -232,7 +232,7 @@ class WebSocketConnection(object):
                 request.headers, key3))
         except ValueError:
             log.warning("Malformed WebSocket challenge to %r." % self)
-            self.close()
+            self.close(False)
             return
 
         # Move on.
@@ -245,7 +245,7 @@ class WebSocketConnection(object):
 
     ##### Control Methods #####################################################
 
-    def close(self, flush=False, reason=1000, message=None):
+    def close(self, flush=True, reason=1000, message=None):
         """
         Close the WebSocket connection. If flush is True, wait for any remaining
         data to be sent and send a close frame before closing the connection.
@@ -283,7 +283,7 @@ class WebSocketConnection(object):
         self._update_address()
 
         if self._connection and self._connection.connected:
-            self._connection.close()
+            self._connection.close(False)
             self._connection = None
 
     ##### Public Event Handlers ###############################################
@@ -439,7 +439,7 @@ class WebSocketConnection(object):
             if self._frame & 0x80 == 0x80:
                 log.error("Unsupported frame type for old-style WebSockets %02X on %r." %
                     (self._frame, self))
-                self.close()
+                self.close(False)
                 return
 
         # Simple Frame.
@@ -534,7 +534,7 @@ class WebSocketConnection(object):
             try:
                 data = data.decode('utf-8')
             except UnicodeDecodeError:
-                self.close(True, reason=1007)
+                self.close(reason=1007)
                 return
 
         else:
@@ -604,7 +604,7 @@ class WebSocketConnection(object):
                     data = delimiter.unpack(data)
                 except struct.error:
                     log.exception("Unable to unpack data on %r." % self)
-                    self.close()
+                    self.close(False)
                     break
 
                 # Unlike most on_read calls, this one sends every variable of

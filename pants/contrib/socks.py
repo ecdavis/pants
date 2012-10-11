@@ -78,14 +78,14 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
                 if error_callback:
                     self._safely_call(error_callback,
                         BadVersion("Expected version 5, got %d." % ord(data[0])))
-                self.close()
+                self.close(False)
                 return
 
             elif (auth and data[1] != '\x02') or (not auth and data[1] != '\x00'):
                 if error_callback:
                     self._safely_call(error_callback,
                         NoAuthenticationMethods())
-                self.close()
+                self.close(False)
                 return
 
             if auth:
@@ -102,14 +102,14 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
                 if error_callback:
                     self._safely_call(error_callback,
                         BadVersion("Expected version 5, got %d." % ord(data[0])))
-                self.close()
+                self.close(False)
                 return
 
             elif data[1] != '\x00':
                 if error_callback:
                     self._safely_call(error_callback,
                         Unauthorized(data[1]))
-                self.close()
+                self.close(False)
                 return
 
             self.write("%s\x01\x00\x03%s%s%s" % (
@@ -126,14 +126,14 @@ def do_socks_handshake(self, addr, callback, error_callback=None, auth=None):
                 if error_callback:
                     self._safely_call(error_callback,
                         BadVersion("Expected version 5, got %d." % ord(data[0])))
-                self.close()
+                self.close(False)
                 return
 
             elif data[1] != '\x00':
                 if error_callback:
                     self._safely_call(error_callback,
                         Exception(data[1]))
-                self.close()
+                self.close(False)
                 return
 
             self._socks_state = 4

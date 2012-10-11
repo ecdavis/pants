@@ -109,7 +109,7 @@ class HTTPConnection(Stream):
 
         if disconnect:
             self.on_read = None
-            self.close(True)
+            self.close()
         else:
             self._await_request()
 
@@ -123,7 +123,7 @@ class HTTPConnection(Stream):
             initial_line, _, data = data.partition(CRLF)
 
             try:
-                method, uri, http_version = initial_line.split(' ')
+                method, uri, http_version = WHITESPACE.split(initial_line) #.split(' ')
             except ValueError:
                 raise BadRequest('Invalid HTTP request line.')
 
@@ -150,7 +150,11 @@ class HTTPConnection(Stream):
             # If we have a Content-Length header, read the request body.
             length = headers.get('Content-Length')
             if length:
-                if length > self.server.max_request:
+                if not isinstance(length, int):
+                    raise BadRequest(
+                        'Provided Content-Length (%r) is invalid.' % length,
+                        code='400 Bad Request')
+                elif length > self.server.max_request:
                     raise BadRequest((
                         'Provided Content-Length (%d) larger than server '
                         'limit %d.'
@@ -178,8 +182,16 @@ class HTTPConnection(Stream):
                 self.write(err.message)
             else:
                 self.write(CRLF)
-            self.close(True)
+            self.close()
             return
+
+        except Exception as err:
+            log.info('Exception handling request from %r: %s',
+                self.remote_address, err)
+
+            self.write('HTTP/1.1 500 Internal Server Error%s' % CRLF)
+            self.write('Content-Length: 0%s' % DOUBLE_CRLF)
+            self.close()
 
         try:
             # Call the request handler.
@@ -187,10 +199,10 @@ class HTTPConnection(Stream):
         except Exception:
             log.exception('Error handling HTTP request.')
             if request._started:
-                self.close()
+                self.close(False)
             else:
                 request.send_response("500 Internal Server Error", 500)
-                self.close(True)
+                self.close()
 
     def _read_request_body(self, data):
         """
@@ -228,7 +240,7 @@ class HTTPConnection(Stream):
                 self.remote_address, err)
 
             request.send_response(err.message, err.code)
-            self.close(True)
+            self.close()
             return
 
         try:
@@ -236,10 +248,10 @@ class HTTPConnection(Stream):
         except Exception:
             log.exception('Error handling HTTP request.')
             if request._started:
-                self.close()
+                self.close(False)
             else:
                 request.send_response("500 Internal Server Error", 500)
-                self.close(True)
+                self.close()
 
 ###############################################################################
 # HTTPRequest Class

@@ -64,8 +64,8 @@ class TelnetConnection(Stream):
     relevant placeholder method. This class should be subclassed to
     provide functionality for individual commands and options.
     """
-    def __init__(self, *args, **kwargs):
-        Stream.__init__(self, *args, **kwargs)
+    def __init__(self, **kwargs):
+        Stream.__init__(self, **kwargs)
 
         # Initialize Stuff
         self._telnet_data = ""

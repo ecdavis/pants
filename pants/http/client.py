@@ -426,7 +426,7 @@ class HTTPClient(object):
             if self._stream:
                 self._want_close = True
                 self._no_process = True
-                self._stream.close()
+                self._stream.close(False)
                 self._stream = None
             self._processing = False
             return
@@ -460,7 +460,7 @@ class HTTPClient(object):
                 log.debug("Closing unusable stream for %r." % self)
                 self._want_close = True
                 self._no_process = False
-                self._stream.close()
+                self._stream.close(False)
                 return
 
         # Set the timeout timer and log.
@@ -493,7 +493,7 @@ class HTTPClient(object):
         if self._stream:
             self._want_close = True
             self._no_process = True
-            self._stream.close()
+            self._stream.close(False)
             self._stream = None
         self._process()
 
@@ -585,7 +585,7 @@ class HTTPClient(object):
         if self._stream:
             self._want_close = True
             self._no_process = True
-            self._stream.close()
+            self._stream.close(False)
             self._stream = None
 
         # Keep processing, if needed.
@@ -643,7 +643,7 @@ class HTTPClient(object):
         """
         self._want_close = True
         self._no_process = True
-        self._stream.close()
+        self._stream.close(False)
         self._stream = None
         if not self._requests:
             return
@@ -729,7 +729,7 @@ class HTTPClient(object):
             self._requests.pop(0)
             self._want_close = True
             self._no_process = False
-            self._stream.close()
+            self._stream.close(False)
             return
 
         # Is there a Content-Length header?
@@ -796,7 +796,7 @@ class HTTPClient(object):
         if not response._keep_alive:
             self._want_close = True
             self._no_process = True
-            self._stream.close()
+            self._stream.close(False)
             self._stream = None
 
         # Clear the existing timer.
