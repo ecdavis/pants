@@ -128,7 +128,10 @@ class Stream(_Channel):
         if self._remote_address is not None:
             return self._remote_address
         elif self._socket:
-            return self._socket.getpeername()
+            try:
+                return self._socket.getpeername()
+            except socket.error:
+                return None
         else:
             return None
 
@@ -143,7 +146,10 @@ class Stream(_Channel):
         if self._remote_address is not None:
             return self._local_address
         elif self._socket:
-            return self._socket.getsockname()
+            try:
+                return self._socket.getsockname()
+            except socket.error:
+                return None
         else:
             return None
 
