@@ -16,7 +16,7 @@ var write = function(text) {
 var loc = document.location.host + '/_debug_socket';
 loc = ( document.location.protocol === 'http:' ? 'ws://' : 'wss://' ) + loc;
 
-var ws = WebSocket(loc);
+var ws = new WebSocket(loc);
 
 var connected = false;
 

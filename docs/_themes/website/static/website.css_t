@@ -37,13 +37,9 @@ body {
 
 /* Footer */
 
-#footer {
-    line-height: 1.4em;
-}
-
-#footer > div {
-    padding: 10px;
-}
+#footer { line-height: 1.4em; }
+#footer > div { padding: 10px 0; }
+#footer > div > div { padding: 0 15px; }
 
 #footer .right { text-align: right; }
 
@@ -241,3 +237,5 @@ div.row > div.item p.rubric {
     font-weight: bold;
     margin: 0;
 }
+
+div.row > div.item > p:first-child { margin-top: 0; }

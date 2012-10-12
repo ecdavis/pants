@@ -5,9 +5,6 @@
 
     .. container:: item
 
-        .. image:: /_static/icon1.jpg
-            :alt: Simple
-
         .. rubric:: Simple
 
         Pants handles your sockets for you, and lets you get straight to
@@ -16,17 +13,11 @@
 
     .. container:: item
 
-        .. image:: /_static/icon2.jpg
-            :alt: Lightweight
-
         .. rubric:: Lightweight
 
         Pants is free of bloat and has a low memory footprint.
 
     .. container:: item clear
-
-        .. image:: /_static/icon3.jpg
-            :alt: Fast
 
         .. rubric:: Fast
 
@@ -36,9 +27,6 @@
 
     .. container:: item
 
-        .. image:: /_static/icon4.jpg
-            :alt: Attractive
-
         .. rubric:: Attractive
 
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus
@@ -47,9 +35,6 @@
 
     .. container:: item clear
 
-        .. image:: /_static/icon5.jpg
-            :alt: Python
-
         .. rubric:: Python
 
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus
@@ -57,9 +42,6 @@
         feugiat, malesuada non arcu. Aliquam erat volutpat.
 
     .. container:: item
-
-        .. image:: /_static/icon6.jpg
-            :alt: Open Source
 
         .. rubric:: Open Source
 

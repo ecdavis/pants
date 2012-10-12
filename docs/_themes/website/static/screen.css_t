@@ -188,19 +188,11 @@ body {
 
 #footer {
     color: #fff;
-
-    background: #333;
-    background: -moz-linear-gradient(top, rgba(2,5,8,1) 0%, rgba(51,51,51,1) 100%); /* FF3.6+ */
-    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(2,5,8,1)), color-stop(100%,rgba(51,51,51,1))); /* Chrome,Safari4+ */
-    background: -webkit-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* Chrome10+,Safari5.1+ */
-    background: -o-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* Opera 11.10+ */
-    background: -ms-linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* IE10+ */
-    background: linear-gradient(top, rgba(2,5,8,1) 0%,rgba(51,51,51,1) 100%); /* W3C */
-    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#020508', endColorstr='#333333',GradientType=0 ); /* IE6-9 */
+    background: #0f3a59;
 }
 
 #footer span {
-    color: #666;
+    color: #4b6b83;
     text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
 }
 
