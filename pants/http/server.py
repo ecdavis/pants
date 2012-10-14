@@ -75,6 +75,11 @@ class HTTPConnection(Stream):
         if self._finished:
             self._request_finished()
 
+    def on_close(self):
+        # Clear the on_read method to ensure that the connection is collected
+        # immediately.
+        del self.on_read
+
     ##### Internal Event Handlers #############################################
 
     def _await_request(self):
@@ -152,8 +157,8 @@ class HTTPConnection(Stream):
             if length:
                 if not isinstance(length, int):
                     raise BadRequest(
-                        'Provided Content-Length (%r) is invalid.' % length,
-                        code='400 Bad Request')
+                        'Provided Content-Length (%r) is invalid.' % length
+                        )
                 elif length > self.server.max_request:
                     raise BadRequest((
                         'Provided Content-Length (%d) larger than server '
