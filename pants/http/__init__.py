@@ -22,4 +22,4 @@
 
 from pants.http.client import *
 from pants.http.server import *
-from pants.http.websocket import WebSocket
+from pants.http.websocket import WebSocket, EntireMessage
