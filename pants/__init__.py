@@ -40,7 +40,7 @@ from pants.util.struct_delimiter import struct_delimiter
 ###############################################################################
 
 __authors__ = ["ecdavis", "Stendec"]
-__version__ = "0.10.1"
+__version__ = "1.0.0-beta.1"
 
 __all__ = [
     "__authors__", "__version__",  # Metadata
