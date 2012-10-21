@@ -213,8 +213,8 @@ class Float(Converter):
 
     def convert(self, value):
         value = float(value)
-        if (self.min is not None and val < self.min) or\
-           (self.max is not None and val > self.max):
+        if (self.min is not None and value < self.min) or\
+           (self.max is not None and value > self.max):
             raise ValueError("Value %d is out of range." % value)
         return value
 
@@ -237,8 +237,8 @@ class Integer(Converter):
 
     def convert(self, value):
         value = int(value)
-        if (self.min is not None and val < self.min) or\
-           (self.max is not None and val > self.max):
+        if (self.min is not None and value < self.min) or\
+           (self.max is not None and value > self.max):
             raise ValueError("Value %d is out of range." % value)
         return value
 
