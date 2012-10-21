@@ -581,9 +581,9 @@ class Application(Module):
         response = u"\n".join([
             u"<h2>Traceback</h2>",
             u"<pre>%s</pre>" % traceback.format_exc(),
-            u'<div id="console"><h2>Console</h2>',
-            u'<pre id="output"></pre>',
-            u'<script type="text/javascript">%s</script></div>' % CONSOLE_JS,
+            #u'<div id="console"><h2>Console</h2>',
+            #u'<pre id="output"></pre>',
+            #u'<script type="text/javascript">%s</script></div>' % CONSOLE_JS,
             u"<h2>Route</h2>",
             u"<pre>route name   = %r" % request.route_name,
             u"match groups = %r</pre>" % (request.match.groups(),),
