@@ -31,9 +31,9 @@ Examples
 Here's an absurdly simple example - Hello World:
 
 ```python
-from pants import Connection, engine, Server
+from pants import engine, Server, Stream
 
-class Hello(Connection):
+class Hello(Stream):
     def on_connect(self):
         self.write("Hello, World!\r\n")
         self.close()
