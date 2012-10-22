@@ -149,12 +149,12 @@ class FileServer(object):
         try:
             path = request.match.group(1)
             if path is None:
-                path = request.path
+                path = urllib.unquote_plus(request.path)
         except (AttributeError, IndexError):
-            path = request.path
+            path = urllib.unquote_plus(request.path)
 
         # Convert the path to unicode.
-        path = decode(urllib.unquote(path))
+        path = decode(path)
 
         # Strip off a starting quote.
         if path.startswith('/') or path.startswith('\\'):

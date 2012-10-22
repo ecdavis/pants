@@ -728,7 +728,7 @@ class Application(Module):
         that handler, and return its output.
         """
         domain = request.hostname
-        path = request.path
+        path = urllib.unquote_plus(request.path)
         matcher = domain + path
         method = request.method.upper()
         available_methods = set()
@@ -830,6 +830,12 @@ class Application(Module):
             body = result
             headers = {}
 
+        # Convert the body to something that we can send.
+        try:
+            body = body.to_html()
+        except AttributeError:
+            pass
+
         # Set a Content-Type header if there isn't one already.
         if not 'Content-Type' in headers:
             if isinstance(body, basestring) and body[:5].lower() in \
@@ -839,12 +845,6 @@ class Application(Module):
                 headers['Content-Type'] = 'application/json'
             else:
                 headers['Content-Type'] = 'text/plain'
-
-        # Convert the body to something that we can send.
-        try:
-            body = body.to_html()
-        except AttributeError:
-            pass
 
         if isinstance(body, unicode):
             encoding = headers['Content-Type']
@@ -891,56 +891,26 @@ class Application(Module):
 def _get_runner(func, converters, auto404):
     try:
         args = inspect.getargspec(func).args
+        fg = func.func_globals
     except TypeError:
         args = inspect.getargspec(func.__call__).args
+        fg = func.__call__.func_globals
 
-    if len(args) == 1 and args[0] == 'request':
-        def view_runner(request):
-            request.__func_module = func.__module__
-            match = request.match
-
-            if not converters:
-                return func(request)
-
-            out = []
-            for val, converter in zip(match.groups(), converters):
-                if type is not None:
-                    try:
-                        val = converter(val)
-                    except Exception:
-                        return error("Unable to parse data %r." % val, 400)
-                out.append(val)
-
-            if auto404:
-                all_or_404(*out)
-
-            try:
-                request.arguments = out
-                return func(request)
-            finally:
-                request.arguments = None
-    else:
+    if len(args) == len(converters):
         def view_runner(request):
             request.__func_module = func.__module__
             match = request.match
 
             try:
-                try:
-                    func.func_globals['request'] = request
-                except AttributeError:
-                    func.__call__.func_globals['request'] = request
-
+                fg['request'] = request
                 if not converters:
                     return func()
 
-                out = []
-                for val, converter in zip(match.groups(), converters):
-                    if type is not None:
-                        try:
-                            val = converter(val)
-                        except Exception:
-                            return error("Unable to parse data %r." % val, 400)
-                    out.append(val)
+                try:
+                    out = [converter(val) for converter, val in
+                           zip(converters, match.groups())]
+                except Exception as err:
+                    return error(str(err), 400)
 
                 if auto404:
                     all_or_404(*out)
@@ -948,10 +918,25 @@ def _get_runner(func, converters, auto404):
                 return func(*out)
 
             finally:
-                try:
-                    func.func_globals['request'] = None
-                except AttributeError:
-                    func.__call__.func_globals['request'] = None
+                del fg['request']
+    else:
+        def view_runner(request):
+            request.__func_module = func.__module__
+            match = request.match
+
+            if not converters:
+                return func(request)
+
+            try:
+                out = [converter(val) for converter, val in
+                       zip(converters, match.groups())]
+            except Exception as err:
+                return error(str(err), 400)
+
+            if auto404:
+                all_or_404(*out)
+
+            return func(request, *out)
 
     view_runner.wrapped_func = func
     return view_runner
@@ -1021,28 +1006,22 @@ def _rule_to_regex(rule):
         elif not in_domain and (not converter or converter == 'domainpart'):
             converter = 'string'
 
-        if converter:
-            converter = converter.strip()
-            if not converter in CONVERTER_TYPES:
-                raise ValueError("No such converter %r." % converter)
+        converter = converter.strip()
+        if not converter in CONVERTER_TYPES:
+            raise ValueError("No such converter %r." % converter)
 
-            # Make the converter.
-            converter = CONVERTER_TYPES[converter](options, default)
-            converters.append(converter)
+        # Make the converter.
+        converter = CONVERTER_TYPES[converter](options, default)
+        converters.append(converter)
 
-            if hasattr(converter, 'regex'):
-                regex += converter.regex
-            else:
-                regex += "([^/]+)"
-
-            if hasattr(converter, 'namegen'):
-                namegen += converter.namegen
-            else:
-                namegen += "%s"
-
+        if hasattr(converter, 'regex'):
+            regex += converter.regex
         else:
-            converters.append(None)
             regex += "([^/]+)"
+
+        if hasattr(converter, 'namegen'):
+            namegen += converter.namegen
+        else:
             namegen += "%s"
 
         namegen += text.replace('%','%%')
