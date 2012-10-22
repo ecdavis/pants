@@ -28,7 +28,6 @@ it should in theory perform faster.
 import inspect
 import re
 import traceback
-import weakref
 
 from pants.http.server import HTTPServer
 from pants.web.utils import *
@@ -54,7 +53,7 @@ class JSONEncoder(json.JSONEncoder):
     This subclass of JSONEncoder adds support for serializing datetime objects.
     """
     def default(self, o):
-        if hasattr(o, 'isoformat'):
+        if isinstance(o, datetime):
             return o.isoformat()
         return json.JSONEncoder.default(self, o)
 
@@ -273,7 +272,7 @@ class Module(object):
     TODO: Document this.
     """
 
-    def __init__(self, name):
+    def __init__(self, name=None):
         # Internal Stuff
         self._routes = {}
         self._parents = set()
@@ -281,13 +280,14 @@ class Module(object):
         # External Stuff
         self.name = name
 
+    def __repr__(self):
+        return "<Module(%r) at 0x%08X>" % (self.name, id(self))
+
     ##### Module Connection ###################################################
 
     def add(self, rule, module):
         if isinstance(module, Application):
             raise TypeError("Applications cannot be added as modules.")
-
-        # TODO: Check for cyclic stuff.
 
         # Register this module with the child module.
         module._parents.add(self)
@@ -299,9 +299,13 @@ class Module(object):
         # Now, recalculate.
         self._recalculate_routes()
 
-    def _recalculate_routes(self):
+    def _recalculate_routes(self, processed=tuple()):
+        if self in processed:
+            raise RuntimeError("Cyclic inheritence: %s" %
+                               ", ".join(repr(x) for x in processed))
+
         for parent in self._parents:
-            parent._recalculate_routes()
+            parent._recalculate_routes(processed=processed + (self,))
 
     ##### Route Management Decorators #########################################
 
@@ -529,9 +533,8 @@ class Application(Module):
 
         # Internal Stuff
         self._route_table = {}
-        self._domains = []
+        self._route_list = []
         self._name_table = {}
-        self._started = False
 
         # External Stuff
         self.json_encoder = JSONEncoder
@@ -554,10 +557,6 @@ class Application(Module):
         engine        *Optional.* The :class:`pants.engine.Engine` instance to use.
         ============  ============
         """
-        # Force routes to recalculate early.
-        self._started = True
-        self._recalculate_routes()
-
         if not engine:
             from pants.engine import Engine
             engine = Engine.instance()
@@ -595,100 +594,110 @@ class Application(Module):
 
     ##### Routing Table Builder ###############################################
 
-    def _recalculate_routes(self, path=None, module=None, nameprefix=None):
+    def _recalculate_routes(self, processed=None, path=None, module=None,
+                            nameprefix=""):
         """
-        This function does the heavy lifting of building the routing table,
-        and it's called every time a route is updated. Fortunately, that
-        pretty much never happens after application startup.
+        This function does the heavy lifting of building the routing table, and
+        it's called every time a route is updated. Fortunately, that generally
+        only happens when the application is being created.
         """
-        if not self._started:
-            return
-
         if path is None:
+            # Initialize our storage variables.
+            self._route_list = []
             self._route_table = {}
             self._name_table = {}
-            self._domains = []
 
-        # Get the proper route table.
+        # Get the unprocessed route table.
         routes = module._routes if module else self._routes
 
-        # Do name stuff.
-        if not nameprefix:
-            if module:
-                nameprefix = module.name
-            else:
-                nameprefix = self.name
-        else:
-            if module:
-                nameprefix += '.' + module.name
-            else:
-                nameprefix += '.' + self.name
+        # Update the name prefix.
+        name = module.name if module else self.name
+        if name:
+            nameprefix = nameprefix + "." + name if nameprefix else name
 
-        # Now, iterate through it.
+        # Iterate through the unprocessed route table.
         for rule, table in routes.iteritems():
-            if isinstance(table, Module):
-                self._recalculate_routes(rule, table, nameprefix)
-                continue
-
-            # If there is a path, and this rule doesn't have a domain, merge
-            # them.
-            if path and (not '/' in rule or rule[0] == '/'):
-                if path.endswith('/'):
-                    if rule[0] == '/':
+            # If path is set, and this isn't an absolute rule, merge the rule
+            # with the path.
+            if path and (rule[0] == "/" or not "/" in rule):
+                if path[-1] == "/":
+                    if rule[0] == "/":
                         rule = path + rule[1:]
                     else:
                         rule = path + rule
                 else:
-                    if rule[0] == '/':
+                    if rule[0] == "/":
                         rule = path + rule
                     else:
-                        rule = path + '/' + rule
+                        rule = path + "/" + rule
 
-            # Process the rule.
-            regex, converters, names, namegen, domain, rpath = _rule_to_regex(rule)
-            domain = domain.lower()
+            # If we're dealing with a module, recurse.
+            if isinstance(table, Module):
+                self._recalculate_routes(None, rule, table, nameprefix)
+                continue
 
-            # If this is a new domain, add it to the domain table.
-            if not domain in self._domains:
-                self._domains.append(domain)
+            # Parse the rule string.
+            regex, converters, names, namegen, domain, rpath = \
+                _rule_to_regex(rule)
+            dkey, rkey = rule.split("/", 1)
 
-            # If this is a new path, add it to the path table for that domain.
-            rt = self._route_table.setdefault(domain, {})
-            pt = rt.setdefault(None, [])
-            if not rpath in pt:
-                pt.append(rpath)
+            # Get the domain table.
+            if not dkey in self._route_table:
+                dt = self._route_table[dkey] = {}
+                dl = dt[None] = [domain, dkey, []]
+                self._route_list.append(dl)
+            else:
+                dt = self._route_table[dkey]
+                dl = dt[None]
 
-            # Now, get the rule table.
-            if not rpath in rt:
-                rt[rpath] = [re.compile(regex), None, {}, names, namegen, converters]
-            rule_table = rt[rpath][2]
+            # Determine if this is a new rule for the given domain.
+            if not rkey in dt:
+                rt = dt[rkey] = {}
+                rl = rt[None] = [rpath, re.compile(regex), rkey, None, {},
+                                 names, namegen, converters]
+                dl[2].append(rl)
+            else:
+                rt = dt[rkey]
+                rl = rt[None]
 
-            # Iterate through all the methods.
+            # Get the method table
+            method_table = rl[4]
+
+            # Iterate through all the methods this rule provides.
             for method, (func, name, advanced, auto404) in table.iteritems():
                 method = method.upper()
-                if method == 'GET' or rt[rpath][1] is None:
+                if method == 'GET' or rl[3] is None:
                     if nameprefix:
                         name = nameprefix + '.' + name
-                    rt[rpath][1] = name
+                    rl[3] = name
                 if advanced:
-                    for mthd in rule_table:
-                        if table[mthd][0] is func:
-                            rule_table[method] = rule_table[mthd]
+                    for mthd in method_table:
+                        if getattr(method_table[mthd], "wrapped_func", None) \
+                                is func:
+                            method_table[method] = method_table[mthd]
                             break
                     else:
-                        rule_table[method] = _get_runner(func, converters, auto404)
+                        method_table[method] = _get_runner(func, converters,
+                                                            auto404)
                 else:
-                    rule_table[method] = func
+                    method_table[method] = func
 
             # Update the name table.
-            self._name_table[rt[rpath][1]] = domain, rpath
+            self._name_table[rl[3]] = rl
 
         if path is None:
             # Sort everything.
-            self._domains.sort(key=len, reverse=True)
 
-            for v in self._route_table.itervalues():
-                v[None].sort(key=len, reverse=True)
+            # Sort the domains first by the length of the domain key, in reverse
+            # order; followed by the number of colons in the domain key, in
+            # reverse order; and finally by the domain key alphabetically.
+            self._route_list.sort(key=lambda x: (-len(x[1]), -(x[1].count(':')),
+                                                 x[1]))
+
+            # Sort the same way for each rule in each domain, but using the rule
+            # key rather than the domain key.
+            for domain, dkey, rl in self._route_list:
+                rl.sort(key=lambda x: (-len(x[2]), -(x[2].count(':')), x[2]))
 
     ##### The Request Handler #################################################
 
@@ -699,10 +708,6 @@ class Application(Module):
         proper request handler, and then the method
         :meth:`Application.parse_output` to process the handler's output.
         """
-        if not self._started:
-            self._started = True
-            self._recalculate_routes()
-
         Application.current_app = self
         self.request = request
 
@@ -725,40 +730,44 @@ class Application(Module):
         domain = request.hostname
         path = request.path
         matcher = domain + path
+        method = request.method.upper()
         available_methods = set()
 
-        for dmn in self._domains:
+        for dmn, dkey, rules in self._route_list:
+            # Do basic domain matching.
             if ':' in dmn:
                 if not request.host.lower().endswith(dmn):
                     continue
             elif not domain.endswith(dmn):
                 continue
 
-            dmn = self._route_table[dmn]
-            for pth in dmn[None]:
-                if not path.startswith(pth):
+            # Iterate through the available rules, trying for a match.
+            for rule, regex, rkey, name, method_table, names, namegen, \
+                    converters in rules:
+                if not path.startswith(rule):
                     continue
-
-                regex, name, methods = dmn[pth][:3]
                 match = regex.match(matcher)
                 if match is None:
                     continue
 
-                method = request.method.upper()
-                if not method in methods:
-                    available_methods.update(methods)
+                # We have a match. Check for a valid method.
+                if not method in method_table:
+                    available_methods.update(method_table.keys())
                     continue
 
+                # It's a match. Run the method and return the result.
                 request.route_name = name
                 request.match = match
 
                 try:
-                    return methods[method](request)
+                    return method_table[method](request)
                 except HTTPException as err:
-                    if hasattr(self, "handle_%d" % err.status):
-                        return getattr(self, "handle_%d" % err.status)(request, err)
+                    err_handler = getattr(self, "handle_%d" % err.status, None)
+                    if err_handler:
+                        return err_handler(request, err)
                     else:
-                        return error(err.message, err.status, err.headers, request=request)
+                        return error(err.message, err.status, err.headers,
+                                     request=request)
                 except HTTPTransparentRedirect as err:
                     request.uri = err.uri
                     request._parse_uri()
@@ -771,25 +780,28 @@ class Application(Module):
                 return '', 200, {'Allow': ', '.join(available_methods)}
             else:
                 return error(
-                    "The method %s is not allowed for %r." %
-                    (request.method, path), 405,
-                    {'Allow': ', '.join(available_methods)}
+                    "The method %s is not allowed for %r." % (method, path),
+                    405, {'Allow': ', '.join(available_methods)}
                 )
+
         elif self.fix_end_slash:
-            # No matching routes.
-            if not path.endswith('/'):
-                path += '/'
-                matcher += '/'
-                for dmn in self._domains:
-                    if not domain.endswith(dmn):
+            # If there are no matching routes, and the path doesn't end with a
+            # slash, try adding the slash.
+            if not path.endswith("/"):
+                path += "/"
+                matcher += "/"
+                for dmn, dkey, rules in self._route_list:
+                    if ':' in dmn:
+                        if not request.host.lower().endswith(dmn):
+                            continue
+                    elif not domain.endswith(dmn):
                         continue
 
-                    dmn = self._route_table[dmn]
-                    for pth in dmn[None]:
-                        if not path.startswith(pth):
+                    for rule, regex, rkey, name, method_table, names, namegen, \
+                            converters in rules:
+                        if not path.startswith(rule):
                             continue
-
-                        if dmn[path][0].match(matcher):
+                        if regex.match(matcher):
                             if request.query:
                                 return redirect("%s?%s" % (path, request.query))
                             else:
@@ -820,7 +832,8 @@ class Application(Module):
 
         # Set a Content-Type header if there isn't one already.
         if not 'Content-Type' in headers:
-            if isinstance(body, basestring) and body[:5].lower() in ('<html', '<!doc') or hasattr(body, 'to_html'):
+            if isinstance(body, basestring) and body[:5].lower() in \
+                    ('<html', '<!doc') or hasattr(body, 'to_html'):
                 headers['Content-Type'] = 'text/html'
             elif isinstance(body, (list, dict)):
                 headers['Content-Type'] = 'application/json'
@@ -940,6 +953,7 @@ def _get_runner(func, converters, auto404):
                 except AttributeError:
                     func.__call__.func_globals['request'] = None
 
+    view_runner.wrapped_func = func
     return view_runner
 
 def _rule_to_regex(rule):
@@ -963,7 +977,7 @@ def _rule_to_regex(rule):
 
     # Find the first <.
     ind = rule.find("<")
-    if ind == -1:
+    if ind == -1 or RULE_PARSER.match(rule[ind:]) is None:
         if '/' in rule:
             domain, _, path = rule.partition('/')
             path = '/' + path
@@ -1054,7 +1068,8 @@ def _rule_to_regex(rule):
         regex += ")?"
         has_default -= 1
 
-    return "^" + regex + "$", tuple(converters), tuple(names), namegen, domain, path
+    return "^" + regex + "$", tuple(converters), tuple(names), \
+           namegen, domain, path
 
 
 ###############################################################################
@@ -1197,8 +1212,7 @@ def url_for(name, **values):
     if not name in app._name_table:
         raise KeyError("Cannot find request handler with name %r." % name)
 
-    domain, path = app._name_table[name]
-    rule_table = app._route_table[domain][path]
+    rule_table = app._name_table[name]
     names, namegen, converters = rule_table[-3:]
 
     data = []
@@ -1215,17 +1229,21 @@ def url_for(name, **values):
             del values[name]
 
     out = namegen % tuple(data)
-    out = urllib.quote(out)
+
+    dmn, sep, pth = out.partition("/")
+    out = dmn + sep + urllib.quote(pth)
 
     if '_external' in values:
-        if values['_external'] and out.startswith('/'):
+        if values['_external'] and out[0] == '/':
             out = request.host + out
-        elif not values['_external'] and not out.startswith('/'):
+        elif not values['_external'] and out[0] != '/':
             _, _, out = out.partition('/')
             out = '/' + out
         del values['_external']
     else:
-        if out.lower().startswith(request.host.lower()):
+        if not ":" in out and out.lower().startswith(request.hostname.lower()):
+            out = out[len(request.hostname):]
+        elif out.lower().startswith(request.host.lower()):
             out = out[len(request.host):]
 
     if not out.startswith('/'):
