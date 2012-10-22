@@ -52,7 +52,7 @@ log = logging.getLogger("pants.http")
 WHITESPACE = re.compile(r"\s+")
 
 SERVER      = 'HTTPants (pants/%s)' % pants_version
-SERVER_URL  = 'http://www.pantsweb.org/'
+SERVER_URL  = 'http://www.pantspowered.org/'
 
 USER_AGENT = "HTTPants/%s" % pants_version
 
