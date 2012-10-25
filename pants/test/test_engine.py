@@ -232,7 +232,7 @@ class TestEnginePoll(unittest.TestCase):
         try:
             self.engine.poll(0.02)
         except Exception as err:
-            if err[0] == errno.EINTR:
+            if err.args[0] == errno.EINTR:
                 self.fail("EINTR during polling was not caught.")
 
     def test_poller_raises_unknown(self):

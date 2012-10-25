@@ -370,7 +370,7 @@ class _Channel(object):
         try:
             result = self._socket.connect_ex(addr)
         except socket.error as err:
-            result = err[0]
+            result = err.args[0]
 
         if not result or result == errno.EISCONN:
             return True
@@ -434,7 +434,7 @@ class _Channel(object):
         try:
             return self._socket.accept()
         except socket.error as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return None, None
             else:
                 raise
@@ -449,9 +449,9 @@ class _Channel(object):
         try:
             data = self._socket.recv(self._recv_amount)
         except socket.error as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return ''
-            elif err[0] == errno.ECONNRESET:
+            elif err.args[0] == errno.ECONNRESET:
                 return None
             else:
                 raise
@@ -472,7 +472,8 @@ class _Channel(object):
         try:
             data, addr = self._socket.recvfrom(self._recv_amount)
         except socket.error as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK, errno.ECONNRESET):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK,
+                    errno.ECONNRESET):
                 return '', None
             else:
                 raise
@@ -499,10 +500,10 @@ class _Channel(object):
         try:
             return self._socket.send(data)
         except Exception as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0
-            elif err[0] == errno.EPIPE:
+            elif err.args[0] == errno.EPIPE:
                 self.close(flush=False)
                 return 0
             else:
@@ -525,10 +526,10 @@ class _Channel(object):
         try:
             return self._socket.sendto(data, flags, addr)
         except Exception as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0
-            elif err[0] == errno.EPIPE:
+            elif err.args[0] == errno.EPIPE:
                 self.close(flush=False)
                 return 0
             else:
@@ -554,10 +555,10 @@ class _Channel(object):
         try:
             return sendfile(sfile, self, offset, nbytes, fallback)
         except Exception as err:
-            if err[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
                 return 0
-            elif err[0] == errno.EPIPE:
+            elif err.args[0] == errno.EPIPE:
                 self.close(flush=False)
                 return 0
             else:

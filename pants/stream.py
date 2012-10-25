@@ -131,7 +131,7 @@ class Stream(_Channel):
         behaviour and set the value of the property manually. In order
         to return the property to its default behaviour, user code then
         has to delete the value. Example::
-        
+
             # default behaviour
             channel.remote_address = custom_value
             # channel.remote_address will return custom_value now
@@ -160,13 +160,13 @@ class Stream(_Channel):
     def local_address(self):
         """
         The address of the channel on the local machine.
-        
+
         By default, this will be the value of ``socket.getsockname`` or
         None. It is possible for user code to override the default
         behaviour and set the value of the property manually. In order
         to return the property to its default behaviour, user code then
         has to delete the value. Example::
-        
+
             # default behaviour
             channel.local_address = custom_value
             # channel.local_address will return custom_value now
@@ -974,7 +974,7 @@ class Stream(_Channel):
         try:
             return _Channel._socket_recv(self)
         except ssl.SSLError as err:
-            if err[0] == ssl.SSL_ERROR_WANT_READ:
+            if err.args[0] == ssl.SSL_ERROR_WANT_READ:
                 return ''
             else:
                 raise
@@ -997,7 +997,7 @@ class Stream(_Channel):
         try:
             bytes_sent = _Channel._socket_send(self, data)
         except ssl.SSLError as err:
-            if err[0] == ssl.SSL_ERROR_WANT_WRITE:
+            if err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
                 self._start_waiting_for_write_event()
                 return 0
             else:
@@ -1035,21 +1035,21 @@ class Stream(_Channel):
         try:
             self._socket.do_handshake()
         except ssl.SSLError as err:
-            if err[0] == ssl.SSL_ERROR_WANT_READ:
+            if err.args[0] == ssl.SSL_ERROR_WANT_READ:
                 return 0
-            elif err[0] == ssl.SSL_ERROR_WANT_WRITE:
+            elif err.args[0] == ssl.SSL_ERROR_WANT_WRITE:
                 self._start_waiting_for_write_event()
                 return 0
-            elif err[0] in (ssl.SSL_ERROR_EOF, ssl.SSL_ERROR_ZERO_RETURN):
+            elif err.args[0] in (ssl.SSL_ERROR_EOF, ssl.SSL_ERROR_ZERO_RETURN):
                 self.close(flush=False)
                 return 0
-            elif err[0] == ssl.SSL_ERROR_SSL:
+            elif err.args[0] == ssl.SSL_ERROR_SSL:
                 self._safely_call(self.on_ssl_handshake_error, err)
                 return 0
             else:
                 raise
         except socket.error as err:
-            if err[0] in (errno.ECONNRESET, errno.EPIPE):
+            if err.args[0] in (errno.ECONNRESET, errno.EPIPE):
                 self.close(flush=False)
                 return 0
             else:
