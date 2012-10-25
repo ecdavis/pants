@@ -25,9 +25,11 @@ import hashlib
 import logging
 import re
 import struct
-from pants.stream import StreamBufferOverflow
 
+from pants.stream import StreamBufferOverflow
 from pants.util.struct_delimiter import struct_delimiter
+
+from pants.http.utils import log
 
 
 ###############################################################################
@@ -68,13 +70,6 @@ EntireMessage = object()
 
 # Regex Stuff
 RegexType = type(re.compile(""))
-
-
-###############################################################################
-# Logging
-###############################################################################
-
-log = logging.getLogger(__name__)
 
 
 ###############################################################################

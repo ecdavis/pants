@@ -21,14 +21,21 @@
 ###############################################################################
 
 import Cookie
+import os
 import ssl
 import tempfile
 import urllib
 import urlparse
 import zlib
 
-from pants.http.utils import *
-from pants.http.auth import AuthBase, BasicAuth
+from datetime import datetime
+
+from pants.stream import Stream
+from pants.engine import Engine
+
+from pants.http.auth import BasicAuth
+from pants.http.utils import CRLF, date, DOUBLE_CRLF, encode_multipart, log, \
+    read_headers, USER_AGENT
 
 try:
     from backports.ssl_match_hostname import match_hostname, CertificateError
@@ -38,37 +45,55 @@ except ImportError:
         pass
 
 ###############################################################################
+# Exports
+###############################################################################
+
+__all__ = (
+    # Exceptions
+    "HTTPClientException", "RequestTimedOut", "MalformedResponse",
+    "RequestClosed",
+
+    # Core Classes
+    "HTTPClient", "Session", "HTTPResponse",
+)
+
+###############################################################################
 # Constants
 ###############################################################################
 
 CHUNK_SIZE = 2 ** 16
 MAX_MEMORY_SIZE = 2 ** 20
 
+
 ###############################################################################
 # Exceptions
 ###############################################################################
 
-class HttpException(Exception):
+class HTTPClientException(Exception):
     """
     The base exception for all the exceptions used by the HTTP client, aside
     from :class:`CertificateError`.
     """
     pass
 
-class RequestTimedOut(HttpException):
+
+class RequestTimedOut(HTTPClientException):
     """ The exception returned when a connection times out. """
     pass
 
-class MalformedResponse(HttpException):
+
+class MalformedResponse(HTTPClientException):
     """ The exception returned when the response is malformed in some way. """
     pass
 
-class RequestClosed(HttpException):
+
+class RequestClosed(HTTPClientException):
     """
     The exception returned when the connection closes before the entire
     request has been downloaded.
     """
     pass
+
 
 ###############################################################################
 # Content Encoding
@@ -80,9 +105,11 @@ def encoding_gzip():
     return zlib.decompressobj(16 + zlib.MAX_WBITS)
 CONTENT_ENCODING['gzip'] = encoding_gzip
 
+
 def encoding_deflate():
     return zlib.decompressobj(-zlib.MAX_WBITS)
 CONTENT_ENCODING['deflate'] = encoding_deflate
+
 
 ###############################################################################
 # Cookie Loading
@@ -100,6 +127,7 @@ def _get_cookies(request):
         _load_cookies(cookies, request.session.parent)
     return cookies
 
+
 def _load_cookies(cookies, session):
     if session.cookies:
         for key in session.cookies:
@@ -107,6 +135,7 @@ def _load_cookies(cookies, session):
                 cookies.load(session.cookies[key].output(None, ''))
     if session.parent:
         _load_cookies(cookies, session.parent)
+
 
 ###############################################################################
 # Getting Hostname and Port on Python <2.7
@@ -124,6 +153,7 @@ def _hostname(parts):
     else:
         return netloc.lower()
 
+
 def _port(parts):
     # This code is borrowed from Python 2.7's argparse.
     netloc = parts.netloc.split('@')[-1].split(']')[-1]
@@ -132,6 +162,7 @@ def _port(parts):
         return int(port, 10)
     else:
         return None
+
 
 ###############################################################################
 # _HTTPStream Class
@@ -203,6 +234,7 @@ class _HTTPStream(Stream):
     def on_overflow_error(self, err):
         self.client._do_error(err)
 
+
 ###############################################################################
 # HTTPClient Class
 ###############################################################################
@@ -254,8 +286,7 @@ class HTTPClient(object):
 
         # Figure out our engine.
         if 'engine' in kwargs:
-            self.engine = Engine.instance()
-            del kwargs['engine']
+            self.engine = kwargs.pop("engine")
         else:
             self.engine = Engine.instance()
 
@@ -738,7 +769,7 @@ class HTTPClient(object):
             response.remaining = response.total
 
             # If there's no length, immediately we've got a response.
-            if response.remaining == 0:
+            if not response.remaining:
                 self._on_response()
                 return
 
@@ -973,6 +1004,7 @@ class HTTPClient(object):
         if not response.remaining:
             self._stream.on_read = self._read_chunk_head
             self._stream.read_delimiter = CRLF
+
 
 ###############################################################################
 # Session Class
@@ -1327,6 +1359,7 @@ class HTTPRequest(object):
             self.path,
             id(self)
             )
+
 
 ###############################################################################
 # HTTPResponse Class

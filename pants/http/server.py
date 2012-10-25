@@ -20,12 +20,29 @@
 # Imports
 ###############################################################################
 
+import base64
 import Cookie
+import os
 import pprint
 
+from datetime import datetime
+from time import time
 from urlparse import parse_qsl
 
-from pants.http.utils import *
+from pants.stream import Stream
+from pants.server import Server
+
+from pants.http.utils import BadRequest, CRLF, date, DOUBLE_CRLF, \
+    generate_signature, HTTP, log, parse_multipart, read_headers, SERVER, \
+    WHITESPACE
+
+###############################################################################
+# Exports
+###############################################################################
+
+__all__ = (
+    "HTTPConnection", "HTTPRequest", "HTTPServer"
+)
 
 ###############################################################################
 # HTTPConnection Class
@@ -197,6 +214,7 @@ class HTTPConnection(Stream):
             self.write('HTTP/1.1 500 Internal Server Error%s' % CRLF)
             self.write('Content-Length: 0%s' % DOUBLE_CRLF)
             self.close()
+            return
 
         try:
             # Call the request handler.

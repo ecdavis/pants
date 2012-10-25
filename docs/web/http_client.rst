@@ -9,7 +9,7 @@ Exceptions
 
 .. autoclass:: CertificateError
 
-.. autoclass:: HttpException
+.. autoclass:: HTTPClientException
 .. autoclass:: MalformedResponse
 .. autoclass:: RequestClosed
 .. autoclass:: RequestTimedOut

@@ -26,7 +26,7 @@ import re
 import string
 import sys
 
-from pants.http import HTTP, SERVER, SERVER_URL
+from pants.http.utils import HTTP, SERVER, SERVER_URL
 
 
 try:

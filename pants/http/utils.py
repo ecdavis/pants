@@ -20,24 +20,13 @@
 # Imports
 ###############################################################################
 
-import base64
 import hashlib
 import hmac
 import logging
 import mimetypes
-import os
 import re
 
-from datetime import datetime
-
-if os.name == 'nt':
-    from time import clock as time
-else:
-    from time import time
-
-from pants import Stream, Server
 from pants import __version__ as pants_version
-from pants.engine import Engine
 
 ###############################################################################
 # Logging
