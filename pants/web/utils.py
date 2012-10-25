@@ -22,14 +22,18 @@
 
 import base64
 import logging
-import os
 import re
 import string
-import urllib
+import sys
 
-from datetime import datetime, timedelta
+from pants.http import HTTP, SERVER, SERVER_URL
 
-from pants.http import date, HTTP, SERVER, SERVER_URL
+
+try:
+    from pkg_resources import resource_string
+except ImportError:
+    def resource_string(*args):
+        raise IOError("pkg_resources not available.")
 
 ###############################################################################
 # Logging
@@ -75,7 +79,7 @@ HAIKUS = {
          u'Order shall return.'
 }
 
-if os.name == 'nt':
+if sys.platform.startswith('win'):
     HAIKUS[500] = (u'Yesterday it worked.<br>'
         u'Today, it is not working.<br>'
         u'Windows is like that.')
@@ -86,12 +90,6 @@ HTTP_MESSAGES = {
     404: u'The page at <code>{uri}</code> cannot be found.',
     500: u'The server encountered an internal error and cannot display '
          u'this page.'
-}
-
-# Regular expressions used for various types.
-REGEXES = {
-    int     : r'(-?\d+)',
-    float   : r'(-?\d+(?:\.\d+)?)',
 }
 
 # Formats for _parse_date to use.
@@ -105,51 +103,46 @@ DATE_FORMATS = (
 # Resources
 ###############################################################################
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
-
 # The Console JS
 try:
-    with open(os.path.join(DATA_DIR, "console.js"), "rb") as f:
-        CONSOLE_JS = f.read()
+    CONSOLE_JS = resource_string("pants.web", "data/console.js")
 except IOError:
-    log.debug("Unable to load pants.web console JS from %r." % DATA_DIR)
+    # This message is commented out because the console JS isn't actually
+    # *used* yet in the code, and can be safely ignored.
+    # log.debug("Unable to load pants.web console JS from %r." % DATA_DIR)
     CONSOLE_JS = ""
 
 # The Main CSS
 try:
-    with open(os.path.join(DATA_DIR, "main.css"), "rb") as f:
-        MAIN_CSS = f.read()
+    MAIN_CSS = resource_string("pants.web", "data/main.css")
 except IOError:
-    log.debug("Unable to load pants.web main CSS from %r." % DATA_DIR)
+    log.debug("Unable to load pants.web main CSS.")
     MAIN_CSS = ""
 
 # The Directory CSS
 try:
-    with open(os.path.join(DATA_DIR, "directory.css"), "rb") as f:
-        DIRECTORY_CSS = f.read()
+    DIRECTORY_CSS = resource_string("pants.web", "data/directory.css")
 except IOError:
-    log.debug("Unable to load pants.web directory CSS from %r." % DATA_DIR)
+    log.debug("Unable to load pants.web directory CSS.")
     DIRECTORY_CSS = ""
 
 # The Images
 IMAGES = {}
 for name in ('audio', 'document', 'folder', 'image', 'video', 'zip'):
     try:
-        with open(os.path.join(DATA_DIR, "%s.png" % name), "rb") as f:
-            IMAGES[name] = base64.b64encode(f.read())
+        IMAGES[name] = base64.b64encode(resource_string("pants.web",
+                                                        "data/%s.png" % name))
     except IOError:
-        log.debug("Unable to load pants.web icon %r from %r." %
-                    (name, DATA_DIR))
+        log.debug("Unable to load pants.web icon %r." % name)
 
 # Insert the images.
 DIRECTORY_CSS = string.Template(DIRECTORY_CSS).safe_substitute(**IMAGES)
 
 # The Main Template
 try:
-    with open(os.path.join(DATA_DIR, "main.html"), "rb") as f:
-        PAGE = f.read()
+    PAGE = resource_string("pants.web", "data/main.html")
 except IOError:
-    log.debug("Unable to load pants.web page template from %r." % DATA_DIR)
+    log.debug("Unable to load pants.web page template.")
     PAGE = u"""<!DOCTYPE html>
 <title>$title</title>
 $content
@@ -168,12 +161,12 @@ PAGE = string.Template(PAGE)
 
 # The Directory Template
 try:
-    with open(os.path.join(DATA_DIR, "directory.html"), "rb") as f:
-        DIRECTORY_PAGE = PAGE.safe_substitute(
-                                title="Index of $path",
-                                content=f.read(),
-                                extra_css=DIRECTORY_CSS
-                                )
+    DIRECTORY_PAGE = PAGE.safe_substitute(
+                            title="Index of $path",
+                            content=resource_string("pants.web",
+                                                    "data/directory.html"),
+                            extra_css=DIRECTORY_CSS
+                            )
 except IOError:
     DIRECTORY_PAGE = PAGE.safe_substitute(
                             title="Index of $path",
@@ -189,8 +182,7 @@ DIRECTORY_PAGE = string.Template(DIRECTORY_PAGE)
 
 # Directory Entry Template
 try:
-    with open(os.path.join(DATA_DIR, "entry.html"), "rb") as f:
-        DIRECTORY_ENTRY = f.read()
+    DIRECTORY_ENTRY = resource_string("pants.web", "data/entry.html")
 except IOError:
     DIRECTORY_ENTRY = '<tr><td><a class="icon $cls" href="$uri">$name</a>' + \
                       '</td><td>$size</td><td>$modified</td></tr>'
@@ -199,13 +191,12 @@ DIRECTORY_ENTRY = string.Template(DIRECTORY_ENTRY)
 
 # The Error Template
 try:
-    with open(os.path.join(DATA_DIR, "error.html"), "rb") as f:
-        ERROR_PAGE = PAGE.safe_substitute(
-                            title="$status $status_text",
-                            content=f.read(),
-                            extra_css=u'')
+    ERROR_PAGE = PAGE.safe_substitute(
+                        title="$status $status_text",
+                        content=resource_string("pants.web", "data/error.html"),
+                        extra_css=u'')
 except IOError:
-    log.warning("Unable to load pants.web error template from %r." % DATA_DIR)
+    log.warning("Unable to load pants.web error template.")
     ERROR_PAGE = PAGE.safe_substitute(
                         title="$status $status_text",
                         extra_css=u'',
@@ -213,6 +204,7 @@ except IOError:
 $content""")
 
 ERROR_PAGE = string.Template(ERROR_PAGE)
+
 
 ###############################################################################
 # Special Exceptions
@@ -241,9 +233,27 @@ class HTTPException(Exception):
     =========  ============
     """
     def __init__(self, status=404, message=None, headers=None):
-        self.status = status
-        self.message = message
-        self.headers = headers
+        super(HTTPException, self).__init__(status, message, headers)
+
+    def __str__(self):
+        return "%d %s [message=%r, headers=%r]" % \
+            (self.status, HTTP.get(self.status, ''), self.args[1], self.args[2])
+
+    def __repr__(self):
+        return "HTTPException(status=%r, message=%r, headers=%r)" % self.args
+
+    @property
+    def status(self):
+        return self.args[0]
+
+    @property
+    def message(self):
+        return self.args[1]
+
+    @property
+    def headers(self):
+        return self.args[2]
+
 
 class HTTPTransparentRedirect(Exception):
     """
@@ -251,7 +261,18 @@ class HTTPTransparentRedirect(Exception):
     to silently redirect a request to a new URI.
     """
     def __init__(self, uri):
-        self.uri = uri
+        super(HTTPTransparentRedirect, self).__init__(uri)
+
+    def __str__(self):
+        return "uri=%r" % self.args[0]
+
+    def __repr__(self):
+        return "%s(uri=%r)" % (self.__class__.__name__, self.args[0])
+
+    @property
+    def uri(self):
+        return self.args[0]
+
 
 ###############################################################################
 # Private Helper Functions

@@ -15,7 +15,7 @@ Hello World to any connecting clients::
     app = Application()
 
     @app.route("/")
-    def hello_world():
+    def hello_world(request):
         return "Hello, World!"
 
     HTTPServer(app).listen()
@@ -29,7 +29,7 @@ It's often more convenient to just use the
     app = Application()
 
     @app.route("/")
-    def hello_world():
+    def hello_world(request):
         return "Hello, World!"
 
     app.run()
@@ -46,7 +46,7 @@ response::
     app = Application()
 
     @app.route("/")
-    def go_away():
+    def go_away(request):
         return "Go Away, World!", 404
 
     app.run()
@@ -63,7 +63,7 @@ simply returning a dictionary as the response body::
     app = Application()
 
     @app.route("/")
-    def hello_json():
+    def hello_json(request):
         return {"hello": "world"}
 
     app.run()

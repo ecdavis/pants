@@ -51,7 +51,7 @@ from pants.web import Application, HTTPServer
 app = Application()
 
 @app.route('/')
-def hello():
+def hello(request):
     return "Hello, World!"
 
 HTTPServer(app).listen()

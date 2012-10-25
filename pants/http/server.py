@@ -62,7 +62,7 @@ class HTTPConnection(Stream):
         connection or attempting to read a new request from the connection.
 
         This function is called for you when you call
-        :func:`HTTPRequest.finish() <pants.contrib.http.server.HTTPRequest.finish>`.
+        :func:`HTTPRequest.finish() <pants.http.server.HTTPRequest.finish>`.
         """
         self.flush()
         self._finished = True
@@ -420,11 +420,11 @@ class HTTPRequest(object):
     def set_secure_cookie(self, name, value, expires=30*86400, **kwargs):
         """
         Set a timestamp on a cookie and sign it, ensuring that it can't be
-        altered by the client. To use this, the :class:`~pants.contrib.http.HTTPServer`
+        altered by the client. To use this, the :class:`~pants.http.HTTPServer`
         *must* have a ``cookie_secret`` set.
 
         Cookies set with this function may be read with
-        :func:`~pants.contrib.http.HTTPServer.get_secure_cookie`.
+        :func:`~pants.http.HTTPServer.get_secure_cookie`.
 
         =========  ===========  ============
         Argument   Default      Description
@@ -477,7 +477,7 @@ class HTTPRequest(object):
     def finish(self):
         """
         This function should be called when the response has been completed,
-        allowing the associated :class:`~pants.contrib.http.HTTPConnection` to
+        allowing the associated :class:`~pants.http.HTTPConnection` to
         either close the connection to the client or begin listening for a new
         request.
 

@@ -25,24 +25,38 @@ it should in theory perform faster.
 # Imports
 ###############################################################################
 
-import inspect
 import re
 import traceback
+import urllib
+
+from datetime import datetime
 
 from pants.http.server import HTTPServer
-from pants.web.utils import *
+from pants.http.utils import HTTP
+
+from pants.web.utils import decode, ERROR_PAGE, HAIKUS, HTTP_MESSAGES, \
+    HTTPException, HTTPTransparentRedirect, log
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
+
 ###############################################################################
 # Constants
 ###############################################################################
 
+__all__ = (
+    "Converter", "register_converter",  # Converter Functions
+    "Module", "Application", "HTTPServer"  # Core Classes
+
+    "abort", "all_or_404", "error", "redirect", "url_for"  # Helper Functions
+)
+
 RULE_PARSER = re.compile(r"<(?:([a-zA-Z_][a-zA-Z0-9_]+)(?:\(((?:\"[^\"]+\"|[^:>)]*)+)\))?:)?([a-zA-Z_][a-zA-Z0-9_]+)(?:=([^>]*))?>([^<]*)")
 OPTIONS_PARSER = re.compile(r"""(?:(\w+)=)?(None|True|False|\d+\.\d+|\d+\.|\d+|"[^"]*?"|'[^']*?'|\w+)""", re.IGNORECASE)
+
 
 ###############################################################################
 # JSONEncoder Class
@@ -56,6 +70,7 @@ class JSONEncoder(json.JSONEncoder):
         if isinstance(o, datetime):
             return o.isoformat()
         return json.JSONEncoder.default(self, o)
+
 
 ###############################################################################
 # Converter Class
@@ -89,8 +104,8 @@ class Converter(object):
 
                 if isinstance(val, basestring):
                     val = val
-                    if (val.startswith('"') and val.endswith('"')) or\
-                       (val.startswith("'") and val.endswith("'")):
+                    if (val[0] == '"' and val[-1] == '"') or \
+                            (val[0] == "'" and val[-1] == "'"):
                         val = val[1:-1]
 
                 if key:
@@ -99,6 +114,7 @@ class Converter(object):
                     args.append(val)
 
         # Now, configure it with those settings.
+        #noinspection PyArgumentList
         self.configure(*args, **kwargs)
 
     def __repr__(self):
@@ -286,6 +302,9 @@ class Module(object):
     ##### Module Connection ###################################################
 
     def add(self, rule, module):
+        """
+        Add a submodule to this Module at the given rule.
+        """
         if isinstance(module, Application):
             raise TypeError("Applications cannot be added as modules.")
 
@@ -309,15 +328,16 @@ class Module(object):
 
     ##### Route Management Decorators #########################################
 
-    def basic_route(self, rule, name=None, methods=('GET', 'HEAD'), func=None):
+    def basic_route(self, rule, name=None, methods=('GET', 'HEAD'),
+                    headers=None, content_type=None, func=None):
         """
         The basic_route decorator registers a route with the Module without
         holding your hand about it.
 
         It functions similarly to the :func:`Module.route` decorator, but it
         doesn't wrap the function with any argument processing code. Instead,
-        the function is given the request object, and through it access to the
-        regular expression match.
+        the function is given only the request object, and through it access to
+        the regular expression match.
 
         Example Usage::
 
@@ -329,7 +349,7 @@ class Module(object):
         That is essentially equivalent to::
 
             @app.route("/char/<char>")
-            def my_route(char):
+            def my_route(request, char):
                 return "The character is %s!" % char
 
         .. note::
@@ -337,134 +357,14 @@ class Module(object):
             Output is still handled the way it is with a normal route, so you
             can return strings and dictionaries as usual.
 
-        =========  ============
-        Argument   Description
-        =========  ============
-        rule       The route rule to match for a request to go to the decorated function. See :func:`Module.route` for more information.
-        name       *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
-        methods    *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
-        func       *Optional.* The function for this view. Specifying the function bypasses the usual decorator-like behavior of this function.
-        =========  ============
-        """
-        if not '/' in rule:
-            rule = '/' + rule
-
-        def decorator(func):
-            if not callable(func):
-                raise ValueError("Request handler must be callable.")
-
-            if name is None:
-                if hasattr(func, "__name__"):
-                    _name = func.__name__
-                elif hasattr(func, "__class__"):
-                    _name = func.__class__.__name__
-                else:
-                    raise ValueError("Cannot find name for rule. Please "
-                                     "specify name manually.")
-            else:
-                _name = name
-
-            # Get the rule table for this rule.
-            rule_table = self._routes.setdefault(rule, {})
-            if isinstance(rule_table, Module):
-                raise ValueError("The rule %r is claimed by a Module." % rule)
-
-            # Now, for each method, store the data.
-            for method in methods:
-                rule_table[method] = (func, _name, False, None)
-
-            # Recalculate routes and return.
-            self._recalculate_routes()
-            return func
-
-        if func:
-            return decorator(func)
-        return decorator
-
-    def route(self, rule, name=None, methods=('GET','HEAD'), auto404=False,
-              func=None):
-        """
-        The route decorator is used to register a new route with the Module
-        instance. Example::
-
-            @app.route("/")
-            def hello_world():
-                return "Hiya, Everyone!"
-
-        Variables may be specified in the route *rule* by wrapping them in
-        inequality signs (for example: ``<variable_name>``). By default, a
-        variable segment accepts any character except a slash (``/``) and
-        returns the entire captured string. However, you may specify a
-        converter function for processing the value before your view is called
-        by using the format ``<converter:name>``, where *converter* is the name
-        of the converter to use. As an example::
-
-            @app.route("/user/<int:id>")
-            def user(id):
-                return "Hello, user %d." % id
-
-        The ``id`` is automatically converted to an integer for you. This also
-        serves to limit the URLs that will match a view. The rule
-        ``"/user/<int:id>"`` will, for example, fail to match the URL
-        ``"/user/stendec"`` as it only matches integer numbers.
-
-        .. seealso::
-
-            :func:`pants.web.application.register_converter`
-
-        Request handlers are easy to write and can send their output to the
-        client simply by returning a value, such as a string::
-
-            @app.route("/")
-            def example():
-                return "Hello World!"
-
-        The previous code would result in a ``200 OK`` response, with a
-        ``Content-Type`` header of ``text/plain`` and a ``Content-Length``
-        header of ``12``.
-
-        If the returned string begins with ``<!DOCTYPE`` or ``<html`` it will
-        be assumed that the ``Content-Type`` is ``text/html`` if one is not
-        provided.
-
-        If a unicode string is returned rather than a byte string, it will be
-        automatically encoded, using the encoding specified in the
-        ``Content-Type`` header. If there is no ``Content-Type`` header, or
-        the ``Content-Type`` header has no encoding, the document will be
-        encoded in ``UTF-8`` and the ``Content-Type`` header will be updated to
-        reflect the encoding.
-
-        Dictionaries, lists, and boolean values will be automatically converted
-        to `JSON <http://en.wikipedia.org/wiki/JSON>`_ strings and the
-        ``Content-Type`` header will be set to ``application/json``.
-
-        If any other object is returned, the Application instance will attempt
-        to cast it into a byte string using ``str(object)``. To provide custom
-        behavior, an object may be given a ``to_html`` method, which will be
-        called rather than ``str(object)``. If ``to_html`` is present, the
-        ``Content-Type`` will be automatically assumed to be ``text/html``
-        regardless of the actual content.
-
-        A tuple of ``(body, status)`` or ``(body, status, headers)`` may be
-        provided, rather than simply a body, to set the HTTP status code and
-        additional headers to be sent with a response. If provided, ``status``
-        may be an integer or byte string, and ``headers`` may be either a
-        dictionary, or a list of ``[(heading, value), ...]``.
-
-        The following example returns a page with the status code
-        ``404 Not Found``::
-
-            @app.route("/nowhere/")
-            def nowhere():
-                return "This does not exist.", 404
-
         =============  ============
         Argument       Description
         =============  ============
-        rule           The route rule to be matched for the decorated function to be used for handling a request.
+        rule           The route rule to match for a request to go to the decorated function. See :func:`Module.route` for more information.
         name           *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
         methods        *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
-        auto404        *Optional.* If this is set to True, all response handler arguments will be checked for truthiness (True, non-empty strings, etc.) and, if any fail, a ``404 Not Found`` page will be rendered automatically.
+        headers        *Optional.* A dictionary of HTTP headers to always send with the response from this request handler. Any headers set within the request handler will override these headers.
+        content_type   *Optional.* The HTTP Content-Type header to send with the response from this request handler. A Content-Type header set within the request handler will override this.
         func           *Optional.* The function for this view. Specifying the function bypasses the usual decorator-like behavior of this function.
         =============  ============
         """
@@ -493,7 +393,135 @@ class Module(object):
 
             # Now, for each method, store the data.
             for method in methods:
-                rule_table[method] = (func, _name, True, auto404)
+                rule_table[method] = (func, _name, False, False, headers,
+                                      content_type)
+
+            # Recalculate routes and return.
+            self._recalculate_routes()
+            return func
+
+        if func:
+            return decorator(func)
+        return decorator
+
+    def route(self, rule, name=None, methods=('GET','HEAD'), auto404=False,
+              headers=None, content_type=None, func=None):
+        """
+        The route decorator is used to register a new route with the Module
+        instance. Example::
+
+            @app.route("/")
+            def hello_world(request):
+                return "Hiya, Everyone!"
+
+        Variables may be specified in the route *rule* by wrapping them in
+        inequality signs (for example: ``<variable_name>``). By default, a
+        variable segment accepts any character except a slash (``/``) and
+        returns the entire captured string. However, you may specify a
+        converter function for processing the value before your view is called
+        by using the format ``<converter:name>``, where *converter* is the name
+        of the converter to use. As an example::
+
+            @app.route("/user/<int:id>")
+            def user(request, id):
+                return "Hello, user %d." % id
+
+        The ``id`` is automatically converted to an integer for you. This also
+        serves to limit the URLs that will match a view. The rule
+        ``"/user/<int:id>"`` will, for example, fail to match the URL
+        ``"/user/stendec"`` as it only matches integer numbers.
+
+        .. seealso::
+
+            :func:`pants.web.application.register_converter`
+
+        Request handlers are easy to write and can send their output to the
+        client simply by returning a value, such as a string::
+
+            @app.route("/")
+            def example(request):
+                return "Hello World!"
+
+        The previous code would result in a ``200 OK`` response, with a
+        ``Content-Type`` header of ``text/plain`` and a ``Content-Length``
+        header of ``12``.
+
+        If the returned string begins with ``<!DOCTYPE`` or ``<html`` it will
+        be assumed that the ``Content-Type`` is ``text/html`` if one is not
+        provided.
+
+        If a unicode string is returned rather than a byte string, it will be
+        automatically encoded, using the encoding specified in the
+        ``Content-Type`` header. If there is no ``Content-Type`` header, or
+        the ``Content-Type`` header has no encoding, the document will be
+        encoded in ``UTF-8`` and the ``Content-Type`` header will be updated to
+        reflect the encoding.
+
+        Dictionaries, lists, and tuples will be automatically converted to
+        `JSON <http://en.wikipedia.org/wiki/JSON>`_ strings and the
+        ``Content-Type`` header will be set to ``application/json``.
+
+        If any other object is returned, the Application instance will attempt
+        to cast it into a byte string using ``str(object)``. To provide custom
+        behavior, an object may be given a ``to_html`` method, which will be
+        called rather than ``str(object)``. If ``to_html`` is present, the
+        ``Content-Type`` will be automatically assumed to be ``text/html``
+        regardless of the actual content.
+
+        A tuple of ``(body, status)`` or ``(body, status, headers)`` may be
+        provided, rather than simply a body, to set the HTTP status code and
+        additional headers to be sent with a response. If provided, ``status``
+        may be an integer or byte string, and ``headers`` may be either a
+        dictionary, or a list of ``[(heading, value), ...]``.
+
+        An instance of :class:`pants.web.application.Response` may be provided,
+        rather than a simple body or tuple.
+
+        The following example returns a page with the status code
+        ``404 Not Found``::
+
+            @app.route("/nowhere/")
+            def nowhere(request):
+                return "This does not exist.", 404
+
+        =============  ============
+        Argument       Description
+        =============  ============
+        rule           The route rule to be matched for the decorated function to be used for handling a request.
+        name           *Optional.* The name of the decorated function, for use with the :func:`url_for` helper function.
+        methods        *Optional.* A list of HTTP methods to allow for this request handler. By default, only ``GET`` and ``HEAD`` requests are allowed, and all others will result in a ``405 Method Not Allowed`` error.
+        auto404        *Optional.* If this is set to True, all response handler arguments will be checked for truthiness (True, non-empty strings, etc.) and, if any fail, a ``404 Not Found`` page will be rendered automatically.
+        headers        *Optional.* A dictionary of HTTP headers to always send with the response from this request handler. Any headers set within the request handler will override these headers.
+        content_type   *Optional.* The HTTP Content-Type header to send with the response from this request handler. A Content-Type header set within the request handler will override this.
+        func           *Optional.* The function for this view. Specifying the function bypasses the usual decorator-like behavior of this function.
+        =============  ============
+        """
+        if not '/' in rule:
+            rule = '/' + rule
+
+        def decorator(func):
+            if not callable(func):
+                raise ValueError("Request handler must be callable.")
+
+            if name is None:
+                if hasattr(func, "__name__"):
+                    _name = func.__name__
+                elif hasattr(func, "__class__"):
+                    _name = func.__class__.__name__
+                else:
+                    raise ValueError("Cannot find name for rule. Please "
+                                     "specify name manually.")
+            else:
+                _name = name
+
+            # Get the rule table for this rule.
+            rule_table = self._routes.setdefault(rule, {})
+            if isinstance(rule_table, Module):
+                raise ValueError("The rule %r is claimed by a Module." % rule)
+
+            # Now, for each method, store the data.
+            for method in methods:
+                rule_table[method] = (func, _name, True, auto404, headers, content_type)
 
             # Recalculate and return.
             self._recalculate_routes()
@@ -544,9 +572,9 @@ class Application(Module):
     def run(self, address=None, ssl_options=None, engine=None):
         """
         This function exists for convenience, and when called creates a
-        :class:`~pants.contrib.http.HTTPServer` instance with its request
+        :class:`~pants.http.HTTPServer` instance with its request
         handler set to this application instance, calls
-        :func:`~pants.contrib.http.HTTPServer.listen` on that HTTPServer, and
+        :func:`~pants.http.HTTPServer.listen` on that HTTPServer, and
         finally, starts the Pants engine to process requests.
 
         ============  ============
@@ -664,7 +692,8 @@ class Application(Module):
             method_table = rl[4]
 
             # Iterate through all the methods this rule provides.
-            for method, (func, name, advanced, auto404) in table.iteritems():
+            for method, (func, name, advanced, auto404, headers, content_type) \
+                    in table.iteritems():
                 method = method.upper()
                 if method == 'GET' or rl[3] is None:
                     if nameprefix:
@@ -674,13 +703,15 @@ class Application(Module):
                     for mthd in method_table:
                         if getattr(method_table[mthd], "wrapped_func", None) \
                                 is func:
-                            method_table[method] = method_table[mthd]
+                            method_table[method] = method_table[mthd], \
+                                                   headers, content_type
                             break
                     else:
                         method_table[method] = _get_runner(func, converters,
-                                                            auto404)
+                                                            auto404), headers, \
+                                                            content_type
                 else:
-                    method_table[method] = func
+                    method_table[method] = func, headers, content_type
 
             # Update the name table.
             self._name_table[rl[3]] = rl
@@ -713,7 +744,7 @@ class Application(Module):
 
         try:
             request.auto_finish = True
-            self.parse_output(self.route_request(request))
+            self.parse_output(*self.route_request(request))
         finally:
             request.route = None
             request.match = None
@@ -760,34 +791,36 @@ class Application(Module):
                 request.match = match
 
                 try:
-                    return method_table[method](request)
+                    func, headers, content_type = method_table[method]
+                    return func(request), headers, content_type
                 except HTTPException as err:
                     err_handler = getattr(self, "handle_%d" % err.status, None)
                     if err_handler:
-                        return err_handler(request, err)
+                        return err_handler(request, err), None, None
                     else:
                         return error(err.message, err.status, err.headers,
-                                     request=request)
+                                     request=request), None, None
                 except HTTPTransparentRedirect as err:
                     request.uri = err.uri
                     request._parse_uri()
-                    return self.route_request(request)
+                    return self.route_request(request), None, None
                 except Exception as err:
-                    return self.handle_500(request, err)
+                    return self.handle_500(request, err), None, None
 
         if available_methods:
             if request.method == 'OPTIONS':
-                return '', 200, {'Allow': ', '.join(available_methods)}
+                return ('', 200, {'Allow': ', '.join(available_methods)}), \
+                        None, None
             else:
                 return error(
                     "The method %s is not allowed for %r." % (method, path),
                     405, {'Allow': ', '.join(available_methods)}
-                )
+                ), None, None
 
         elif self.fix_end_slash:
             # If there are no matching routes, and the path doesn't end with a
             # slash, try adding the slash.
-            if not path.endswith("/"):
+            if not path[-1] == "/":
                 path += "/"
                 matcher += "/"
                 for dmn, dkey, rules in self._route_list:
@@ -803,13 +836,15 @@ class Application(Module):
                             continue
                         if regex.match(matcher):
                             if request.query:
-                                return redirect("%s?%s" % (path, request.query))
+                                return redirect("%s?%s" %
+                                                (path, request.query)), \
+                                       None, None
                             else:
-                                return redirect(path)
+                                return redirect(path), None, None
 
-        return self.handle_404(request, None)
+        return self.handle_404(request, None), None, None
 
-    def parse_output(self, result):
+    def parse_output(self, result, rule_headers, rule_content_type):
         """ Process the output of :meth:`Application.route_request`. """
         request = self.request
 
@@ -830,18 +865,30 @@ class Application(Module):
             body = result
             headers = {}
 
+        # Use the rule headers stuff.
+        if rule_headers:
+            rule_headers = rule_headers.copy()
+            rule_headers.update(headers)
+            headers = rule_headers
+
+        # Use the rule content-type.
+        if rule_content_type and not 'Content-Type' in headers:
+            headers['Content-Type'] = rule_content_type
+
         # Convert the body to something that we can send.
         try:
             body = body.to_html()
+            if not 'Content-Type' in headers:
+                headers['Content-Type'] = 'text/html'
         except AttributeError:
             pass
 
         # Set a Content-Type header if there isn't one already.
         if not 'Content-Type' in headers:
             if isinstance(body, basestring) and body[:5].lower() in \
-                    ('<html', '<!doc') or hasattr(body, 'to_html'):
+                    ('<html', '<!doc'):
                 headers['Content-Type'] = 'text/html'
-            elif isinstance(body, (list, dict)):
+            elif isinstance(body, (tuple, list, dict)):
                 headers['Content-Type'] = 'application/json'
             else:
                 headers['Content-Type'] = 'text/plain'
@@ -858,7 +905,7 @@ class Application(Module):
             body = body.encode(enc)
             headers['Content-Type'] = before + sep + enc
 
-        elif isinstance(body, (list,dict)):
+        elif isinstance(body, (tuple, list, dict)):
             try:
                 body = json.dumps(body, cls=self.json_encoder)
             except Exception as err:
@@ -870,7 +917,8 @@ class Application(Module):
             body = str(body)
 
         # More headers!
-        headers['Content-Length'] = len(body)
+        if not 'Content-Length' in headers:
+            headers['Content-Length'] = len(body)
 
         # Send the response.
         request.send_status(status)
@@ -889,57 +937,29 @@ class Application(Module):
 ###############################################################################
 
 def _get_runner(func, converters, auto404):
-    try:
-        args = inspect.getargspec(func).args
-        fg = func.func_globals
-    except TypeError:
-        args = inspect.getargspec(func.__call__).args
-        fg = func.__call__.func_globals
+    def view_runner(request):
+        request.__func_module = func.__module__
+        match = request.match
 
-    if len(args) == len(converters):
-        def view_runner(request):
-            request.__func_module = func.__module__
-            match = request.match
+        if not converters:
+            return func(request)
 
-            try:
-                fg['request'] = request
-                if not converters:
-                    return func()
+        try:
+            out = [converter(val) for converter, val in
+                   zip(converters, match.groups())]
+        except HTTPException as err:
+            raise err
+        except Exception as err:
+            raise HTTPException(400, str(err))
 
-                try:
-                    out = [converter(val) for converter, val in
-                           zip(converters, match.groups())]
-                except Exception as err:
-                    return error(str(err), 400)
+        if auto404:
+            all_or_404(*out)
 
-                if auto404:
-                    all_or_404(*out)
-
-                return func(*out)
-
-            finally:
-                del fg['request']
-    else:
-        def view_runner(request):
-            request.__func_module = func.__module__
-            match = request.match
-
-            if not converters:
-                return func(request)
-
-            try:
-                out = [converter(val) for converter, val in
-                       zip(converters, match.groups())]
-            except Exception as err:
-                return error(str(err), 400)
-
-            if auto404:
-                all_or_404(*out)
-
-            return func(request, *out)
+        return func(request, *out)
 
     view_runner.wrapped_func = func
     return view_runner
+
 
 def _rule_to_regex(rule):
     """
@@ -1111,7 +1131,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
     else:
         haiku = u""
 
-    if not message.startswith(u"<"):
+    if not message[0] == u"<":
         message = u"<p>%s</p>" % message
 
     if debug is None:
@@ -1157,16 +1177,18 @@ def redirect(uri, status=302):
         'The document you have requested is located at <a href="%s">%s</a>.' % (
             uri, uri), status, {'Location':url})
 
-def url_for(name, **values):
+def url_for(name, *values, **kw_values):
     """
     Generates a URL to the request handler with the given name. The name is
     relative to that of the current request handler.
+
+    Arguments may be passed either positionally or with keywords
     """
     app = Application.current_app
     request = app.request
 
     if not name in app._name_table:
-        if name.startswith("."):
+        if name[0] == ".":
             # Find the name in the first possible location, scanning up from
             # this module.
             module = request.route_name
@@ -1195,41 +1217,51 @@ def url_for(name, **values):
     names, namegen, converters = rule_table[-3:]
 
     data = []
-    values = values.copy()
+    kw_values = kw_values.copy()
 
     for i in xrange(len(names)):
         name = names[i]
-        if not name in values and converters[i].default is None:
-            raise ValueError("Missing required value %r." % name)
-        if not name in values:
-            data.append(converters[i](converters[i].default))
+        if i < len(values):
+            val = values[i]
+        elif name in kw_values:
+            val = kw_values[name]
+            del kw_values[name]
+        elif not converters[i].default is None:
+            val = converters[i](converters[i].default)
         else:
-            data.append(values[name])
-            del values[name]
+            raise ValueError("Missing required value %r." % name)
+        data.append(val)
 
     out = namegen % tuple(data)
 
     dmn, sep, pth = out.partition("/")
     out = dmn + sep + urllib.quote(pth)
 
-    if '_external' in values:
-        if values['_external'] and out[0] == '/':
+    if '_external' in kw_values:
+        if kw_values['_external'] and out[0] == '/':
             out = request.host + out
-        elif not values['_external'] and out[0] != '/':
+        elif not kw_values['_external'] and out[0] != '/':
             _, _, out = out.partition('/')
             out = '/' + out
-        del values['_external']
+        del kw_values['_external']
     else:
         if not ":" in out and out.lower().startswith(request.hostname.lower()):
             out = out[len(request.hostname):]
         elif out.lower().startswith(request.host.lower()):
             out = out[len(request.host):]
 
-    if not out.startswith('/'):
-        out = '%s://%s' % (request.protocol, out)
+    if '_protocol' in kw_values:
+        if not out[0] == "/":
+            out = "%s://%s" % (kw_values['_protocol'], out)
+        elif request.protocol.lower() != kw_values['_protocol'].lower():
+            out = "%s://%s%s" % (kw_values['_protocol'], request.host, out)
+        del kw_values['_protocol']
+    else:
+        if not out[0] == "/":
+            out = '%s://%s' % (request.protocol, out)
 
     # Build the query
-    if values:
-        out += '?%s' % urllib.urlencode(values)
+    if kw_values:
+        out += '?%s' % urllib.urlencode(kw_values)
 
     return out

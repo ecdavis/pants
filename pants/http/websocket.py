@@ -84,7 +84,7 @@ log = logging.getLogger(__name__)
 class WebSocket(object):
     """
     An implementation of `WebSockets <http://en.wikipedia.org/wiki/WebSockets>`_
-    using the HTTP server provided as :class:`pants.contrib.http.HTTPServer`
+    using the HTTP server provided as :class:`pants.http.HTTPServer`
     for the initial handshake, and adhering to the Pants design standards.
 
     Using this class, you can code using the same ``read_delimiter`` and
@@ -95,18 +95,19 @@ class WebSocket(object):
     =========  ============
     Argument   Description
     =========  ============
-    request    The :class:`~pants.contrib.http.HTTPRequest` to begin negotiating WebSockets upon.
+    request    The :class:`~pants.http.HTTPRequest` to begin negotiating WebSockets upon.
     =========  ============
     """
 
     protocols = None
     allow_old_handshake = False
 
-    def __init__(self, request):
+    def __init__(self, request, *arguments):
         # Store the request and play nicely with web.
         self._connection = request.connection
         self.engine = self._connection.engine
         request.auto_finish = False
+        self._arguments = arguments
 
         # Base State
         self.fileno = self._connection.fileno
@@ -188,7 +189,9 @@ class WebSocket(object):
                 request.send_status(426)
                 headers = {
                     'Content-Type': 'text/plain',
-                    'Content-Length': '20'
+                    'Content-Length': '20',
+                    'Sec-WebSocket-Version': ', '.join(str(x) for x in
+                        WEBSOCKET_VERSIONS)
                     }
                 request.send_headers(headers)
                 request.send("426 Upgrade Required")
@@ -206,7 +209,8 @@ class WebSocket(object):
         self._connection.read_delimiter = None
 
         self.connected = True
-        self._safely_call(self.on_connect)
+        self._safely_call(self.on_connect, *self._arguments)
+        del self._arguments
 
     def _finish_handshake(self, key3):
         self._connection.read_delimiter = None
@@ -244,7 +248,8 @@ class WebSocket(object):
         # Finish up.
         self.connected = True
         self._connection.on_read = self._con_old_read
-        self._safely_call(self.on_connect)
+        self._safely_call(self.on_connect, *self._arguments)
+        del self._arguments
 
     ##### Properties ##########################################################
 
@@ -523,11 +528,24 @@ class WebSocket(object):
         """
         pass
 
-    def on_connect(self):
+    def on_connect(self, *arguments):
         """
         Placeholder. Called after the WebSocket has connected to a client and
-        completed its handshake.
+        completed its handshake. Any additional arguments passed to
+        :meth:`__init__` will be passed to this method when it's called, making
+        it easy to use WebSocket with :class:`pants.web.Application`. For
+        example::
+
+            from pants.web import Application
+            from pants.http import WebSocket
+
+            app = Application()
+            @app.route("/ws/<int:id>")
+            class MyConnection(WebSocket):
+                def on_connect(self, id):
+                    pass
         """
+        pass
 
     def on_close(self):
         """
@@ -547,7 +565,7 @@ class WebSocket(object):
         =========  ============
         Argument   Description
         =========  ============
-        request    The :class:`~pants.contrib.http.HTTPRequest` being upgraded to a WebSocket.
+        request    The :class:`~pants.http.HTTPRequest` being upgraded to a WebSocket.
         headers    An empty dict. Any values set here will be sent as headers when accepting (or rejecting) the connection.
         =========  ============
         """

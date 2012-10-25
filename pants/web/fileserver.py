@@ -21,10 +21,23 @@
 ###############################################################################
 
 import mimetypes
+import os
+import re
 import time
+import urllib
+
+from datetime import datetime, timedelta
+
+from pants.http.utils import date, SERVER
 
 from pants.web.application import abort, Application, redirect
-from pants.web.utils import *
+from pants.web.utils import DATE_FORMATS, decode, DIRECTORY_ENTRY, \
+    DIRECTORY_PAGE, HTTPException
+
+
+__all__ = (
+    "FileServer",  # Core Classes
+)
 
 ###############################################################################
 # Cross Platform Hidden File Detection
@@ -36,6 +49,11 @@ def _is_hidden(file, path):
 if os.name == 'nt':
     try:
         import win32api, win32con
+    except ImportError:
+        win32api = None
+        win32con = None
+
+    if win32api:
         def _is_hidden(file, path):
             if file.startswith(u'.'):
                 return True
@@ -46,8 +64,7 @@ if os.name == 'nt':
             except Exception:
                 return True
             return False
-    except ImportError:
-        pass
+
 
 ###############################################################################
 # FileServer Class
@@ -166,8 +183,10 @@ class FileServer(object):
         # Validate the request.
         if not full_path.startswith(self.path):
             abort(403)
-        if not os.path.exists(full_path):
+        elif not os.path.exists(full_path):
             abort()
+        elif not os.access(full_path, os.R_OK):
+            abort(403)
 
         # Is this a directory?
         if os.path.isdir(full_path):
@@ -271,6 +290,7 @@ class FileServer(object):
                     if f:
                         f.close()
                     abort(416)
+
                 try:
                     if end and not start:
                         end = last
@@ -350,7 +370,12 @@ class FileServer(object):
         files = []
         dirs = []
 
-        for p in sorted(os.listdir(full_path), key=unicode.lower):
+        try:
+            contents = os.listdir(full_path)
+        except OSError:
+            abort(403)
+
+        for p in sorted(contents, key=unicode.lower):
             if _is_hidden(p, full_path):
                 continue
 
@@ -437,6 +462,7 @@ _abbreviations = (
     (1<<10L, u' KB'),
     (1, u' B')
 )
+
 def _human_readable_size(size, precision=2):
     """ Convert a size to a human readable filesize. """
     if not size:
@@ -448,8 +474,8 @@ def _human_readable_size(size, precision=2):
 
     ip, dp = str(size/float(f)).split('.')
     if int(dp[:precision]):
-        return  u'%s.%s%s' % (ip,dp[:precision],s)
-    return u'%s%s' % (ip,s)
+        return  u'%s.%s%s' % (ip, dp[:precision], s)
+    return u'%s%s' % (ip, s)
 
 def _parse_date(text):
     for fmt in DATE_FORMATS:
