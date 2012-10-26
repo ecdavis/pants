@@ -214,7 +214,7 @@ class WebSocket(object):
         del self._headers
         del self._request
 
-        if request.protocol == 'https':
+        if request.scheme == 'https':
             scheme = 'wss'
         else:
             scheme = 'ws'

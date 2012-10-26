@@ -443,7 +443,7 @@ class FileServer(object):
                     path=uri,
                     go_up=go_up,
                     host=request.host,
-                    schema=request.protocol,
+                    scheme=request.scheme,
                     content=''.join(files),
                     debug=rtime
                     )

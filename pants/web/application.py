@@ -1148,7 +1148,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
         status_text_nbsp=status_text.replace(u" ", u"&nbsp;"),
         haiku=haiku,
         content=message,
-        schema=request.protocol,
+        scheme=request.scheme,
         host=request.host,
         debug=debug
     )
@@ -1250,15 +1250,15 @@ def url_for(name, *values, **kw_values):
         elif out.lower().startswith(request.host.lower()):
             out = out[len(request.host):]
 
-    if '_protocol' in kw_values:
+    if '_scheme' in kw_values:
         if not out[0] == "/":
-            out = "%s://%s" % (kw_values['_protocol'], out)
-        elif request.protocol.lower() != kw_values['_protocol'].lower():
-            out = "%s://%s%s" % (kw_values['_protocol'], request.host, out)
-        del kw_values['_protocol']
+            out = "%s://%s" % (kw_values['_scheme'], out)
+        elif request.scheme.lower() != kw_values['_scheme'].lower():
+            out = "%s://%s%s" % (kw_values['_scheme'], request.host, out)
+        del kw_values['_scheme']
     else:
         if not out[0] == "/":
-            out = '%s://%s' % (request.protocol, out)
+            out = '%s://%s' % (request.scheme, out)
 
     # Build the query
     if kw_values:

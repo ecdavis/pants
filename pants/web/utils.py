@@ -148,7 +148,7 @@ except IOError:
 $content
 <hr>
 <address><a href="$server_url">$server</a> at
-<a href="$schema://$host">$schema://$host</a></address>"""
+<a href="$scheme://$host">$scheme://$host</a></address>"""
 
 # Fill up the template a bit.
 PAGE = string.Template(PAGE).safe_substitute(

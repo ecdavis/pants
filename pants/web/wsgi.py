@@ -21,12 +21,11 @@
 ###############################################################################
 
 import cStringIO
-import re
 import sys
 import traceback
 
 from pants.web.application import error
-from pants.web.utils import log
+from pants.web.utils import log, SERVER
 
 ###############################################################################
 # WSGIConnector Class
@@ -134,11 +133,12 @@ class WSGIConnector(object):
             'PATH_INFO'         : request.path,
             'QUERY_STRING'      : request.query,
             'SERVER_NAME'       : request.headers.get('Host','127.0.0.1'),
-            'SERVER_PROTOCOL'   : request.version,
+            'SERVER_PROTOCOL'   : request.protocol,
+            'SERVER_SOFTWARE'   : SERVER,
             'REMOTE_ADDR'       : request.remote_ip,
             'GATEWAY_INTERFACE' : 'WSGI/1.0',
             'wsgi.version'      : (1,0),
-            'wsgi.url_scheme'   : request.protocol,
+            'wsgi.url_scheme'   : request.scheme,
             'wsgi.input'        : cStringIO.StringIO(request.body),
             'wsgi.errors'       : sys.stderr,
             'wsgi.multithread'  : False,

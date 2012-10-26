@@ -119,7 +119,7 @@ class HTTPConnection(Stream):
             headers = self.current_request.headers
             connection = headers.get('Connection','').lower()
 
-            if self.current_request.version == 'HTTP/1.1':
+            if self.current_request.protocol == 'HTTP/1.1':
                 disconnect = connection == 'close'
 
             elif 'Content-Length' in headers or \
@@ -145,11 +145,11 @@ class HTTPConnection(Stream):
             initial_line, _, data = data.partition(CRLF)
 
             try:
-                method, uri, http_version = WHITESPACE.split(initial_line) #.split(' ')
+                method, uri, protocol = WHITESPACE.split(initial_line) #.split(' ')
             except ValueError:
                 raise BadRequest('Invalid HTTP request line.')
 
-            if not http_version.startswith('HTTP/'):
+            if not protocol.startswith('HTTP/'):
                 raise BadRequest('Invalid HTTP protocol version.',
                                  code='505 HTTP Version Not Supported')
 
@@ -161,13 +161,13 @@ class HTTPConnection(Stream):
 
             # If we're secure, we're HTTPs.
             if self.ssl_enabled:
-                protocol = 'https'
+                scheme = 'https'
             else:
-                protocol = 'http'
+                scheme = 'http'
 
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
-                method, uri, http_version, headers, protocol)
+                method, uri, protocol, headers, scheme)
 
             # If we have a Content-Length header, read the request body.
             length = headers.get('Content-Length')
@@ -185,7 +185,7 @@ class HTTPConnection(Stream):
 
                 if headers.get('Expect','').lower() == '100-continue':
                     self.write("%s 100 (Continue)%s" % (
-                        http_version, DOUBLE_CRLF))
+                        protocol, DOUBLE_CRLF))
 
                 # Await a request body.
                 self.on_read = self._read_request_body
@@ -296,19 +296,19 @@ class HTTPRequest(object):
     connection     The instance of :class:`HTTPConnection` that received this request.
     method         The HTTP method used to send this request. This will almost always be one of: ``GET``, ``HEAD``, or ``POST``.
     uri            The path part of the URI requested.
-    http_version   The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
+    protocol       The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
     headers        *Optional.* A dictionary of HTTP headers received with this request.
-    protocol       *Optional.* Either the string ``http`` or ``https``, depending on the security of the connection this request was received upon.
+    scheme         *Optional.* Either the string ``http`` or ``https``, depending on the security of the connection this request was received upon.
     =============  ============
     """
 
-    def __init__(self, connection, method, uri, http_version, headers=None,
-                 protocol='http'):
+    def __init__(self, connection, method, uri, protocol, headers=None,
+                 scheme='http'):
         self.body       = ''
         self.connection = connection
         self.method     = method
         self.uri        = uri
-        self.version    = http_version
+        self.protocol   = protocol
         self._started   = False
 
         if headers is None:
@@ -329,12 +329,12 @@ class HTTPRequest(object):
                     remote_ip = remote_ip.partition(',')[0].strip()
 
             self.remote_ip = remote_ip
-            self.protocol = self.headers.get('X-Forwarded-Proto', protocol)
+            self.scheme = self.headers.get('X-Forwarded-Proto', scheme)
         else:
             self.remote_ip = connection.remote_address
             if not isinstance(self.remote_ip, basestring):
                 self.remote_ip = self.remote_ip[0]
-            self.protocol   = protocol
+            self.scheme   = scheme
 
         # Calculated Variables
         self.host       = self.headers.get('Host', '127.0.0.1')
@@ -351,13 +351,13 @@ class HTTPRequest(object):
         self._parse_uri()
 
     def __repr__(self):
-        attr = ('version','method','protocol','host','uri','path','time')
+        attr = ('version','method','scheme','host','uri','path','time')
         attr = u', '.join(u'%s=%r' % (k,getattr(self,k)) for k in attr)
         return u'%s(%s, headers=%r)' % (
             self.__class__.__name__, attr, self.headers)
 
     def __html__(self):
-        attr = ('version','method','remote_ip','protocol','host','uri','path',
+        attr = ('version','method','remote_ip','scheme','host','uri','path',
                 'time')
         attr = u'\n    '.join(u'%-8s = %r' % (k,getattr(self,k)) for k in attr)
 
@@ -421,7 +421,7 @@ class HTTPRequest(object):
         """
         The full URL used to generate the request.
         """
-        return '%s://%s%s' % (self.protocol, self.host, self.uri)
+        return '%s://%s%s' % (self.scheme, self.host, self.uri)
 
     @property
     def time(self):
@@ -589,7 +589,7 @@ class HTTPRequest(object):
                 else:
                     append('%s: %s' % (key, val))
 
-        if not 'date' in headers and self.version == 'HTTP/1.1':
+        if not 'date' in headers and self.protocol == 'HTTP/1.1':
             append('Date: %s' % date(datetime.utcnow()))
 
         if not 'server' in headers:
@@ -668,10 +668,10 @@ class HTTPRequest(object):
         self._started = True
         try:
             self.connection.write('%s %d %s%s' % (
-                self.version, code, HTTP[code], CRLF))
+                self.protocol, code, HTTP[code], CRLF))
         except KeyError:
             self.connection.write('%s %s%s' % (
-                self.version, code, CRLF))
+                self.protocol, code, CRLF))
 
     write = send
 
