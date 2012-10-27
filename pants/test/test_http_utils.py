@@ -29,9 +29,9 @@ from pants.http.utils import *
 # Test HTTP Utilities
 ###############################################################################
 
-class CaselessDictTest(unittest.TestCase):
-    def test_caseless(self):
-        data = CaseInsensitiveDict()
+class HTTPHeadersTest(unittest.TestCase):
+    def test_headers(self):
+        data = HTTPHeaders()
         data['Content-Type'] = 'text/plain'
         
         self.assertEqual(data['content-type'], data['Content-Type'])
@@ -40,7 +40,7 @@ class CaselessDictTest(unittest.TestCase):
         del data['CoNtEnT-tYpE']
 
         self.assertFalse('Content-Type' in data)
-        self.assertTrue(data['Content-Type'] is None)
+        self.assertTrue(data.get('Content-Type') is None)
 
 class FunctionTests(unittest.TestCase):
     def test_get_filename(self):

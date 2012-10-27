@@ -26,13 +26,17 @@ import logging
 import mimetypes
 import re
 
+from itertools import imap
+
 from pants import __version__ as pants_version
+
 
 ###############################################################################
 # Logging
 ###############################################################################
 
 log = logging.getLogger("pants.http")
+
 
 ###############################################################################
 # Constants
@@ -51,6 +55,53 @@ COMMA_HEADERS = ('Accept', 'Accept-Charset', 'Accept-Encoding',
     'If-None-Match', 'Pragma', 'Proxy-Authenticate', 'TE', 'Trailer',
     'Transfer-Encoding', 'Upgrade', 'Vary', 'Via', 'Warning',
     'WWW-Authenticate')
+
+STRANGE_HEADERS = {
+    'a-im': 'A-IM',
+    'c-pep': 'C-PEP',
+    'c-pep-info': 'C-PEP-Info',
+    'content-id': 'Content-ID',
+    'content-md5': 'Content-MD5',
+    'dasl': 'DASL',
+    'dav': 'DAV',
+    'dl-expansion-history': 'DL-Expansion-History',
+    'differential-id': 'Differential-ID',
+    'dnt': 'DNT',
+    'ediint-features': 'EDIINT-Features',
+    'etag': 'ETag',
+    'getprofile': 'GetProfile',
+    'im': 'IM',
+    'message-id': 'Message-ID',
+    'mime-version': 'MIME-Version',
+    'p3p': 'P3P',
+    'pep': 'PEP',
+    'pics-label': 'PICS-Label',
+    'profileobject': 'ProfileObject',
+    'sec-websocket-accept': 'Sec-WebSocket-Accept',
+    'sec-websocket-extensions': 'Sec-WebSocket-Extensions',
+    'sec-websocket-key': 'Sec-WebSocket-Key',
+    'sec-websocket-protocol': 'Sec-WebSocket-Protocol',
+    'sec-websocket-version': 'Sec-WebSocket-Version',
+    'setprofile': 'SetProfile',
+    'slug': 'SLUG',
+    'soapaction': 'SoapAction',
+    'status-uri': 'Status-URI',
+    'subok': 'SubOK',
+    'tcn': 'TCN',
+    'te': 'TE',
+    'ua-color': 'UA-Color',
+    'ua-media': 'UA-Media',
+    'ua-pixels': 'UA-Pixels',
+    'ua-resolution': 'UA-Resolution',
+    'ua-windowpixels': 'UA-Windowpixels',
+    'uri': 'URI',
+    'vbr-info': 'VBR-Info',
+    'www-authenticate': 'WWW-Authenticate',
+    'x400-mts-identifier': 'X400-MTS-Identifier',
+    'x-att-deviceid': 'X-ATT-DeviceId',
+    'x-ua-compatible': 'X-UA-Compatible',
+    'x-xss-protection': 'X-XSS-Protection',
+}
 
 CRLF = '\r\n'
 DOUBLE_CRLF = CRLF + CRLF
@@ -105,43 +156,137 @@ class BadRequest(Exception):
         Exception.__init__(self, message)
         self.code = code
 
+
 ###############################################################################
-# Case-Insensitive Dict
+# Header Case Normalization
 ###############################################################################
 
-class CaseInsensitiveDict(dict):
+class HeadingNormalizer(dict):
+    def __missing__(self, key):
+        ret = self[key] = "-".join(x.capitalize() for x in key.split("-"))
+        return ret
+
+_normalize_header = HeadingNormalizer(STRANGE_HEADERS).__getitem__
+
+for hdr in ('accept', 'accept-charset', 'accept-encoding', 'accept-language',
+            'accept-datetime', 'authorization', 'cache-control', 'connection',
+            'cookie', 'content-length', 'content-type', 'date', 'expect',
+            'from', 'host', 'if-match', 'if-modified-since', 'if-none-match',
+            'if-range', 'if-unmodified-since', 'max-forwards', 'pragma',
+            'proxy-authorization', 'range', 'referer', 'upgrade', 'user-agent',
+            'via', 'warning', 'x-requested-with', 'x-forwarded-for',
+            'x-forwarded-proto', 'front-end-https', 'x-wap-profile',
+            'proxy-connection', 'access-control-allow-origin', 'accept-ranges',
+            'age', 'allow', 'content-encoding', 'content-language',
+            'content-location', 'content-disposition', 'content-range',
+            'expires', 'last-modified', 'link', 'location',
+            'proxy-authenticate', 'refresh', 'retry-after', 'server',
+            'set-cookie', 'strict-transport-security', 'trailer',
+            'transfer-encoding', 'vary', 'x-frame-options',
+            'x-content-type-options', 'x-powered-by'):
+    _normalize_header(hdr)
+
+
+###############################################################################
+# HTTPHeaders Class
+###############################################################################
+
+class HTTPHeaders(object):
     """
-    A case-insensitive dictionary for storing HTTP headers.
+    HTTPHeaders is a dict-like object that holds parsed HTTP headers, provides
+    access to them in a case-insensitive way, and that normalizes the case of
+    the headers upon iteration.
     """
 
-    _caseless_keys = None
+    __slots__ = ('_data',)
 
-    @property
-    def caseless_keys(self):
-        if not self._caseless_keys:
-            self._caseless_keys = dict((x.lower() if isinstance(x, basestring) else x, x) for x in self.keys())
-        return self._caseless_keys
+    def __init__(self, data=None, _store=None):
+        self._data = _store or {}
+        if data:
+            self.update(data)
+
+    def __repr__(self):
+        return "%s(%r)" % (self.__class__.__name__, dict(self.iteritems()))
+
+    def __len__(self):
+        return len(self._data)
+
+    def __eq__(self, other, _normalize_header=_normalize_header):
+        if isinstance(other, HTTPHeaders):
+            return self._data == other._data
+
+        for k, v in self._data.iteritems():
+            k = _normalize_header(k)
+            if not (k in other) or not (other[k] == v):
+                return 0
+        return len(self._data) == len(other)
+
+    def iteritems(self, _normalize_header=_normalize_header):
+        for k, v in self._data.iteritems():
+            yield _normalize_header(k), v
+
+    def iterkeys(self):
+        return imap(_normalize_header, self._data)
+
+    __iter__ = iterkeys
+
+    def itervalues(self):
+        return self._data.itervalues()
+
+    def items(self, _normalize_header=_normalize_header):
+        return [(_normalize_header(k), v) for k,v in self._data.iteritems()]
+
+    def keys(self, _normalize_header=_normalize_header):
+        return [_normalize_header(k) for k in self._data]
+
+    def values(self):
+        return self._data.values()
+
+    def update(self, iterable=None, **kwargs):
+        if iterable:
+            if hasattr(iterable, 'keys'):
+                for k in iterable:
+                    self[k] = iterable[k]
+            else:
+                for (k,v) in iterable:
+                    self[k] = v
+
+        for k,v in kwargs.iteritems():
+            self[k] = v
 
     def __setitem__(self, key, value):
-        key = self.caseless_keys.get(key.lower(), key)
-        dict.__setitem__(self, key, value)
-        self._caseless_keys[key.lower()] = key
+        self._data[key.lower()] = value
 
     def __delitem__(self, key):
-        key = self.caseless_keys.get(key.lower(), key)
-        dict.__delitem__(self, key)
-        self._caseless_keys = None
+        del self._data[key.lower()]
 
     def __contains__(self, key):
-        return key.lower() in self.caseless_keys
+        return key.lower() in self._data
+
+    has_key = __contains__
+
+    def __getitem__(self, key):
+        return self._data[key.lower()]
 
     def get(self, key, default=None):
-        key = key.lower()
-        if key in self.caseless_keys:
-            return dict.__getitem__(self, self._caseless_keys[key])
-        return default
+        return self._data.get(key.lower(), default)
 
-    __getitem__ = get
+    def setdefault(self, key, default=None):
+        return self._data.setdefault(key.lower(), default)
+
+    def clear(self):
+        self._data.clear()
+
+    def copy(self):
+        return self.__class__(self._data.copy())
+
+    def pop(self, key, *default):
+        return self._data.pop(key, *default)
+
+    def popitem(self):
+        key, val = self._data.popitem()
+        return _normalize_header(key), val
+
 
 ###############################################################################
 # Support Functions
@@ -293,7 +438,7 @@ def read_headers(data, target=None):
                 except ValueError:
                     raise BadRequest('Illegal header line: %r' % line)
 
-                key = key.strip()
+                key = key.strip().lower()
                 val = val.strip()
 
                 try:
@@ -320,7 +465,7 @@ def read_headers(data, target=None):
             target[key] = val
 
     if cast:
-        target = CaseInsensitiveDict(target)
+        target = HTTPHeaders(_store=target)
 
     return target
 

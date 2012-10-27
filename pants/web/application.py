@@ -32,7 +32,7 @@ import urllib
 from datetime import datetime
 
 from pants.http.server import HTTPServer
-from pants.http.utils import HTTP
+from pants.http.utils import HTTP, HTTPHeaders
 
 from pants.web.utils import decode, ERROR_PAGE, HAIKUS, HTTP_MESSAGES, \
     HTTPException, HTTPTransparentRedirect, log
@@ -49,7 +49,7 @@ except ImportError:
 
 __all__ = (
     "Converter", "register_converter",  # Converter Functions
-    "Module", "Application", "HTTPServer",  # Core Classes
+    "Response", "Module", "Application", "HTTPServer",  # Core Classes
 
     "abort", "all_or_404", "error", "redirect", "url_for"  # Helper Functions
 )
@@ -280,13 +280,38 @@ class String(Converter):
 
 
 ###############################################################################
+# Response Class
+###############################################################################
+
+class Response(object):
+    """
+    The Response object is entirely optional, and provides a convenient way to
+    glue the body, status code, and HTTP headers into one object to return from
+    your routes.
+
+    =========  ==================  ============
+    Argument   Default             Description
+    =========  ==================  ============
+    body       ``None``            The response body to send back to the client.
+    status     ``200``             The HTTP status code of the response.
+    headers    ``HTTPHeaders()``   HTTP headers to send with the response.
+    =========  ==================  ============
+    """
+
+    def __init__(self, body=None, status=None, headers=None):
+        self.body = body or ""
+        self.status = status or 200
+        self.headers = headers or HTTPHeaders()
+
+###############################################################################
 # Module Class
 ###############################################################################
 
 class Module(object):
     """
-    TODO: Document this.
+    Empty docstring.
     """
+    # TODO: Document Module.
 
     def __init__(self, name=None):
         # Internal Stuff
@@ -855,7 +880,11 @@ class Application(Module):
             return
 
         status = 200
-        if isinstance(result, tuple):
+        if isinstance(result, Response):
+            body = result.body
+            status = result.status
+            headers = result.headers
+        elif isinstance(result, tuple):
             if len(result) == 3:
                 body, status, headers = result
             else:

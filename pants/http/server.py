@@ -33,8 +33,8 @@ from pants.stream import Stream
 from pants.server import Server
 
 from pants.http.utils import BadRequest, CRLF, date, DOUBLE_CRLF, \
-    generate_signature, HTTP, log, parse_multipart, read_headers, SERVER, \
-    WHITESPACE
+    generate_signature, HTTP, HTTPHeaders, log, parse_multipart, read_headers, \
+    SERVER, WHITESPACE
 
 ###############################################################################
 # Exports
@@ -351,22 +351,25 @@ class HTTPRequest(object):
         self._parse_uri()
 
     def __repr__(self):
-        attr = ('version','method','scheme','host','uri','path','time')
+        attr = ('protocol','method','scheme','host','uri','path','time')
         attr = u', '.join(u'%s=%r' % (k,getattr(self,k)) for k in attr)
         return u'%s(%s, headers=%r)' % (
             self.__class__.__name__, attr, self.headers)
 
     def __html__(self):
-        attr = ('version','method','remote_ip','scheme','host','uri','path',
+        attr = ('protocol','method','remote_ip','scheme','host','uri','path',
                 'time')
         attr = u'\n    '.join(u'%-8s = %r' % (k,getattr(self,k)) for k in attr)
 
         out = u'<pre>%s(\n    %s\n\n' % (self.__class__.__name__, attr)
 
         for i in ('headers','get','post'):
-            if getattr(self,i):
+            thing = getattr(self, i)
+            if thing:
+                if isinstance(thing, HTTPHeaders):
+                    thing = dict(thing.iteritems())
                 out += u'    %-8s = {\n %s\n        }\n\n' % (
-                    i, pprint.pformat(getattr(self, i), 8)[1:-1])
+                    i, pprint.pformat(thing, 8)[1:-1])
             else:
                 out += u'    %-8s = {}\n\n' % i
 

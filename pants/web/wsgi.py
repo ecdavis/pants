@@ -159,7 +159,7 @@ class WSGIConnector(object):
         if 'Content-Length' in request.headers:
             environ['CONTENT_LENGTH'] = request.headers['Content-Length']
 
-        for k,v in request.headers.iteritems():
+        for k,v in request.headers._data.iteritems():
             environ['HTTP_%s' % k.replace('-','_').upper()] = v
 
         # Run the WSGI Application.
