@@ -6,6 +6,5 @@ Core
     
     pants
     engine
-    basic
     stream
     datagram

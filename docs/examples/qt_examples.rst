@@ -12,7 +12,7 @@ Using ``pants.contrib.qt``
 
     webapp = Application()
     @webapp.route("/")
-    def hello():
+    def hello(request):
         return "Hello, World!"
 
     HTTPServer(webapp).listen(80)

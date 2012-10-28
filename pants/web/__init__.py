@@ -20,6 +20,9 @@
 # Imports
 ###############################################################################
 
+from pants.web.utils import HTTPException, HTTPTransparentRedirect
+
 from pants.web.application import *
 from pants.web.fileserver import *
 from pants.web.wsgi import WSGIConnector
+
