@@ -53,7 +53,7 @@ class TestReadDelimiterString(PantsTestCase):
 
 class StructOriented(pants.Stream):
     def on_connect(self):
-        self.read_delimiter = pants.struct_delimiter("2H")
+        self.read_delimiter = struct.Struct("!2H")
 
     def on_read(self, val1, val2):
         self.write(str(val1 * val2))
@@ -67,11 +67,11 @@ class TestReadDelimiterStruct(PantsTestCase):
         PantsTestCase.tearDown(self)
         self.server.close()
 
-    def test_read_delimiter_struct_delimiter(self):
+    def test_read_delimiter_struct(self):
         sock = socket.socket()
         sock.settimeout(1.0)
         sock.connect(('127.0.0.1', 4040))
-        sock.send(struct.pack("2H", 42, 81))
+        sock.send(struct.pack("!2H", 42, 81))
         response = sock.recv(1024)
         self.assertEquals(int(response), 42*81)
         sock.close()

@@ -28,7 +28,6 @@ import socket
 import struct
 
 from pants._channel import _Channel
-from pants.util.struct_delimiter import struct_delimiter
 
 
 ###############################################################################
@@ -36,7 +35,7 @@ from pants.util.struct_delimiter import struct_delimiter
 ###############################################################################
 
 RegexType = type(re.compile(""))
-
+Struct = struct.Struct
 
 ###############################################################################
 # Logging
@@ -290,13 +289,11 @@ class Datagram(_Channel):
                     buf = buf[mark + len(delimiter):]
                     self._safely_call(self.on_read, data)
 
-                elif isinstance(delimiter, struct_delimiter):
-                    # Use item access because it's faster. This'll need to be
-                    # changed if struct_delimiter ever changes.
-                    if len(buf) < delimiter[1]:
+                elif isinstance(delimiter, Struct):
+                    if len(buf) < delimiter.size:
                         break
-                    data = buf[:delimiter[1]]
-                    buf = buf[delimiter[1]:]
+                    data = buf[:delimiter.size]
+                    buf = buf[delimiter.size:]
 
                     try:
                         data = delimiter.unpack(data)

@@ -27,7 +27,6 @@ import re
 import struct
 
 from pants.stream import StreamBufferOverflow
-from pants.util.struct_delimiter import struct_delimiter
 
 from pants.http.utils import log
 
@@ -70,6 +69,11 @@ EntireMessage = object()
 
 # Regex Stuff
 RegexType = type(re.compile(""))
+Struct = struct.Struct
+
+# Structs
+STRUCT_H = Struct("!H")
+STRUCT_Q = Struct("!Q")
 
 
 ###############################################################################
@@ -323,8 +327,7 @@ class WebSocket(object):
         :meth:`~pants.http.WebSocket.on_read` callback. The value of the
         read delimiter determines when the data is passed to the
         callback. Valid values are ``None``, a string, an integer/long,
-        a compiled regular expression, an instance of
-        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`,
+        a compiled regular expression, an instance of :class:`struct.Struct`,
         or the ``pants.http.EntireMessage`` object.
 
         When the read delimiter is the ``EntireMessage`` object, entire
@@ -345,29 +348,21 @@ class WebSocket(object):
         as the number of bytes to read before passing the data to
         :meth:`~pants.http.WebSocket.on_read`.
 
-        When the read delimiter is a
-        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
-        instance, the length of the delimiter's format is calculated and
-        fully buffered before being parsed and sent to
-        :meth:`~pants.http.WebSocket.on_read`. Unlike other types of read
-        delimiters, this can result in more than one argument being
+        When the read delimiter is an instance of :class:`struct.Struct`, the
+        Struct's ``size`` is fully buffered and the data is unpacked before
+        it's sent to :meth:`~pants.http.WebSocket.on_read`. Unlike other types
+        of read delimiters, this can result in more than one argument being
         passed to ``on_read``. Example::
 
-            from pants import struct_delimiter
+            import struct
             from pants.http import WebSocket
 
             class Example(WebSocket):
                 def on_connect(self):
-                    self.read_delimiter = struct_delimiter("!ILH")
+                    self.read_delimiter = struct.Struct("!ILH")
 
                 def on_read(self, packet_type, length, id):
                     pass
-
-        .. seealso::
-
-            ``struct_delimiter`` uses :mod:`struct`, and accepts the
-            formatting strings used by :func:`struct.pack` and
-            :func:`struct.unpack`. See :ref:`python:struct-format-strings`.
 
         When the read delimiter is a compiled regular expression, there
         are two possible behaviors, selected by the value of
@@ -402,9 +397,9 @@ class WebSocket(object):
             self._read_delimiter = value
             self._recv_buffer_size_limit = max(self._buffer_size, value)
 
-        elif isinstance(value, struct_delimiter):
+        elif isinstance(value, Struct):
             self._read_delimiter = value
-            self._recv_buffer_size_limit = max(self._buffer_size, value.length)
+            self._recv_buffer_size_limit = max(self._buffer_size, value.size)
 
         elif value is EntireMessage:
             self._read_delimiter = value
@@ -455,9 +450,9 @@ class WebSocket(object):
         self._buffer_size = value
         if isinstance(self._read_delimiter, (int, long)):
             self._recv_buffer_size_limit = max(value, self._read_delimiter)
-        elif isinstance(self._read_delimiter, struct_delimiter):
+        elif isinstance(self._read_delimiter, Struct):
             self._recv_buffer_size_limit = max(value,
-                self._read_delimiter.length)
+                self._read_delimiter.size)
         else:
             self._recv_buffer_size_limit = value
 
@@ -486,7 +481,7 @@ class WebSocket(object):
                 # Look up the reason.
                 if not message:
                     message = CLOSE_REASONS.get(reason, 'Unknown Close')
-                reason = struct.pack("!H", reason) + message
+                reason = STRUCT_H.pack(reason) + message
 
                 self.write(reason, frame=FRAME_CLOSE)
                 self._connection.close(True)
@@ -627,10 +622,10 @@ class WebSocket(object):
             if len(data) > 125:
                 if len(data) > 65535:
                     self._connection.write(chr(127))
-                    self._connection.write(struct.pack("!Q", len(data)))
+                    self._connection.write(STRUCT_Q.pack(len(data)))
                 else:
                     self._connection.write(chr(126))
-                    self._connection.write(struct.pack("!H", len(data)))
+                    self._connection.write(STRUCT_H.pack(len(data)))
             else:
                 self._connection.write(chr(len(data)))
             self._connection.write(data)
@@ -681,9 +676,9 @@ class WebSocket(object):
         self._connection.write(chr(0x82))
         if size > 125:
             if size > 65535:
-                self._connection.write(chr(127) + struct.pack("!Q", size))
+                self._connection.write(chr(127) + STRUCT_Q.pack(size))
             else:
-                self._connection.write(chr(126) + struct.pack("!H", size))
+                self._connection.write(chr(126) + STRUCT_H.pack(size))
         else:
             self._connection.write(chr(size))
 
@@ -693,10 +688,9 @@ class WebSocket(object):
         """
         Write packed binary data to the WebSocket.
 
-        The WebSocket must be connected to a remote host. Additionally, the
-        current :attr:`read_delimiter` must be an instance of
-        :class:`pants.struct_delimiter <pants.util.struct_delimiter.struct_delimiter>`
-        if a format argument isn't provided.
+        If the current :attr:`read_delimiter` is an instance of
+        :class:`struct.Struct` the format will be read from that Struct,
+        otherwise you will need to provide a ``format``.
 
         By default, this will send the data as a binary message.
 
@@ -714,13 +708,13 @@ class WebSocket(object):
         ==========  ====================================================
         """
         format = kwargs.get("format", None)
-        if not format:
-            if not isinstance(self._read_delimiter, struct_delimiter):
-                raise ValueError("No format is available for writing data with "
-                                 "struct.")
-            format = self._read_delimiter[0]
-
-        self.write(struct.pack(format, *data), kwargs.get("binary", True))
+        if format:
+            self.write(struct.pack(format, *data), kwargs.get("binary", True))
+        elif not isinstance(self._read_delimiter, Struct):
+            raise ValueError("No format is available for writing packed data.")
+        else:
+            self.write(self._read_delimiter.pack(*data),
+                       kwargs.get("binary", True))
 
     ##### Internal Methods ####################################################
 
@@ -799,13 +793,13 @@ class WebSocket(object):
         if length == 126:
             if len(self._recv_buffer) < 4:
                 return
-            length = struct.unpack("!H", self._recv_buffer[2:4])
+            length = STRUCT_H.unpack(self._recv_buffer[2:4])
             headlen = 4
 
         elif length == 127:
             if len(self._recv_buffer) < 10:
                 return
-            length = struct.unpack("!Q", self._recv_buffer[2:10])
+            length = STRUCT_Q.unpack(self._recv_buffer[2:10])
             headlen = 10
 
         else:
@@ -834,7 +828,7 @@ class WebSocket(object):
         # Control Frame Nonsense!
         if opcode == FRAME_CLOSE:
             if data:
-                reason, = struct.unpack("!H", data[:2])
+                reason, = STRUCT_H.unpack(data[:2])
                 message = data[2:]
             else:
                 reason = 1000
@@ -917,13 +911,11 @@ class WebSocket(object):
                 self._read_buffer = self._read_buffer[mark + len(delimiter):]
                 self._safely_call(self.on_read, data)
 
-            elif isinstance(delimiter, struct_delimiter):
-                # Use item access because it's faster. This'll need to be
-                # changed if struct_delimiter ever changes.
-                if len(self._read_buffer) < delimiter[1]:
+            elif isinstance(delimiter, Struct):
+                if len(self._read_buffer) < delimiter.size:
                     break
-                data = self._read_buffer[:delimiter[1]]
-                self._read_buffer = self._read_buffer[delimiter[1]:]
+                data = self._read_buffer[:delimiter.size]
+                self._read_buffer = self._read_buffer[delimiter.size:]
 
                 # Safely unpack it. This should *probably* never error.
                 try:

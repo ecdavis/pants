@@ -32,7 +32,6 @@ from pants._channel import HAS_IPV6, HAS_UNIX
 from pants.engine import Engine
 from pants.server import Server
 from pants.stream import Stream
-from pants.util.struct_delimiter import struct_delimiter
 
 
 ###############################################################################
@@ -47,7 +46,6 @@ __all__ = [
     "HAS_IPV6", "HAS_UNIX",  # Constants
     "engine",  # Core
     "Stream", "Server",  # TCP Networking
-    "struct_delimiter",  # Utility Stuff
     ]
 
 

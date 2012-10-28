@@ -24,7 +24,6 @@ import re
 import struct
 
 from pants import Stream, Server
-from pants.util.struct_delimiter import struct_delimiter
 
 
 ###############################################################################
@@ -40,6 +39,7 @@ log = logging.getLogger(__name__)
 ###############################################################################
 
 RegexType = type(re.compile(""))
+Struct = struct.Struct
 
 # Telnet commands
 IAC  = chr(255)  # Interpret As Command
@@ -141,14 +141,12 @@ class TelnetConnection(Stream):
                 self._telnet_data = self._telnet_data[mark + len(delimiter):]
                 self._safely_call(self.on_read, data)
 
-            elif isinstance(delimiter, struct_delimiter):
-                # Weird. Why are you using struct_delimiter in telnet? Silly
-                # person. Anyways, blah blah blah, same comment as in the
-                # delimiter handling everywhere else.
-                if len(self._telnet_data) < delimiter[1]:
+            elif isinstance(delimiter, Struct):
+                # Weird. Why are you using Struct in telnet? Silly person.
+                if len(self._telnet_data) < delimiter.size:
                     break
-                data = self._telnet_data[:delimiter[1]]
-                self._telnet_data = self._telnet_data[delimiter[1]:]
+                data = self._telnet_data[:delimiter.size]
+                self._telnet_data = self._telnet_data[delimiter.size:]
 
                 try:
                     data = delimiter.unpack(data)
