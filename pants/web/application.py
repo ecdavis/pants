@@ -628,7 +628,7 @@ class Application(Module):
         log.exception("Error handling HTTP request: %s %s" %
                       (request.method, request.uri))
         if not self.debug:
-            return err(500, request=request)
+            return error(500, request=request)
 
         response = u"\n".join([
             u"<h2>Traceback</h2>",
@@ -770,6 +770,27 @@ class Application(Module):
         try:
             request.auto_finish = True
             self.parse_output(*self.route_request(request))
+        except Exception as err:
+            # This should hopefully never happen, but it *could*.
+            try:
+                body, status, headers = self.handle_500(request, err)
+            except Exception:
+                # There's an error with our handle_500.
+                log.exception("There was a problem handling a request, "
+                              "and a problem running Application.handle_500 "
+                              "for %r." % self)
+                body, status, headers = error(500, request=request)
+
+                # If an exception happens at *this* point, it's destined. Just
+                # show the ugly page.
+
+            request.send_status(status)
+            if not 'Content-Length' in headers:
+                headers['Content-Length'] = len(body)
+            request.send_headers(headers)
+            request.write(body)
+            request.finish()
+
         finally:
             request.route = None
             request.match = None
