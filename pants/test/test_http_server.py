@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 ###############################################################################
 #
 # Copyright 2012 Pants Developers (see AUTHORS.txt)
@@ -85,6 +86,33 @@ class CookieTest(HTTPTestCase):
         response = requests.get("http://127.0.0.1:4040/",
                                 cookies={"foo": "bar"}, timeout=0.5)
         self.assertEqual(response.cookies["bar"], "foo")
+
+@unittest.skipIf(requests is None, "requests library not installed")
+class SecureCookieTest(HTTPTestCase):
+    def request_handler(self, request):
+        request.set_secure_cookie("foo", "bar")
+        request.set_secure_cookie("baz", u"こんにちは！")
+        request.set_secure_cookie("what", [True, False, None])
+        request.set_secure_cookie("pizza", "tasty", secure=True)
+        request.send_response("Hello, Cookies!")
+
+    def other_handler(self, request):
+        if request.get_secure_cookie("foo") == "bar" and \
+                request.get_secure_cookie("baz") == u"こんにちは！" and \
+                request.get_secure_cookie("what") == [True, False, None] and \
+                not request.get_secure_cookie("pizza"):
+            request.send_response("Okay.")
+        else:
+            request.send_response("Bad.", 400)
+
+    def test_cookies(self):
+        response = requests.get("http://127.0.0.1:4040/", timeout=0.5)
+        self.assertEquals(response.status_code, 200)
+
+        self.server.request_handler = self.other_handler
+
+        response = requests.get("http://127.0.0.1:4040/", cookies=response.cookies)
+        self.assertEquals(response.status_code, 200)
 
 @unittest.skipIf(requests is None, "requests library not installed")
 class ResponseBody(HTTPTestCase):

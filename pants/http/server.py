@@ -22,6 +22,7 @@
 
 import base64
 import Cookie
+import json
 import os
 import pprint
 
@@ -447,6 +448,10 @@ class HTTPRequest(object):
         Cookies set with this function may be read with
         :func:`~pants.http.HTTPServer.get_secure_cookie`.
 
+        If the provided value is a dictionary, list, or tuple the value will
+        be converted to a string with JSON. Other values will be converted to
+        strings using ``str(value)``.
+
         =========  ===========  ============
         Argument   Default      Description
         =========  ===========  ============
@@ -455,11 +460,19 @@ class HTTPRequest(object):
         expires    ``2592000``  *Optional.* How long, in seconds, the cookie should last before expiring. The default value is equivalent to 30 days.
         =========  ===========  ============
 
-        Additional arguments, such as ``path`` and ``httponly`` may be set by
-        providing them as keyword arguments.
+        Additional arguments, such as ``path`` and ``secure`` may be set by
+        providing them as keyword arguments. The ``HttpOnly`` attribute will
+        be set by default on secure cookies..
         """
+        if isinstance(value, (dict, list, tuple, int, long, float, bool)):
+            value = "j" + json.dumps(value)
+        elif isinstance(value, unicode):
+            value = "u" + value.encode("utf-8")
+        else:
+            value = "s" + str(value)
+
         ts = str(int(time()))
-        v = base64.b64encode(str(value))
+        v = base64.b64encode(value)
         signature = generate_signature(
                         self.connection.server.cookie_secret, expires, ts, v)
 
@@ -467,10 +480,15 @@ class HTTPRequest(object):
 
         self.cookies_out[name] = value
         m = self.cookies_out[name]
+        m['httponly'] = True
 
         if kwargs:
-            for k,v in kwargs.iteritems():
-                m[k] = v
+            for k, v in kwargs.iteritems():
+                if k.lower() == 'httponly' and not v:
+                    del m['httponly']
+                else:
+                    m[k] = v
+
         m['expires'] = expires
 
     def get_secure_cookie(self, name):
@@ -478,8 +496,11 @@ class HTTPRequest(object):
         Return the signed cookie with the key ``name``, if it exists and has a
         valid signature. Otherwise, return None.
         """
+        if not name in self.cookies:
+            return None
+
         try:
-            value, expires, ts, signature = self.cookies[name].value.split('|')
+            value, expires, ts, signature = self.cookies[name].value.rsplit('|', 3)
             expires = int(expires)
             ts = int(ts)
         except (AttributeError, ValueError):
@@ -490,6 +511,15 @@ class HTTPRequest(object):
 
         if signature != sig or ts < time() - expires or ts > time() + expires:
             return None
+
+        # Process value
+        vtype = value[:1]
+        if vtype == "j":
+            value = json.loads(value[1:])
+        elif vtype == "u":
+            value = value[1:].decode("utf-8")
+        else:
+            value = value[1:]
 
         return value
 
