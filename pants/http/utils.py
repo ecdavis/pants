@@ -278,7 +278,7 @@ class HTTPHeaders(object):
         self._data.clear()
 
     def copy(self):
-        return self.__class__(self._data.copy())
+        return self.__class__(_store=self._data.copy())
 
     def pop(self, key, *default):
         return self._data.pop(key, *default)

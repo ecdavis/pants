@@ -73,6 +73,30 @@ class JSONEncoder(json.JSONEncoder):
 
 
 ###############################################################################
+# Context Manager
+###############################################################################
+
+class RequestContext(object):
+    __slots__ = ('application', 'request', 'stack')
+
+    def __init__(self, application=None, request=None):
+        self.application = application or Application.current_app
+        self.request = request or self.application.request
+        self.stack = []
+
+    def __enter__(self):
+        self.stack.append((Application.current_app, self.application.request))
+
+        Application.current_app = ca = self.application
+        ca.request = self.request
+
+        return ca
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        Application.current_app, self.application.request = self.stack.pop()
+
+
+###############################################################################
 # Converter Class
 ###############################################################################
 
@@ -632,13 +656,13 @@ class Application(Module):
 
         response = u"\n".join([
             u"<h2>Traceback</h2>",
-            u"<pre>%s</pre>" % traceback.format_exc(),
+            u"<pre>%s</pre>" % (getattr(request, "_tb", None) or traceback.format_exc()),
             #u'<div id="console"><h2>Console</h2>',
             #u'<pre id="output"></pre>',
             #u'<script type="text/javascript">%s</script></div>' % CONSOLE_JS,
             u"<h2>Route</h2>",
-            u"<pre>route name   = %r" % request.route_name,
-            u"match groups = %r</pre>" % (request.match.groups(),),
+            u"<pre>route name   = %r" % getattr(request, "route_name", None),
+            u"match groups = %r</pre>" % (request.match.groups() if request.match else None,),
             u"<h2>HTTP Request</h2>",
             request.__html__()
         ])
@@ -769,7 +793,10 @@ class Application(Module):
 
         try:
             request.auto_finish = True
-            self.parse_output(*self.route_request(request))
+            result = self.route_request(request)
+            if request.auto_finish:
+                self.parse_output(result)
+
         except Exception as err:
             # This should hopefully never happen, but it *could*.
             try:
@@ -784,18 +811,15 @@ class Application(Module):
                 # If an exception happens at *this* point, it's destined. Just
                 # show the ugly page.
 
-            request.send_status(status)
             if not 'Content-Length' in headers:
                 headers['Content-Length'] = len(body)
+
+            request.send_status(status)
             request.send_headers(headers)
             request.write(body)
             request.finish()
 
         finally:
-            request.route = None
-            request.match = None
-            request.route_name = None
-
             Application.current_app = None
             self.request = None
 
@@ -809,6 +833,9 @@ class Application(Module):
         matcher = domain + path
         method = request.method.upper()
         available_methods = set()
+
+        request._rule_headers = None
+        request._rule_content_type = None
 
         for dmn, dkey, rules in self._route_list:
             # Do basic domain matching.
@@ -838,30 +865,41 @@ class Application(Module):
 
                 try:
                     func, headers, content_type = method_table[method]
-                    return func(request), headers, content_type
+                    request._rule_headers = headers
+                    request._rule_content_type = content_type
+
+                    return func(request)
                 except HTTPException as err:
+                    request._rule_headers = None
+                    request._rule_content_type = None
+
                     err_handler = getattr(self, "handle_%d" % err.status, None)
                     if err_handler:
-                        return err_handler(request, err), None, None
+                        return err_handler(request, err)
                     else:
                         return error(err.message, err.status, err.headers,
-                                     request=request), None, None
+                                     request=request)
                 except HTTPTransparentRedirect as err:
+                    request._rule_headers = None
+                    request._rule_content_type = None
+
                     request.uri = err.uri
                     request._parse_uri()
-                    return self.route_request(request), None, None
+                    return self.route_request(request)
                 except Exception as err:
-                    return self.handle_500(request, err), None, None
+                    request._rule_headers = None
+                    request._rule_content_type = None
+
+                    return self.handle_500(request, err)
 
         if available_methods:
             if request.method == 'OPTIONS':
-                return ('', 200, {'Allow': ', '.join(available_methods)}), \
-                        None, None
+                return '', 200, {'Allow': ', '.join(available_methods)}
             else:
                 return error(
                     "The method %s is not allowed for %r." % (method, path),
                     405, {'Allow': ', '.join(available_methods)}
-                ), None, None
+                )
 
         elif self.fix_end_slash:
             # If there are no matching routes, and the path doesn't end with a
@@ -883,14 +921,13 @@ class Application(Module):
                         if regex.match(matcher):
                             if request.query:
                                 return redirect("%s?%s" %
-                                                (path, request.query)), \
-                                       None, None
+                                                (path, request.query))
                             else:
-                                return redirect(path), None, None
+                                return redirect(path)
 
-        return self.handle_404(request, None), None, None
+        return self.handle_404(request, None)
 
-    def parse_output(self, result, rule_headers, rule_content_type):
+    def parse_output(self, result):
         """ Process the output of :meth:`Application.route_request`. """
         request = self.request
 
@@ -910,20 +947,28 @@ class Application(Module):
                 body, status, headers = result
             else:
                 body, status = result
-                headers = {}
+                headers = HTTPHeaders()
         else:
             body = result
-            headers = {}
+            headers = HTTPHeaders()
 
         # Use the rule headers stuff.
-        if rule_headers:
-            rule_headers = rule_headers.copy()
-            rule_headers.update(headers)
+        if request._rule_headers:
+            if isinstance(request._rule_headers, HTTPHeaders):
+                rule_headers = request._rule_headers.copy()
+            else:
+                rule_headers = HTTPHeaders(request._rule_headers)
+
+            if isinstance(headers, HTTPHeaders):
+                rule_headers._data.update(headers._data)
+            else:
+                rule_headers.update(headers)
+
             headers = rule_headers
 
         # Use the rule content-type.
-        if rule_content_type and not 'Content-Type' in headers:
-            headers['Content-Type'] = rule_content_type
+        if request._rule_content_type and not 'Content-Type' in headers:
+            headers['Content-Type'] = request._rule_content_type
 
         # Convert the body to something that we can send.
         try:
