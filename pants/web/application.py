@@ -604,6 +604,7 @@ class Application(Module):
     =========  ================================================================
     """
     current_app = None
+    request = None
 
     def __init__(self, name=None, debug=False):
         super(Application, self).__init__(name)
@@ -1280,6 +1281,8 @@ def url_for(name, *values, **kw_values):
     Arguments may be passed either positionally or with keywords
     """
     app = Application.current_app
+    if not app or not app.request:
+        raise RuntimeError("Called url_for outside of a request.")
     request = app.request
 
     if not name in app._name_table:
@@ -1313,6 +1316,9 @@ def url_for(name, *values, **kw_values):
 
     data = []
     kw_values = kw_values.copy()
+
+    if len(values) > len(names):
+        raise ValueError("Too many values to unpack.")
 
     for i in xrange(len(names)):
         name = names[i]
