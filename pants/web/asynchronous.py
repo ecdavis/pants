@@ -27,6 +27,7 @@ import traceback
 import weakref
 
 from functools import wraps
+from types import GeneratorType
 
 from pants.http.utils import HTTPHeaders
 
@@ -42,17 +43,31 @@ Again = object()
 Waiting = object()
 Finished = object()
 
+
+###############################################################################
+# Storage
+###############################################################################
+
 receivers = {}
+
 
 ###############################################################################
 # Exceptions
 ###############################################################################
 
 class TimeoutError(Exception):
+    """
+    Instances of TimeoutError are raised into an asynchronous request handler
+    when an :func:`async.wait` or :func:`async.receieve` timeout.
+    """
     pass
 
 
 class RequestClosed(Exception):
+    """
+    An instance of RequestClosed is raised into an asynchronous request handler
+    when the connection for the request is closed.
+    """
     pass
 
 
@@ -61,18 +76,74 @@ class RequestClosed(Exception):
 ###############################################################################
 
 def async(func):
+    """
+    The ``@async`` decorator is used in conjunction with
+    :class:`pants.web.Application` to create asynchronous request handlers using
+    generators. This is useful for performing database lookups and doing other
+    I/O bound tasks without blocking the server. The following example performs
+    a simple database lookup with a `fork <https://github.com/stendec/asyncmongo>`_
+    of `asyncmongo <https://github.com/bitly/asyncmongo>`_ that adds support for
+    Pants. It then uses `jinja2 <http://jinja.pocoo.org/>`_ templates to render
+    the response.
+
+    .. code-block:: python
+
+        from pants.web import Application, async
+
+        import jinja2
+        import asyncmongo
+
+        database_options = {
+            'host': '127.0.0.1',
+            'port': 27017,
+            'dbname': 'test',
+        }
+
+        db = asyncmongo.Client(pool_id='web', backend='pants', **database_options)
+
+        app = Application()
+        env = jinja2.Environment(loader=jinja2.FileSystemLoader("templates"))
+
+        index_template = env.get_template("index.html")
+
+        @app.route("/")
+        @async
+        def index(request):
+            results = yield async.run(db.news.find, {'published': True})
+            yield index_template.render(data=results)
+
+        app.run()
+
+    Additionally, the @async decorator also allows for the easy implementation
+    of server-sent events, including support for the ``text/event-stream``
+    Content-Type used by HTML5 ```EventSource
+    <http://dev.w3.org/html5/eventsource/>`_``.
+
+    .. seealso::
+
+        :func:`async.stream`, :func:`async.event_stream`
+    """
+
     @wraps(func)
     def wrapper(request, *args, **kwargs):
         # Set a bit of state for the request.
-        request._writer = _finish
+        request._writer = _async_finish
         _init(request)
 
         # Create the generator.
         try:
-            request._gen = func(request, *args, **kwargs)
+            request._gen = gen = func(request, *args, **kwargs)
         except Exception:
             _cleanup(request)
             raise
+
+        # If we've not got a generator, return the output.
+        if not isinstance(gen, GeneratorType):
+            _cleanup(request)
+            return gen
+
+        # Set a flag on the request so Application won't finish processing it.
+        request.auto_finish = False
 
         # Now let's run the generator for the first time. No input yet, for
         # obvious reasons.
@@ -81,7 +152,7 @@ def async(func):
     return wrapper
 
 
-def _finish(request, output, errored):
+def _async_finish(request, output):
     """
     Write the provided output to the request and finish the request.
     """
@@ -93,7 +164,12 @@ def _finish(request, output, errored):
     # Do things App style.
     with request._context as app:
         request.auto_finish = True
+
         try:
+            if output is Finished:
+                raise RuntimeError("Reached StopIteration in asynchronous "
+                                   "request handler.")
+
             app.parse_output(output)
         except Exception as err:
             if request._started:
@@ -128,18 +204,55 @@ def _finish(request, output, errored):
 ###############################################################################
 
 def stream(func):
+    """
+    The ``@async.stream`` decorator is used to create asynchronous request
+    handlers using generators. This can be used to begin writing a portion of
+    the response to the client before the entire response can be generated.
+
+    The very first yielded output is processed for a status code and headers
+    using the same logic that :class:`~pants.web.Application` uses for its
+    standard route functions.
+
+    Subsequently yielded values are *not* processed, so returning a status code
+    and/or headers in that situation will result in undesired output. You may
+    return an instance of :class:`pants.web.Response` *or* the bare value to
+    write out.
+
+    The following is, though not particuarly useful, an example::
+
+        @app.route("/")
+        @async.stream
+        def index(request):
+            yield None, 200, {'X-Pizza': 'Yum'}
+            yield "This is an example.\n"
+            yield "It isn't particuarly useful.\n"
+
+            yield ("This will be treated as a list and serialized with "
+                   "JSON because you can't set the status code or provide "
+                   "additional headers after the response has started."), 401
+
+    """
+
     @wraps(func)
     def wrapped(request, *args, **kwargs):
         # Set a bit of state for the request.
-        request._writer = _stream
+        request._writer = _stream_output
         _init(request)
 
         # Create the generator.
         try:
-            request._gen = func(request, *args, **kwargs)
+            request._gen = gen = func(request, *args, **kwargs)
         except Exception:
             _cleanup(request)
             raise
+
+        # If we've not got a generator, return the output.
+        if not isinstance(gen, GeneratorType):
+            _cleanup(request)
+            return gen
+
+        # Set a flag on the request so Application won't finish processing it.
+        request.auto_finish = False
 
         # Now let's run the generator for the first time. No input yet, for
         # obvious reasons.
@@ -150,9 +263,10 @@ def stream(func):
 async.stream = stream
 
 
-def _stream(request, output, errored):
+def _stream_output(request, output):
     """
-    Write the provided chunk of data to the stream.
+    Write the provided chunk of data to the stream. This will automatically
+    encode the output as Transfer-Encoding: chunked if necessary.
     """
     if request._started:
         if not output or output is Finished:
@@ -165,6 +279,9 @@ def _stream(request, output, errored):
             return
 
         # Go ahead and cast the body and send it.
+        if isinstance(output, Response):
+            output = output.body
+
         try:
             output = _cast(request, output)
         except Exception:
@@ -226,19 +343,19 @@ def _stream(request, output, errored):
 
     # Finally, cast the body.
     errored = False
+    if output is not None:
+        try:
+            output = _cast(request, output)
+        except Exception as err:
+            errored = True
+            with request._context as app:
+                try:
+                    output, status, headers = app.handle_500(request, err)
+                except Exception:
+                    output, status, headers = error(500, request=request)
 
-    try:
-        output = _cast(request, output)
-    except Exception as err:
-        errored = True
-        with request._context as app:
-            try:
-                output, status, headers = app.handle_500(request, err)
-            except Exception:
-                output, status, headers = error(500, request=request)
-
-        if not 'Content-Length' in headers:
-            headers['Content-Length'] = len(output)
+            if not 'Content-Length' in headers:
+                headers['Content-Length'] = len(output)
 
     # Make sure the client has some way of determining the length.
     if not 'Content-Length' in headers and not 'Transfer-Encoding' in headers:
@@ -254,10 +371,11 @@ def _stream(request, output, errored):
         _cleanup(request)
         return
 
-    if request._chunked:
-        request.write("%x\r\n%s\r\n" % (len(output), output))
-    else:
-        request.write(output)
+    if output is not None:
+        if request._chunked:
+            request.write("%x\r\n%s\r\n" % (len(output), output))
+        else:
+            request.write(output)
 
     if errored:
         request.finish()
@@ -267,45 +385,72 @@ def _stream(request, output, errored):
     return Again
 
 
-def _cast(request, output):
-    """
-    Convert the output into something usable.
-    """
-    if hasattr(output, "to_html"):
-        output = output.to_html()
-
-    if isinstance(output, (tuple, list, dict)):
-        with request._context as app:
-            return json.dumps(output, cls=app.json_encoder)
-
-    elif isinstance(output, unicode):
-        return output.encode(request._charset)
-
-    elif not isinstance(output, str):
-        with request._context:
-            return str(output)
-
-    return output
-
-
 ###############################################################################
 # Event Stream
 ###############################################################################
 
 def event_stream(func):
+    """
+    The ``@async.event_stream`` decorator allows you to easilly push server-sent
+    events from Pants to your web clients using the new HTML5 `EventSource
+    <http://dev.w3.org/html5/eventsource/>`_ API. Example::
+
+        from pants.web import Application, async, TimeoutError
+
+        @app.route("/events")
+        @async.event_stream
+        def events(request):
+            try:
+                message = yield async.receive("events", 10)
+            except TimeoutError:
+                yield None
+            else:
+                yield message
+
+        # Elsewhere...
+
+        async.send("events", "Something happened!")
+
+    When you yield a value, there are a few ways it can be processed.
+
+    1.  If the value is empty, None, etc. a single comment line will be sent to
+        the client to keep the connection alive.
+
+    2.  If the value is a tuple, it will be separated into ``(output, headers)``
+        and the provided message headers will be prepended to the output before
+        it's sent to the client.
+
+    3.  Any other values for the output will result in normal output processing
+        before the output is sent to the client as a message.
+
+    .. note::
+
+        ``@async.event_stream`` automatically formats output messages, handling
+        line breaks for you.
+
+    """
+
     @wraps(func)
     def wrapped(request, *args, **kwargs):
         # Set a bit of state for the request.
-        request._writer = _event_stream
+        request._writer = _event_stream_output
         _init(request)
         request._chunked = True
 
         # Create the generator.
         try:
-            request._gen = func(request, *args, **kwargs)
+            request._gen = gen = func(request, *args, **kwargs)
         except Exception:
             _cleanup(request)
             raise
+
+        # If we've not got a generator, return the output.
+        if not isinstance(gen, GeneratorType):
+            _cleanup(request)
+            return gen
+
+        # Set a flag on the request so Application won't finish processing it.
+        request.auto_finish = False
 
         # Now let's run the generator for the first time. No input yet, for
         # obvious reasons.
@@ -316,15 +461,16 @@ def event_stream(func):
 async.event_stream = event_stream
 
 
-def _event_stream(request, output, errored):
+def _event_stream_output(request, output):
     """
-    Write out an event stream message to the client.
+    Write a text/event-stream message to the client. If no data has been sent
+    yet, it writes a 200 OK response code and a Content-Type header.
     """
     if not request._started:
         request.send_status()
         request.send_headers({'Content-Type': 'text/event-stream'})
 
-    if not output or output is Finished:
+    if output is Finished:
         # We're finished.
         request.connection.close()
         _cleanup(request)
@@ -335,31 +481,43 @@ def _event_stream(request, output, errored):
     else:
         headers = {}
 
-    # Cast the output into something usable.
-    output = _cast(request, output)
+    if not output and not headers:
+        # Send a simple comment line for keep-alive.
+        request.write(":\r\n")
+        return Again
 
+    if output is None:
+        output = ""
+    else:
+        # Cast the output into something usable.
+        output = _cast(request, output)
+
+    # Split up output, adding "data:" field names, and then prepend the
+    # provided headers, if there are any.
     output = "\r\n".join("data: %s" % x for x in output.splitlines())
     for key, value in headers.iteritems():
         output = "%s: %s\r\n%s" % (key, _cast(request, value), output)
 
+    # Write it out, with an extra blank line so that the client will read
+    # the message.
     request.write("%s\r\n\r\n" % output)
     return Again
 
 
 ###############################################################################
-# Asynchronous Sleeper
+# Asynchronous _Sleeper
 ###############################################################################
 
-class Sleeper(tuple):
+class _Sleeper(tuple):
     def __repr__(self):
-        return "Sleeper(%r)" % self[0]
+        return "_Sleeper(%r)" % self[0]
 
 
 def sleep(time):
     """
-    Sleep for *time* seconds.
+    Sleep for *time* seconds, doing nothing else during that period.
     """
-    return Sleeper((time,))
+    return _Sleeper((time,))
 
 async.sleep = sleep
 
@@ -368,13 +526,43 @@ async.sleep = sleep
 # Asynchronous Caller
 ###############################################################################
 
-def run(func, *args, **kwargs):
-    # Create a callback.
-    cb = Callback()
-    kwargs['callback'] = cb
+def run(function, *args, **kwargs):
+    """
+    Run *function* with the provided *args* and *kwargs*.
+
+    This works for any function that supports the ``callback`` keyword argument
+    by inserting a callback object into the keyword arguments before calling
+    the function.
+
+    If you need to asynchronously call a function that *doesn't* use
+    ``callback``, please use :func:`async.callback`.
+
+    Here is a brief example using an `asyncmongo
+    <https://github.com/bitly/asyncmongo>`_ Client named ``db``::
+
+        @app.route("/count")
+        @async
+        def count(request):
+            results = yield async.run(db.news.find, {'published': True})
+            yield len(results)
+
+    .. note::
+
+        ``async.run`` does *not* process keyword arguments passed to the
+        callback. If you require the keyword arguments, you must use
+        :func:`async.callback` manually.
+
+    Calling ``async.run`` returns the instance of
+    :class:`pants.web.Callback` used. Yielding that instance will
+    wait until the callback is triggered and return the value passed to
+    the callback.
+    """
+
+    # Create a callback and set the callback keyword argument.
+    kwargs['callback'] = cb = Callback()
 
     # Ignore the return value.
-    func(*args, **kwargs)
+    function(*args, **kwargs)
 
     # Return the callback.
     return cb
@@ -383,10 +571,36 @@ async.run = run
 
 
 class Callback(object):
-    __slots__ = ("request")
+    """
+    Return an instance of :class:`pants.web.Callback` that can be used as a
+    callback with other asynchronous code to capture output and return it to
+    an asynchronous request handler.
 
-    def __init__(self):
+    Yielding an instance of Callback will wait until the callback has been
+    triggered, and then return values that were sent to the callback so that
+    they may be used by the asynchronous request handler.
+
+    It's easy::
+
+        @app.route("/")
+        @async
+        def index(request):
+            callback = async.callback()
+            do_something_crazy(request, on_complete=callback)
+
+            result = yield callback
+            if not result:
+                abort(403)
+
+            yield result
+
+    """
+
+    __slots__ = ("request", "use_kwargs")
+
+    def __init__(self, use_kwargs=False):
         # Store this callback.
+        self.use_kwargs = use_kwargs
         self.request = request = Application.current_app.request
         request._callbacks[self] = Waiting
         request._unhandled.append(self)
@@ -394,10 +608,15 @@ class Callback(object):
     def __call__(self, *args, **kwargs):
         request = self.request
         if hasattr(request, "_callbacks"):
-            request._callbacks[self] = args[0] if len(args) == 1 else args
+            if self.use_kwargs:
+                args = (args, kwargs)
+            elif len(args) == 1:
+                args = args[0]
+
+            request._callbacks[self] = args
 
             # Now, see if we're finished waiting.
-            _waiting(request, self)
+            _check_waiting(request, self)
 
 async.callback = Callback
 
@@ -405,41 +624,6 @@ async.callback = Callback
 ###############################################################################
 # Waiting
 ###############################################################################
-
-def _waiting(request, trigger):
-    # Check the top of the stack to see if we're done waiting.
-    if not hasattr(request, "_in_do"):
-        return
-    elif request._in_do:
-        request.connection.engine.callback(_waiting, request, trigger)
-        return
-
-    # Make sure we're dealing with the right thing.
-    if not request._waiting or not isinstance(request._waiting[-1],
-                                                (_WaitList, Callback)):
-        return
-
-    top = request._waiting[-1]
-    if top is trigger:
-        # Just the one thing.
-        request._waiting.pop()
-        input = request._callbacks.pop(trigger)
-        _do(request, input)
-        return
-
-    # Iterate the whole thing to see if we're needed.
-    for cb in top:
-        if request._callbacks[cb] is Waiting:
-            return
-
-    # Cancel the timeout if there is one.
-    if top.timeout and callable(top.timeout):
-        top.timeout()
-
-    # Here? We have what we need then.
-    input = [request._callbacks.pop(key) for key in request._waiting.pop()]
-    _do(request, input)
-
 
 class _WaitList(list):
     timeout = None
@@ -462,23 +646,67 @@ async.wait = wait
 
 
 def _wait_timeout(request):
+    """
+    Handle a timed-out async.wait().
+    """
     if not hasattr(request, "_in_do"):
-        return
-    elif request._in_do:
-        request.connection.engine.callback(_wait_timeout, request)
+        # Don't deal with requests that were closed. Just don't.
         return
 
-    # Make sure we've got the right thing.
+    # Get the item off the top of the waiting stack, and make sure it's
+    # something we can work with.
     if not request._waiting or not isinstance(request._waiting[-1], _WaitList):
         return
 
-    # Build a list of everything.
+    # Build the input list.
     input = []
     for key in request._waiting.pop():
         value = request._callbacks.pop(key)
         input.append(value if value is not Waiting else None)
 
-    _do(request, TimeoutError(input), True)
+    # Now, pass it along to _do. Note the as_exception=True.
+    _do(request, TimeoutError(input), as_exception=True)
+
+
+def _check_waiting(request, trigger=None):
+    """
+    Check the waiting list for the provided request to determine if we should
+    be taking action. If we should, pop the top item from the waiting list and
+    send the input we've gathered into _do.
+    """
+
+    if not hasattr(request, "_in_do"):
+        # If this happens, the request was *probably* closed. There's nothing
+        # to do, so just get out of here.
+        return
+
+    # Get the item off the top of the waiting stack, and make sure it's
+    # something we can work with.
+    top = request._waiting[-1] if request._waiting else None
+
+    if not isinstance(top, (_WaitList, Callback)):
+        return
+
+    # If a trigger was provided, check to see if the top *is* that trigger. If
+    # this is the case, we can just return the result for that specific item.
+    if top is trigger:
+        # It is. We can pop off the top and send the input now.
+        request._waiting.pop()
+        _do(request, request._callbacks.pop(trigger))
+        return
+
+    # If we're still here, then we've got a list of callbacks to wait on. If
+    # any of those are still Waiting, we're not done yet, so return early.
+    if any(request._callbacks[key] is Waiting for key in top):
+        return
+
+    # Check the _WaitList's timeout, and clear it if we find one.
+    if callable(top.timeout):
+        top.timeout()
+
+    # We're finished, so build the list and send it on to _do.
+    input = [request._callbacks.pop(key) for key in request._waiting.pop()]
+    _do(request, input)
 
 
 ###############################################################################
@@ -495,32 +723,40 @@ def send(key, *args):
     Send a message with the provided ``*args`` to all asynchronous requests
     listening for *key*.
     """
+
+    # Get the list of requests listening for key. If there aren't any, return.
     recv = receivers.pop(key, None)
     if not recv:
         return
 
+    # If we only have one argument, pop it out of its tuple.
     if len(args) == 1:
         args = args[0]
 
+    # Now, for each listening request, make sure it's still alive before
+    # sending the arguments its way.
     for ref in recv:
-        o = ref()
-        if not o:
+        request = ref()
+        if not request:
             continue
 
-        # Clear the timeout for the object.
-        if not hasattr(o, "_waiting") or not o._waiting or \
-                not isinstance(o._waiting[-1], _Receiver):
+        # Check for the _in_do attribute, to make sure the request is still
+        # working asynchronously.
+        if not hasattr(request, "_in_do"):
             continue
 
-        top = o._waiting.pop()
-        if top.timeout:
+        # Get the top of the request's wait list and make sure it's what
+        # we expect.
+        if not request._waiting or not isinstance(request._waiting[-1], _Receiver):
+            continue
+
+        # Pop the top item off the wait list and clear any timeout.
+        top = request._waiting.pop()
+        if callable(top.timeout):
             top.timeout()
 
-        # Send the message.
-        if getattr(o, "_in_do", None):
-            o.connection.engine.callback(_do, o, args)
-        else:
-            _do(o, args)
+        # Now, send the message.
+        _do(request, args)
 
 async.send = send
 
@@ -539,21 +775,20 @@ async.receive = receive
 def _receive_timeout(request):
     if not hasattr(request, "_in_do"):
         return
-    elif request._in_do:
-        request.connection.engine.callback(_receive_timeout, request)
-        return
 
-    # Make sure we've got the right thing.
+    # Make sure the top of the wait list is a _Receiver.
     if not request._waiting or not isinstance(request._waiting[-1], _Receiver):
         return
 
-    # Remove this from the receivers.
-    recv = request._waiting.pop()
+    # Remove this request from the receivers list so we don't get any
+    # unexpected input later on.
+    top = request._waiting.pop()
 
-    if recv[0] in receivers and recv.ref in receivers[recv[0]]:
-        receivers[recv[0]].remove(recv.ref)
+    if top[0] in receivers and top.ref in receivers[top[0]]:
+        receivers[top[0]].remove(top.ref)
 
-    _do(request, TimeoutError(), True)
+    # Now, send along a TimeoutError.
+    _do(request, TimeoutError(), as_exception=True)
 
 
 ###############################################################################
@@ -561,7 +796,10 @@ def _receive_timeout(request):
 ###############################################################################
 
 def _init(request):
-    # Set a bit of state for the request.
+    """
+    Set a bit of state for the request.
+    """
+    request._in_do = False
     request._chunked = False
     request._charset = "utf-8"
     request._tb = None
@@ -572,42 +810,82 @@ def _init(request):
     # Create a RequestContext.
     request._context = RequestContext()
 
-    # Set a flag on the request so Application won't finish processing it.
-    request.auto_finish = False
+
+def _cast(request, output):
+    """
+    Convert an output object into something we can send over a connection.
+    """
+    if hasattr(output, "to_html"):
+        output = output.to_html()
+
+    if isinstance(output, (tuple, list, dict)):
+        with request._context as app:
+            return json.dumps(output, cls=app.json_encoder)
+
+    elif isinstance(output, unicode):
+        return output.encode(request._charset)
+
+    elif not isinstance(output, str):
+        with request._context:
+            return str(output)
+
+    return output
 
 
 def _cleanup(request):
     """
     Delete the context manager and everything else.
     """
-    # The Basics
-    del request._context
-    del request._gen
-    del request._tb
 
-    # Stream Variables
+    del request._in_do
     del request._chunked
     del request._charset
-    del request._writer
+    del request._unhandled
+
+    del request._context
+
+    try:
+        del request._gen
+    except AttributeError:
+        del request._callbacks
+        del request._waiting
+        return
+
+    # Cleanup any timers.
+    for item in request._waiting:
+        timer = getattr(item, "timeout", None)
+        if timer and callable(timer):
+            try:
+                timer()
+            except Exception:
+                # Who knows what could happen here.
+                pass
 
     # Asynchronous Internals
     request._callbacks.clear()
     del request._callbacks
     del request._waiting
-    del request._unhandled
 
 
 def _do(request, input, as_exception=False):
     """
-    Send the provided input to the request handler and get and process the
-    output.
+    Send the provided input to the asynchronous request handler for *request*.
+    If ``as_exception`` is truthy, throw it into the generator as an exception,
+    otherwise it's just sent.
     """
-    errored = False
+    if request._in_do:
+        # Let's not enter some bizarre stack recursion that can cause all sorts
+        # of badness today, shall we? Put off the next _do till the next
+        # engine cycle.
+        request.connection.engine.callback(_do, request, input, as_exception)
+        return
 
     try:
         request._in_do = True
 
         while True:
+            errored = False
+
             with request._context as app:
                 # Make sure we're connected.
                 if not request.connection.connected:
@@ -616,8 +894,14 @@ def _do(request, input, as_exception=False):
                         # about this.
                         request._gen.throw(RequestClosed())
                     except RequestClosed:
-                        # Don't react at all.
+                        # Don't react at all to our own exception.
                         pass
+                    except Exception:
+                        # Just log any other exception. The request is already
+                        # closed, so there's not a lot *else* to do.
+                        log.exception("Error while cleaning up closed "
+                                      "asynchronous request: %s %s" %
+                                      (request.method, request.uri))
                     finally:
                         _cleanup(request)
                         return
@@ -629,7 +913,8 @@ def _do(request, input, as_exception=False):
                         output = request._gen.send(input)
 
                 except StopIteration:
-                    # We've run out of content.
+                    # We've run out of content. Setting output to Finished
+                    # tells the output handler to close up and go home.
                     output = Finished
 
                 except HTTPException as err:
@@ -642,8 +927,6 @@ def _do(request, input, as_exception=False):
                         return
 
                     errored = True
-                    request._rule_content_type = None
-                    request._rule_headers = None
                     request._tb = traceback.format_exc()
 
                     err_handler = getattr(app, "handle_%d" % err.status, None)
@@ -663,9 +946,8 @@ def _do(request, input, as_exception=False):
                         return
 
                     errored = True
-                    request._rule_content_type = None
-                    request._rule_headers = None
                     output = err
+                    request._tb = traceback.format_exc()
 
                 except Exception as err:
                     if request._started:
@@ -677,8 +959,6 @@ def _do(request, input, as_exception=False):
                         return
 
                     errored = True
-                    request._rule_content_type = None
-                    request._rule_headers = None
                     request._tb = traceback.format_exc()
 
                     try:
@@ -693,12 +973,23 @@ def _do(request, input, as_exception=False):
 
             # Did we error?
             if errored:
-                _finish(request, output, True)
+                # Clear the rule data, because errors don't care about it.
+                request._rule_content_type = None
+                request._rule_headers = None
+
+                _async_finish(request, output)
                 return
+
+            # Returning a list of Callback instances is the only way to control
+            # exactly what you're waiting for.
+            if not isinstance(output, _WaitList) and \
+                    isinstance(output, (tuple, list)) and \
+                    all(isinstance(x, Callback) for x in output):
+                output = _WaitList(output)
 
             # Now that we're out of the request context, let's see what we've got to
             # work with.
-            if isinstance(output, Sleeper):
+            if isinstance(output, _Sleeper):
                 # Just sleep.
                 request.connection.engine.defer(output[0], _do, request, None)
 
@@ -724,7 +1015,7 @@ def _do(request, input, as_exception=False):
 
             else:
                 # We've received some content, so write it out.
-                if request._writer(request, output, errored) is Again:
+                if request._writer(request, output) is Again:
                     input = None
                     as_exception = False
                     continue
@@ -733,4 +1024,5 @@ def _do(request, input, as_exception=False):
             break
 
     finally:
-        request._in_do = False
+        if hasattr(request, "_in_do"):
+            request._in_do = False
