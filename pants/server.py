@@ -220,7 +220,11 @@ class Server(_Channel):
         if self._closed:
             raise RuntimeError("listen() called on closed %r." % self)
 
-        address, family = self._format_address(address)
+        address, family, resolved = self._format_address(address)
+        if not family:
+            raise ValueError("Unable to determine address family from "
+                             "address: %s" % repr(address))
+
         self._do_listen(address, family, backlog, slave)
 
         return self

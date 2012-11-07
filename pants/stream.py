@@ -432,11 +432,25 @@ class Stream(_Channel):
 
         self.connecting = True
 
-        address, family = self._format_address(address)
-        if native_resolve:
+        address, family, resolved = self._format_address(address)
+
+        if resolved:
             self._do_connect(address, family)
+        elif native_resolve:
+            try:
+                result = socket.getaddrinfo(address[0], address[1], family)
+            except socket.error as err:
+                self.close(flush=False)
+                e = StreamConnectError(err.errno, err.strerror)
+                self._safely_call(self.on_connect_error, e)
+                return self
+
+            # We only care about the first result.
+            result = result[0]
+            self._do_connect(result[-1], result[0])
+
         else:
-            self._resolve_address(address, family, self._do_connect)
+            self._resolve_address(address, self._do_connect)
 
         return self
 
