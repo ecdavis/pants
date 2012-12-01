@@ -156,7 +156,7 @@ PAGE = string.Template(PAGE).safe_substitute(
                                 server_url=SERVER_URL,
                                 server=SERVER)
 
-PAGE = re.sub(">\s+<", "><", PAGE, flags=re.DOTALL)
+PAGE = re.compile(">\s+<", flags=re.DOTALL).sub("><", PAGE)
 PAGE = string.Template(PAGE)
 
 # The Directory Template
