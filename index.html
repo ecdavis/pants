@@ -78,7 +78,7 @@ features as well as the latest bugs. You can clone the repository like so:</p>
         <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">"Hello, World!</span><span class="se">\r\n</span><span class="s">"</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
-<span class="n">Server</span><span class="p">(</span><span class="n">Hello</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">()</span>
+<span class="n">Server</span><span class="p">(</span><span class="n">Hello</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="mi">4040</span><span class="p">)</span>
 <span class="n">engine</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
 </pre></div>
 
@@ -90,7 +90,7 @@ features as well as the latest bugs. You can clone the repository like so:</p>
 <span class="n">app</span> <span class="o">=</span> <span class="n">Application</span><span class="p">()</span>
 
 <span class="nd">@app.route</span><span class="p">(</span><span class="s">'/'</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">hello</span><span class="p">():</span>
+<span class="k">def</span> <span class="nf">hello</span><span class="p">(</span><span class="bp">request</span><span class="p">):</span>
     <span class="k">return</span> <span class="s">"Hello, World!"</span>
 
 <span class="n">HTTPServer</span><span class="p">(</span><span class="n">app</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">()</span>
