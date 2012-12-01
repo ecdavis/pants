@@ -110,14 +110,14 @@
 
         Here's an example of a simple echo server in Pants::
 
-            from pants import Connection, Server, engine
+            from pants import Stream, Server, engine
 
-            class Echo(Connection):
+            class Echo(Stream):
                 def on_read(self, data):
                     self.write(data)
 
             if __name__ == '__main__':
-                Server(Echo).listen()
+                Server(Echo).listen(4040)
                 engine.start()
 
     .. container:: item

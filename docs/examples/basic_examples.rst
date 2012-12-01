@@ -7,9 +7,9 @@ Hello, World!
 
 The ultra-simple Hello World server using Pants::
 
-    from pants import *
+    from pants import Stream, Server, engine
 
-    class HelloWorld(Connection):
+    class HelloWorld(Stream):
         def on_connect(self):
             self.write("Hello, World!")
             self.close(True)
@@ -29,9 +29,9 @@ A simple server that understands a basic, variable-length message protocol::
 
     import struct
 
-    from pants import *
+    from pants import Stream, Server, engine
 
-    class MessageOriented(Connection):
+    class MessageOriented(Stream):
         def on_connect(self):
             self.read_delimiter = 2
             self.on_read = self.on_read_header
@@ -55,4 +55,3 @@ This example reads messages preceded by an unsigned short containing the
 message length. As you can see, it is possible to be fairly inventive when
 combining the read delimiter with the ability to replace callback methods at
 runtime.
-

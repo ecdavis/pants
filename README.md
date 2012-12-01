@@ -38,7 +38,7 @@ class Hello(Stream):
         self.write("Hello, World!\r\n")
         self.close()
 
-Server(Hello).listen()
+Server(Hello).listen(4040)
 engine.start()
 ```
 
