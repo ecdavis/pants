@@ -706,10 +706,7 @@ class Stream(_Channel):
                 self._safely_call(self.on_read_error, err)
                 return
 
-            if data is None:
-                self.close(flush=False)
-                return
-            elif len(data) == 0:
+            if not data:
                 break
             else:
                 self._recv_buffer += data
@@ -725,6 +722,10 @@ class Stream(_Channel):
                         return
 
         self._process_recv_buffer()
+
+        # This block was moved out of the above loop to address issue #41.
+        if data is None:
+            self.close(flush=False)
 
     def _handle_write_event(self):
         """

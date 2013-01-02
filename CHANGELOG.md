@@ -1,7 +1,7 @@
 Changelog
 =========
 
-1.0.0-beta.2 (current)
+1.0.0-beta.2 (2012-11-05)
 ----------------------
  *  *Added* ``pants.web.async``, a decorator for use with Application that
             uses generators to make asynchronous request handling easy.
