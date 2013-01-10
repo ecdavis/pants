@@ -28,6 +28,7 @@ import bisect
 import errno
 import functools
 import select
+import sys
 import time
 
 
@@ -37,6 +38,20 @@ import time
 
 import logging
 log = logging.getLogger("pants")
+
+
+###############################################################################
+# Time
+###############################################################################
+
+# This hack is here because Windows' time() is too imprecise for our needs.
+# See issue #40 for further details.
+if sys.platform == "win32":
+    _start_time = time.time()
+    time.clock()  # Initialise the clock.
+    current_time = lambda: round(_start_time + time.clock(), 2)
+else:
+    current_time = time.time
 
 
 ###############################################################################
@@ -82,7 +97,7 @@ class Engine(object):
     ALL_EVENTS = BASE_EVENTS | WRITE
 
     def __init__(self, poller=None):
-        self.time = time.time()
+        self.time = current_time()
 
         self._shutdown = False
         self._running = False
@@ -172,7 +187,7 @@ class Engine(object):
         poll_timeout  The timeout to be passed to the polling object.
         ============= ============
         """
-        self.time = time.time()
+        self.time = current_time()
 
         callbacks, self._callbacks = self._callbacks[:], []
 
@@ -203,7 +218,7 @@ class Engine(object):
         if self._deferreds:
             timeout = self._deferreds[0].end - self.time
             if timeout > 0.0:
-                poll_timeout = min(timeout, poll_timeout)
+                poll_timeout = max(min(timeout, poll_timeout), 0.01)
 
         if not self._channels:
             time.sleep(poll_timeout)  # Don't burn CPU.
