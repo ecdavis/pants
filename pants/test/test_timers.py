@@ -16,6 +16,7 @@
 #
 ###############################################################################
 
+import sys
 import time
 import unittest
 
@@ -98,6 +99,7 @@ class TestTimers(unittest.TestCase):
         self.engine.poll(0.2)
         self.engine.poll(0.2)
         self.engine.poll(0.2)
+        if sys.platform == "win32": self.engine.poll(0.02)  # See issue #40
         timer.assert_has_calls([call() for _ in range(3)])
         for i in range(3):
             self.assertLess(abs(expected_times[i] - self.times_called[i]), 0.01)
@@ -112,6 +114,7 @@ class TestTimers(unittest.TestCase):
         cancel_cycle = self.engine.cycle(0.01, timer)
         self.engine.poll(0.2)
         self.engine.poll(0.2)
+        if sys.platform == "win32": self.engine.poll(0.02)  # See issue #40
         timer.assert_has_calls([call() for _ in range(2)])
         cancel_cycle()
         self.engine.poll(0.2)
