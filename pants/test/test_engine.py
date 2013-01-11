@@ -103,6 +103,7 @@ class TestEnginePoll(unittest.TestCase):
 
     def test_poll_updates_time(self):
         current_time = self.engine.time
+        time.sleep(0.02)
         self.engine.poll(0.02)
         self.assertTrue(self.engine.time > current_time)
 
@@ -218,7 +219,7 @@ class TestEnginePoll(unittest.TestCase):
         self.engine.poll(1)
         after = time.time()
         # Again, never going to be exact.
-        self.assertTrue((after - before) < 0.23)
+        self.assertTrue((after - before) < 0.25)
 
     def test_poller_successful(self):
         self.engine._channels = {1: None}
