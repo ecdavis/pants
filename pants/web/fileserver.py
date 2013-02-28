@@ -23,6 +23,7 @@
 import mimetypes
 import os
 import re
+import sys
 import time
 import urllib
 
@@ -450,6 +451,7 @@ class FileServer(object):
 
         return output, 200, {'Content-Type': 'text/html; charset=UTF-8'}
 
+
 ###############################################################################
 # Private Helper Functions
 ###############################################################################
@@ -484,3 +486,47 @@ def _parse_date(text):
         except ValueError:
             continue
     raise ValueError("Unable to parse time data %r." % text)
+
+
+###############################################################################
+# Run as Module Support
+###############################################################################
+
+if __name__ == '__main__':
+    import optparse
+    parser = optparse.OptionParser(usage="%prog [options] [path]")
+
+    parser.add_option("-b", "--bind", metavar="ADDRESS", dest="address",
+        default="8000", help="Bind the server to PORT, INTERFACE:PORT, or unix:PATH")
+    parser.add_option("-i", "--index", metavar="FILE", dest="indices",
+        action="append", default=[], help="Serve files named FILE if available rather than a directory listing.")
+
+    options, args = parser.parse_args()
+    args = ''.join(args)
+
+    # First, get the directory.
+    path = os.path.realpath(args)
+    if not os.path.exists(path) or not os.path.isdir(path):
+        print "The provided path %r is not a directory or does not exist." % path
+        sys.exit(1)
+
+    # Parse the address.
+    if ':' in options.address:
+        address = options.address.split(":", 1)
+        if address[0].lower() == "unix":
+            address = address[1]
+        else:
+            address[1] = int(address[1])
+    else:
+        address = int(options.address)
+
+    # Fix up the indices list.
+    indices = options.indices
+    if not indices:
+        indices.extend(['index.html', 'index.htm'])
+
+    # Create the server now.
+    app = Application()
+    FileServer(path, [], indices).attach(app, '/')
+    print "Serving HTTP with Pants on: %s" % repr(address)
+    app.run(address)
