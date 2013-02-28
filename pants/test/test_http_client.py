@@ -148,7 +148,6 @@ class HostChangeTest(HTTPTestCase):
 class TimeoutTest(HTTPTestCase):
     def on_response(self, response):
         self.stop()
-        print response
         self.response_valid = False
 
     def on_error(self, response, error):
