@@ -102,10 +102,10 @@ class TestEnginePoll(unittest.TestCase):
         self.engine = Engine()
 
     def test_poll_updates_time(self):
-        current_time = self.engine.time
+        current_time = self.engine.latest_poll_time
         time.sleep(0.02)
         self.engine.poll(0.02)
-        self.assertTrue(self.engine.time > current_time)
+        self.assertTrue(self.engine.latest_poll_time > current_time)
 
     def test_poll_executes_callbacks(self):
         callback = MagicMock()
@@ -152,7 +152,7 @@ class TestEnginePoll(unittest.TestCase):
         defer = MagicMock()
         defer.function = MagicMock()
         defer.requeue = False
-        defer.end = self.engine.time - 1
+        defer.end = self.engine.latest_poll_time - 1
         self.engine._deferreds.append(defer)
         self.engine.poll(0.02)
         defer.function.assert_called_once_with()
@@ -161,7 +161,7 @@ class TestEnginePoll(unittest.TestCase):
         defer = MagicMock()
         defer.function = MagicMock()
         defer.requeue = False
-        defer.end = self.engine.time - 1
+        defer.end = self.engine.latest_poll_time - 1
         self.engine._deferreds.append(defer)
         try:
             self.engine.poll(0.02)
@@ -172,7 +172,7 @@ class TestEnginePoll(unittest.TestCase):
         defer = MagicMock()
         defer.function = MagicMock(side_effect=KeyboardInterrupt)
         defer.requeue = False
-        defer.end = self.engine.time - 1
+        defer.end = self.engine.latest_poll_time - 1
         self.engine._deferreds.append(defer)
         self.assertRaises(KeyboardInterrupt, self.engine.poll, 0.02)
 
@@ -180,7 +180,7 @@ class TestEnginePoll(unittest.TestCase):
         defer = MagicMock()
         defer.function = MagicMock(side_effect=SystemExit)
         defer.requeue = False
-        defer.end = self.engine.time - 1
+        defer.end = self.engine.latest_poll_time - 1
         self.engine._deferreds.append(defer)
         self.assertRaises(SystemExit, self.engine.poll, 0.02)
 
@@ -188,7 +188,7 @@ class TestEnginePoll(unittest.TestCase):
         cycle = MagicMock()
         cycle.function = MagicMock()
         cycle.requeue = True
-        cycle.end = self.engine.time - 1
+        cycle.end = self.engine.latest_poll_time - 1
         cycle.delay = 10
         self.engine._deferreds.append(cycle)
         self.engine.poll(0.02)

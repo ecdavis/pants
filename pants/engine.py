@@ -97,7 +97,7 @@ class Engine(object):
     ALL_EVENTS = BASE_EVENTS | WRITE
 
     def __init__(self, poller=None):
-        self.time = current_time()
+        self.latest_poll_time = current_time()
 
         self._shutdown = False
         self._running = False
@@ -121,7 +121,7 @@ class Engine(object):
 
     ##### Engine Methods ######################################################
 
-    def start(self, poll_timeout=0.02):
+    def start(self, poll_timeout=0.2):
         """
         Start the engine.
 
@@ -187,7 +187,7 @@ class Engine(object):
         poll_timeout  The timeout to be passed to the polling object.
         ============= ============
         """
-        self.time = current_time()
+        self.latest_poll_time = current_time()
 
         callbacks, self._callbacks = self._callbacks[:], []
 
@@ -200,7 +200,7 @@ class Engine(object):
             if timer.requeue:
                 self._callbacks.append(timer)
 
-        while self._deferreds and self._deferreds[0].end <= self.time:
+        while self._deferreds and self._deferreds[0].end <= self.latest_poll_time:
             timer = self._deferreds.pop(0)
 
             try:
@@ -209,14 +209,14 @@ class Engine(object):
                 log.exception("Exception raised while executing timer.")
 
             if timer.requeue:
-                timer.end = self.time + timer.delay
+                timer.end = self.latest_poll_time + timer.delay
                 bisect.insort(self._deferreds, timer)
 
         if self._shutdown:
             return
 
         if self._deferreds:
-            timeout = self._deferreds[0].end - self.time
+            timeout = self._deferreds[0].end - self.latest_poll_time
             if timeout > 0.0:
                 poll_timeout = max(min(timeout, poll_timeout), 0.01)
 
@@ -316,7 +316,7 @@ class Engine(object):
             raise ValueError("Delay must be greater than 0 seconds.")
 
         deferred = functools.partial(function, *args, **kwargs)
-        timer = _Timer(self, deferred, False, delay, self.time + delay)
+        timer = _Timer(self, deferred, False, delay, self.latest_poll_time + delay)
         bisect.insort(self._deferreds, timer)
 
         return timer
@@ -343,7 +343,7 @@ class Engine(object):
             raise ValueError("Interval must be greater than 0 seconds.")
 
         cycle = functools.partial(function, *args, **kwargs)
-        timer = _Timer(self, cycle, True, interval, self.time + interval)
+        timer = _Timer(self, cycle, True, interval, self.latest_poll_time + interval)
         bisect.insort(self._deferreds, timer)
 
         return timer

@@ -159,7 +159,7 @@ def do_poll():
     _engine.poll(0)
 
     if _engine._deferreds:
-        timer.setInterval(min(1000 * (_engine._deferreds[0].end - _engine.time), _timeout))
+        timer.setInterval(min(1000 * (_engine._deferreds[0].end - _engine.latest_poll_time), _timeout))
     else:
         timer.setInterval(_timeout)
 

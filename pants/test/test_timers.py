@@ -30,7 +30,7 @@ class TestTimers(unittest.TestCase):
         self.engine = Engine()
 
     def timer(self):
-        self.times_called.append(self.engine.time)
+        self.times_called.append(self.engine.latest_poll_time)
 
     def test_callback(self):
         timer = MagicMock()
@@ -70,7 +70,7 @@ class TestTimers(unittest.TestCase):
     def test_defer(self):
         self.engine.poll(0.01)
         timer = MagicMock(side_effect=self.timer)
-        expected_time = self.engine.time + 0.01
+        expected_time = self.engine.latest_poll_time + 0.01
         self.engine.defer(0.01, timer)
         self.engine.poll(0.2)
         self.engine.poll(0.2)
@@ -91,9 +91,9 @@ class TestTimers(unittest.TestCase):
         self.engine.poll(0.01)
         timer = MagicMock(side_effect=self.timer)
         expected_times = [
-            self.engine.time + 0.01,
-            self.engine.time + 0.02,
-            self.engine.time + 0.03
+            self.engine.latest_poll_time + 0.01,
+            self.engine.latest_poll_time + 0.02,
+            self.engine.latest_poll_time + 0.03
             ]
         self.engine.cycle(0.01, timer)
         self.engine.poll(0.2)
@@ -108,8 +108,8 @@ class TestTimers(unittest.TestCase):
         self.engine.poll(0.01)
         timer = MagicMock(side_effect=self.timer)
         expected_times = [
-            self.engine.time + 0.01,
-            self.engine.time + 0.02
+            self.engine.latest_poll_time + 0.01,
+            self.engine.latest_poll_time + 0.02
             ]
         cancel_cycle = self.engine.cycle(0.01, timer)
         self.engine.poll(0.2)
