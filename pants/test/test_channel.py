@@ -570,9 +570,9 @@ class TestChannelFormatAddress(unittest.TestCase):
         self.assertRaises(InvalidAddressFormatError, self.channel._format_address, addr)
 
     def test_with_ipv4_address(self):
-        addr = ('0', 2)
+        addr = ('8.8.8.8', 2)
         address, family, resolved = self.channel._format_address(addr)
-        self.assertEqual(address, ('0.0.0.0', 2))
+        self.assertEqual(address, ('8.8.8.8', 2))
         self.assertEqual(family, socket.AF_INET)
         self.assertEqual(resolved, True)
 
