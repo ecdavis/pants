@@ -531,22 +531,61 @@ class TestChannelFormatAddress(unittest.TestCase):
 
     def test_with_port_number(self):
         port = 8080
-        address, family = self.channel._format_address(port)
+        address, family, resolved = self.channel._format_address(port)
         self.assertEqual(address, ("", port))
         self.assertEqual(family, socket.AF_INET)
+        self.assertEqual(resolved, True)
 
-    def test_with_ipv4_address(self):
-        addr = (1, 2)
-        address, family = self.channel._format_address(addr)
+    def test_inaddr_any(self):
+        addr = ('', 80)
+        address, family, resolved = self.channel._format_address(addr)
         self.assertEqual(address, addr)
         self.assertEqual(family, socket.AF_INET)
+        self.assertEqual(resolved, True)
+
+    def test_inaddr6_any(self):
+        addr = ('', 80, 1, 2)
+        address, family, resolved = self.channel._format_address(addr)
+        self.assertEqual(address, addr)
+        self.assertEqual(family, socket.AF_INET6)
+        self.assertEqual(resolved, True)
+
+    def test_broadcast(self):
+        addr = ('<broadcast>', 80)
+        address, family, resolved = self.channel._format_address(addr)
+        self.assertEqual(address, addr)
+        self.assertEqual(family, socket.AF_INET)
+        self.assertEqual(resolved, True)
+
+    def test_broadcast6(self):
+        addr = ('<broadcast>', 80, 1, 2)
+        address, family, resolved = self.channel._format_address(addr)
+        self.assertEqual(address, addr)
+        self.assertEqual(family, socket.AF_INET6)
+        self.assertEqual(resolved, True)
+
+    def test_with_invalid_ipv4_address(self):
+        addr = (1, 2)
+        self.assertRaises(InvalidAddressFormatError, self.channel._format_address, addr)
+
+    def test_with_ipv4_address(self):
+        addr = ('0', 2)
+        address, family, resolved = self.channel._format_address(addr)
+        self.assertEqual(address, ('0.0.0.0', 2))
+        self.assertEqual(family, socket.AF_INET)
+        self.assertEqual(resolved, True)
+
+    @unittest.skipUnless(HAS_IPV6, "Requires support for IPv6 sockets.")
+    def test_with_invalid_ipv6_address(self):
+        addr = (1, 2, 3, 4)
 
     @unittest.skipUnless(HAS_IPV6, "Requires support for IPv6 sockets.")
     def test_with_ipv6_address(self):
-        addr = (1, 2, 3, 4)
-        address, family = self.channel._format_address(addr)
+        addr = ('::1', 2, 3, 4)
+        address, family, resolved = self.channel._format_address(addr)
         self.assertEqual(address, addr)
         self.assertEqual(family, socket.AF_INET6)
+        self.assertEqual(resolved, True)
 
     @unittest.skipIf(HAS_IPV6, "Requires no support for IPv6 sockets.")
     def test_when_ipv6_address_is_invalid(self):

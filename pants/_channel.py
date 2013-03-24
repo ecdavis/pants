@@ -629,12 +629,36 @@ class _Channel(object):
     def _format_address(self, address):
         """
         Given an address, returns the address family and - if
-        necessary - properly formats the address.
+        necessary - properly formats the address. Also determines if the
+        address is a hostname that must be resolved.
 
         A string is treated as an AF_UNIX address. An integer or long is
-        converted to a 2-tuple of the form ('', number). A 2-tuple is
-        treated as an AF_INET address and a 4-tuple is treated as an
-        AF_INET6 address.
+        converted to a 2-tuple of the form ('', number). A 4-tuple is
+        treated as an AF_INET6 address.
+
+        If the first part of the address tuple is an empty string, it will be
+        interpreted as INADDR_ANY given a 2-tuple or IN6ADDR_ANY_INIT, the
+        IPv6 equivalent, given a 4-tuple.
+
+        If a 2-tuple uses an IP address, the family will be set properly,
+        otherwise the returned family will be ``0`` and the resolved value
+        will be False.
+
+        The following table demonstrates how _format_address will react to
+        different inputs.
+
+        =================================  ================================
+        Address                            ``(address, family, resolved)``
+        =================================  ================================
+        ``None``                           **raises exception**
+        ``'/myserver'``                    ``('/myserver', socket.AF_UNIX, True)``
+        ``80``                             ``(('', 80), socket.AF_INET, True)``
+        ``('www.google.com', 80)``         ``(('www.google.com'), 0, False)``
+        ``('', 80, 0, 0)``                 ``(('', 80, 0, 0), socket.AF_INET6, True)``
+        ``('www.google.com', 80, 0, 0)``   ``(('www.google.com', 80, 0, 0), socket.AF_INET6, False)``
+        ``('2001:4860::1014', 80)``        ``(('2001:4860::1014', 80, 0, 0), socket.AF_INET6, True)``
+        ``('8.8.8.8', 53)``                ``(('8.8.8.8', 53), socket.AF_INET, True)``
+        =================================  ================================
 
         Will raise an InvalidAddressFormatError if the given address is
         from an unknown or unsupported family.
@@ -647,28 +671,62 @@ class _Channel(object):
         """
         if isinstance(address, basestring):
             if HAS_UNIX:
-                return address, socket.AF_UNIX
+                return address, socket.AF_UNIX, True
             raise InvalidAddressFormatError("AF_UNIX not supported.")
 
-        if isinstance(address, (int, long)):
-            address = ('', address)
+        elif isinstance(address, (int, long)):
+            return ('', address), socket.AF_INET, True
 
+        elif not isinstance(address, (tuple, list)) or \
+                not len(address) in (2,4) or \
+                not isinstance(address[0], basestring):
+            raise InvalidAddressFormatError("Invalid address: %s" %
+                                            repr(address))
+
+        # Deal with IPv6 right now.
+        if not HAS_IPV6 and len(address) == 4:
+            raise InvalidAddressFormatError("AF_INET6 not supported.")
+
+        # Deal with INADDR_ANY and <broadcast>
+        if address[0] in ('', '<broadcast>'):
+            if len(address) == 4:
+                return address, socket.AF_INET6, True
+            else:
+                return address, socket.AF_INET, True
+
+        # If the address is a 4-tuple, require IPv6 from getaddrinfo.
+        family = socket.AF_INET6 if len(address) == 4 else 0
+
+        # Now, run getaddrinfo.
         try:
-            if len(address) == 2:
-                return address, socket.AF_INET
-            elif len(address) == 4:
-                if HAS_IPV6:
-                    return address, socket.AF_INET6
-                else:
-                    raise InvalidAddressFormatError("AF_INET6 not supported.")
-        except TypeError:
-            # Address does not have a length.
-            raise InvalidAddressFormatError("Invalid address: %r" % address)
+            result = socket.getaddrinfo(address[0], address[1], family, 0, 0,
+                                        socket.AI_NUMERICHOST)
+        except socket.error:
+            # It isn't an IP address.
+            if len(address) == 4:
+                return address, socket.AF_INET6, False
+            else:
+                return address, 0, False
 
-        # Using %r here can sometimes raise a TypeError.
-        raise InvalidAddressFormatError("Invalid address: %s" % repr(address))
+        # We've got an IP address. Conveniently, getaddrinfo gives us a family.
+        # We only care about the first result.
+        result = result[0]
+        family = result[0]
 
-    def _resolve_address(self, address, family, cb):
+        if family == socket.AF_INET6:
+            if not HAS_IPV6:
+                raise InvalidAddressFormatError("AF_INET6 not supported.")
+
+            # Keep the flow control and scope id from our address.
+            address = result[-1][:2] + address[2:]
+        else:
+            address = result[-1]
+
+        # Now, get the family from the first position and address from the last.
+        return address, family, True
+
+
+    def _resolve_address(self, address, callback):
         """
         Use Pants' DNS client to asynchronously resolve the given
         address.
@@ -677,8 +735,7 @@ class _Channel(object):
         Argument  Description
         ========= ===================================================
         address   The address to resolve.
-        family    The address family.
-        cb        A callable taking two mandatory arguments and one
+        callback  A callable taking two mandatory arguments and one
                   optional argument. The arguments are: the resolved
                   address, the socket family and error information,
                   respectively.
@@ -690,33 +747,31 @@ class _Channel(object):
         if dns is None:
             from pants.util import dns
 
-        # UNIX addresses and INADDR_ANY don't need to be resolved.
-        if isinstance(address, basestring) or address[0] == '':
-            cb(address, family)
-            return
-
         def dns_callback(status, cname, ttl, rdata):
-            if status == dns.DNS_NAMEERROR:
-                cb(None, None, NAME_ERROR)
+            if status != dns.DNS_OK:
+                # DNS errored. Assume it's a bad hostname.
+                callback(None, None, NAME_ERROR)
                 return
 
-            if status != dns.DNS_OK or not rdata:
-                cb(address, family)
+            for addr in rdata:
+                family = socket.AF_INET6 if ':' in addr else 0
+                try:
+                    result = socket.getaddrinfo(addr, address[1], family, 0, 0, socket.AI_NUMERICHOST)
+                except socket.error:
+                    continue
+
+                # It's a valid host.
+                result = result[0]
+                callback(result[-1], result[0])
                 return
 
-            for i in rdata:
-                if ':' in i:
-                    if not HAS_IPV6:
-                        continue
-                    cb((i,) + address[1:], socket.AF_INET6)
-                    return
-                else:
-                    cb((i,) + address[1:], socket.AF_INET)
-                    return
-            else:
-                cb(None, None, FAMILY_ERROR)
+            # We didn't get any valid address.
+            callback(None, None, NAME_ERROR)
 
-        if HAS_IPV6 and family == socket.AF_INET6:
+        # Only query records that we can use.
+        if not HAS_IPV6:
+            qtype = dns.A
+        elif len(address) == 4:
             qtype = dns.AAAA
         else:
             qtype = (dns.AAAA, dns.A)
