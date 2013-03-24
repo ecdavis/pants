@@ -10,8 +10,22 @@ Changelog
             Stream was closed. Streams now process buffered data before closing
             to make sure all data is passed to ``on_read``.
 
+ *  *Fixed* automatic address family detection, notably fixing a bug that would
+            prevent Pants from connecting to IPv6 addresses unless given an
+            address tuple with four entries.
+
+ *  *Fixed* a bug in ``pants.web`` preventing it from being successfully
+            imported in Python 2.6.
+
  *  *Added* Windows-specific timing code to improve the precision of timer
             execution on Windows platforms.
+
+ *  *Added* the ability to create a basic HTTP file server by running the
+            ``pants.web.fileserver`` module using:
+            ``python -m pants.web.fileserver``
+
+ *  *Added* support for using [NetStruct](https://github.com/stendec/netstruct)
+            instances as ``read_delimiters``.
 
 1.0.0-beta.2 (2012-11-05)
 -------------------------

@@ -653,7 +653,7 @@ class _Channel(object):
         ``None``                           **raises exception**
         ``'/myserver'``                    ``('/myserver', socket.AF_UNIX, True)``
         ``80``                             ``(('', 80), socket.AF_INET, True)``
-        ``('www.google.com', 80)``         ``(('www.google.com'), 0, False)``
+        ``('www.google.com', 80)``         ``(('www.google.com', 80), 0, False)``
         ``('', 80, 0, 0)``                 ``(('', 80, 0, 0), socket.AF_INET6, True)``
         ``('www.google.com', 80, 0, 0)``   ``(('www.google.com', 80, 0, 0), socket.AF_INET6, False)``
         ``('2001:4860::1014', 80)``        ``(('2001:4860::1014', 80, 0, 0), socket.AF_INET6, True)``
