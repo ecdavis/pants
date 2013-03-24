@@ -372,7 +372,12 @@ class _Channel(object):
         except socket.error as err:
             result = err.args[0]
 
-        if not result or result == errno.EISCONN:
+        # None can be returned by an SSLSocket when it times out, rather
+        # than EAGAIN. See issue #42 for more information.
+        if result is None:
+            result = errno.EAGAIN
+
+        if result == 0 or result == errno.EISCONN:
             return True
 
         if result in (errno.EAGAIN, errno.EWOULDBLOCK,
