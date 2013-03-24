@@ -36,6 +36,15 @@ from pants._channel import _Channel, HAS_IPV6
 from pants.engine import Engine
 
 
+try:
+    from netstruct import NetStruct as _NetStruct
+except ImportError:
+    # Create the fake class because isinstance expects a class.
+    class _NetStruct(object):
+        def __init__(self, *a, **kw):
+            raise NotImplementedError
+
+
 ###############################################################################
 # Constants
 ###############################################################################
@@ -202,7 +211,8 @@ class Stream(_Channel):
         :meth:`~pants.stream.Stream.on_read` callback. The value of the
         read delimiter determines when the data is passed to the
         callback. Valid values are ``None``, a string, an integer/long,
-        a compiled regular expression, or an instance of :class:`struct.Struct`.
+        a compiled regular expression, an instance of :class:`struct.Struct`,
+        or an instance of :class:`netstruct.NetStruct`.
 
         When the read delimiter is ``None``, data will be passed to
         :meth:`~pants.stream.Stream.on_read` immediately after it is
@@ -221,7 +231,7 @@ class Stream(_Channel):
         Struct's ``size`` is fully buffered and the data is unpacked using the
         Struct before its sent to :meth:`on_read`. Unlike other types of read
         delimiters, this can result in more than one argument being passed to
-        on_read. Example::
+        ``on_read``. Example::
 
             import struct
             from pants import Stream
@@ -232,6 +242,12 @@ class Stream(_Channel):
 
                 def on_read(self, packet_type, length, id):
                     pass
+
+        When the read delimiter is an instance of :class:`netstruct.NetStruct`,
+        the NetStruct's ``minimum_size`` is buffered and unpacked with the
+        NetStruct, and additional data is buffered as necessary until the
+        NetStruct can be completely unpacked. Once ready, the data will be
+        passed to ``on_read``. Using Struct and NetStruct are *very* similar.
 
         When the read delimiter is a compiled regular expression, there
         are two possible behaviors, selected by the value of
@@ -270,8 +286,17 @@ class Stream(_Channel):
             self._read_delimiter = value
             self._recv_buffer_size_limit = max(self._buffer_size, value.size)
 
+        elif isinstance(value, _NetStruct):
+            self._read_delimiter = value
+            self._recv_buffer_size_limit = max(self._buffer_size,
+                                               value.minimum_size)
+
         else:
             raise TypeError("Attempted to set read_delimiter to a value with an invalid type.")
+
+        # Reset NetStruct state when we change the read delimiter.
+        self._netstruct_iter = None
+        self._netstruct_needed = None
 
     # Setting these at the class level makes them easy to override on a
     # per-class basis.
@@ -318,6 +343,9 @@ class Stream(_Channel):
         elif isinstance(self._read_delimiter, Struct):
             self._recv_buffer_size_limit = max(value,
                                                self._read_delimiter.size)
+        elif isinstance(self._read_delimiter, _NetStruct):
+            self._recv_buffer_size_limit = max(value,
+                                            self._read_delimiter.minimum_size)
         else:
             self._recv_buffer_size_limit = value
 
@@ -566,8 +594,9 @@ class Stream(_Channel):
         Write packed binary data to the channel.
 
         If the current :attr:`read_delimiter` is an instance of
-        :class:`struct.Struct` the format will be read from that Struct,
-        otherwise you will need to provide a ``format``.
+        :class:`struct.Struct` or :class:`netstruct.NetStruct` the format will
+        be read from that Struct, otherwise you will need to
+        provide a ``format``.
 
         ==========  ====================================================
         Argument    Description
@@ -585,7 +614,7 @@ class Stream(_Channel):
         format = kwargs.get("format")
         if format:
             self.write(struct.pack(format, *data), kwargs.get("flush", False))
-        elif not isinstance(self._read_delimiter, Struct):
+        elif not isinstance(self._read_delimiter, (Struct, _NetStruct)):
             raise ValueError("No format is available for writing packed data.")
         else:
             self.write(self._read_delimiter.pack(*data),
@@ -831,6 +860,30 @@ class Stream(_Channel):
 
                 # Unlike most on_read calls, this one sends every variable of
                 # the parsed data as its own argument.
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, _NetStruct):
+                if not self._netstruct_iter:
+                    # We need to get started.
+                    self._netstruct_iter = delimiter.iter_unpack()
+                    self._netstruct_needed = next(self._netstruct_iter)
+
+                if len(self._recv_buffer) < self._netstruct_needed:
+                    break
+
+                data = self._netstruct_iter.send(
+                    self._recv_buffer[:self._netstruct_needed])
+                self._recv_buffer = self._recv_buffer[self._netstruct_needed:]
+
+                if isinstance(data, (int,long)):
+                    self._netstruct_needed = data
+                    continue
+
+                # Still here? Then we've got our object. Delete the NetStruct
+                # state and send the data.
+                self._netstruct_needed = None
+                self._netstruct_iter = None
+
                 self._safely_call(self.on_read, *data)
 
             elif isinstance(delimiter, RegexType):

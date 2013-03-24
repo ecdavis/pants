@@ -25,6 +25,14 @@ import struct
 
 from pants import Stream, Server
 
+try:
+    from netstruct import NetStruct as _NetStruct
+except ImportError:
+    # Create the fake class because isinstance expects a class.
+    class _NetStruct(object):
+        def __init__(self, *a, **kw):
+            raise NotImplementedError
+
 
 ###############################################################################
 # Logging
@@ -154,6 +162,31 @@ class TelnetConnection(Stream):
                     log.exception("Unable to unpack data on %r." % self)
                     self.close()
                     break
+
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, _NetStruct):
+                # Ditto for NetStruct.
+                if not self._netstruct_iter:
+                    # We need to get started.
+                    self._netstruct_iter = delimiter.iter_unpack()
+                    self._netstruct_needed = next(self._netstruct_iter)
+
+                if len(self._telnet_data) < self._netstruct_needed:
+                    break
+
+                data = self._netstruct_iter.send(
+                    self._telnet_data[:self._netstruct_needed])
+                self._telnet_data = self._telnet_data[self._netstruct_needed:]
+
+                if isinstance(data, (int,long)):
+                    self._netstruct_needed = data
+                    continue
+
+                # Still here? Then we've got our object. Delete the NetStruct
+                # state and send the data.
+                self._netstruct_needed = None
+                self._netstruct_iter = None
 
                 self._safely_call(self.on_read, *data)
 

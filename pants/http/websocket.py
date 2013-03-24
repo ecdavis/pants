@@ -30,6 +30,14 @@ from pants.stream import StreamBufferOverflow
 
 from pants.http.utils import log
 
+try:
+    from netstruct import NetStruct as _NetStruct
+except ImportError:
+    # Create the fake class because isinstance expects a class.
+    class _NetStruct(object):
+        def __init__(self, *a, **kw):
+            raise NotImplementedError
+
 
 ###############################################################################
 # Constants
@@ -328,7 +336,8 @@ class WebSocket(object):
         read delimiter determines when the data is passed to the
         callback. Valid values are ``None``, a string, an integer/long,
         a compiled regular expression, an instance of :class:`struct.Struct`,
-        or the ``pants.http.EntireMessage`` object.
+        an instance of :class:`netstruct.NetStruct`, or the
+        ``pants.http.EntireMessage`` object.
 
         When the read delimiter is the ``EntireMessage`` object, entire
         WebSocket messages will be passed to
@@ -363,6 +372,12 @@ class WebSocket(object):
 
                 def on_read(self, packet_type, length, id):
                     pass
+
+        When the read delimiter is an instance of :class:`netstruct.NetStruct`,
+        the NetStruct's ``minimum_size`` is buffered and unpacked with the
+        NetStruct, and additional data is buffered as necessary until the
+        NetStruct can be completely unpacked. Once ready, the data will be
+        passed to ``on_read``. Using Struct and NetStruct are *very* similar.
 
         When the read delimiter is a compiled regular expression, there
         are two possible behaviors, selected by the value of
@@ -401,12 +416,21 @@ class WebSocket(object):
             self._read_delimiter = value
             self._recv_buffer_size_limit = max(self._buffer_size, value.size)
 
+        elif isinstance(value, _NetStruct):
+            self._read_delimiter = value
+            self._recv_buffer_size_limit = max(self._buffer_size,
+                                               value.minimum_size)
+
         elif value is EntireMessage:
             self._read_delimiter = value
             self._recv_buffer_size_limit = self._buffer_size
 
         else:
             raise TypeError("Attempted to set read_delimiter to a value with an invalid type.")
+
+        # Reset NetStruct state when we change the read delimiter.
+        self._netstruct_iter = None
+        self._netstruct_needed = None
 
     # Setting these at the class level makes them easy to override on a
     # per-class basis.
@@ -453,6 +477,9 @@ class WebSocket(object):
         elif isinstance(self._read_delimiter, Struct):
             self._recv_buffer_size_limit = max(value,
                 self._read_delimiter.size)
+        elif isinstance(self._read_delimiter, _NetStruct):
+            self._recv_buffer_size_limit = max(value,
+                self._read_delimiter.minimum_size)
         else:
             self._recv_buffer_size_limit = value
 
@@ -689,8 +716,9 @@ class WebSocket(object):
         Write packed binary data to the WebSocket.
 
         If the current :attr:`read_delimiter` is an instance of
-        :class:`struct.Struct` the format will be read from that Struct,
-        otherwise you will need to provide a ``format``.
+        :class:`struct.Struct` or :class:`netstruct.NetStruct` the format
+        will be read from that Struct, otherwise you will need to provide
+        a ``format``.
 
         By default, this will send the data as a binary message.
 
@@ -710,7 +738,7 @@ class WebSocket(object):
         format = kwargs.get("format", None)
         if format:
             self.write(struct.pack(format, *data), kwargs.get("binary", True))
-        elif not isinstance(self._read_delimiter, Struct):
+        elif not isinstance(self._read_delimiter, (Struct, _NetStruct)):
             raise ValueError("No format is available for writing packed data.")
         else:
             self.write(self._read_delimiter.pack(*data),
@@ -927,6 +955,30 @@ class WebSocket(object):
 
                 # Unlike most on_read calls, this one sends every variable of
                 # the parsed data as its own argument.
+                self._safely_call(self.on_read, *data)
+
+            elif isinstance(delimiter, _NetStruct):
+                if not self._netstruct_iter:
+                    # We need to get started.
+                    self._netstruct_iter = delimiter.iter_unpack()
+                    self._netstruct_needed = next(self._netstruct_iter)
+
+                if len(self._read_buffer) < self._netstruct_needed:
+                    break
+
+                data = self._netstruct_iter.send(
+                    self._read_buffer[:self._netstruct_needed])
+                self._read_buffer = self._read_buffer[self._netstruct_needed:]
+
+                if isinstance(data, (int,long)):
+                    self._netstruct_needed = data
+                    continue
+
+                # Still here? Then we've got an object. Delete the NetStruct
+                # state and send the data.
+                self._netstruct_needed = None
+                self._netstruct_iter = None
+
                 self._safely_call(self.on_read, *data)
 
             elif isinstance(delimiter, RegexType):
