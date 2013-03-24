@@ -1,8 +1,20 @@
 Changelog
 =========
 
-1.0.0-beta.2 (2012-11-05)
+1.0.0-beta.3 (current)
 ----------------------
+ *  *Changed* ``engine.time`` to ``engine.latest_poll_time``, as that name more
+              accurately reflects the value of the attribute.
+
+ *  *Fixed* a bug in Stream that would cause buffered data to be lost when the
+            Stream was closed. Streams now process buffered data before closing
+            to make sure all data is passed to ``on_read``.
+
+ *  *Added* Windows-specific timing code to improve the precision of timer
+            execution on Windows platforms.
+
+1.0.0-beta.2 (2012-11-05)
+-------------------------
  *  *Added* ``pants.web.async``, a decorator for use with Application that
             uses generators to make asynchronous request handling easy.
 
