@@ -520,9 +520,10 @@ class TestChannelFormatAddress(unittest.TestCase):
     @unittest.skipUnless(HAS_UNIX, "Requires support for UNIX sockets.")
     def test_with_unix_address(self):
         path = "/home/example/socket"
-        address, family = self.channel._format_address(path)
+        address, family, resolved = self.channel._format_address(path)
         self.assertEqual(address, path)
         self.assertEqual(family, socket.AF_UNIX)
+        self.assertEqual(resolved, True)
 
     @unittest.skipIf(HAS_UNIX, "Requires no support for UNIX sockets.")
     def test_when_unix_address_is_invalid(self):
