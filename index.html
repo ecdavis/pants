@@ -53,9 +53,9 @@ releases.</p>
 
 <p>Finally, to install from source:</p>
 
-<pre><code>wget https://github.com/ecdavis/pants/tarball/pants-1.0.0-beta.2
-tar xvfz pants-1.0.0-beta.2.tar.gz
-cd pants-1.0.0-beta.2.tar.gz
+<pre><code>wget https://github.com/ecdavis/pants/tarball/pants-1.0.0-beta.3
+tar xvfz pants-1.0.0-beta.3.tar.gz
+cd pants-1.0.0-beta.3.tar.gz
 python setup.py install
 </code></pre>
 
@@ -90,7 +90,7 @@ features as well as the latest bugs. You can clone the repository like so:</p>
 <span class="n">app</span> <span class="o">=</span> <span class="n">Application</span><span class="p">()</span>
 
 <span class="nd">@app.route</span><span class="p">(</span><span class="s">'/'</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">hello</span><span class="p">(</span><span class="bp">request</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">hello</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
     <span class="k">return</span> <span class="s">"Hello, World!"</span>
 
 <span class="n">HTTPServer</span><span class="p">(</span><span class="n">app</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">()</span>
