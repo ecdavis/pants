@@ -1,8 +1,8 @@
 Changelog
 =========
 
-1.0.0-beta.3 (current)
-----------------------
+1.0.0-beta.3 (2013-03-25)
+-------------------------
  *  *Changed* ``engine.time`` to ``engine.latest_poll_time``, as that name more
               accurately reflects the value of the attribute.
 
