@@ -56,12 +56,12 @@ after some delay without blocking the process.
 Channels
 ========
 
-Channels in Pants are objects that wrap a non-blocking :obj:`~socket.socket`
+Channels in Pants are objects that wrap a non-blocking :py:obj:`~socket.socket`
 and provide a simple, convenient interface with which to interact with that
 socket. Channels typically represent local servers, remote connections to local
 servers or local connections to remote servers. The Channel API currently
 supports IPv4, IPv6 and Unix sockets. Channels are currently TCP-only, support
-for UDP will be added in future versions.
+for UDP will be added in a future release.
 
 **Further information:** :doc:`guides/using_channels`
 

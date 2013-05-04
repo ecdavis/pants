@@ -57,8 +57,8 @@ class Server(_Channel):
     engine             *Optional.* The engine to which the channel
                        should be added. Defaults to the global engine.
     socket             *Optional.* A pre-existing socket to wrap. This
-                       can be a regular :obj:`~socket.socket` or an
-                       :obj:`~ssl.SSLSocket`. If a socket is not
+                       can be a regular :py:obj:`~socket.socket` or an
+                       :py:obj:`~ssl.SSLSocket`. If a socket is not
                        provided, a new socket will be created for the
                        channel when required.
     ssl_options        *Optional.* If provided,
