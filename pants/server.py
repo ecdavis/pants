@@ -47,7 +47,7 @@ class Server(_Channel):
     """
     A stream-oriented server channel.
 
-    A :class:`~pants.stream.Server` instance represents a local server
+    A :class:`~pants.server.Server` instance represents a local server
     capable of listening for connections from remote hosts over a
     connection-oriented protocol such as TCP/IP.
 
@@ -62,7 +62,7 @@ class Server(_Channel):
                        provided, a new socket will be created for the
                        channel when required.
     ssl_options        *Optional.* If provided,
-                       :meth:`~pants.stream.Server.startSSL` will be
+                       :meth:`~pants.server.Server.startSSL` will be
                        called with these options once the server is
                        ready. By default, SSL will not be enabled.
     =================  ================================================
@@ -128,12 +128,12 @@ class Server(_Channel):
         Enabling SSL on a server channel will cause any new connections
         accepted by the server to be automatically wrapped in an SSL
         context before being passed to
-        :meth:`~pants.stream.Server.on_accept`. If an error occurs while
+        :meth:`~pants.server.Server.on_accept`. If an error occurs while
         a new connection is being wrapped,
-        :meth:`~pants.stream.Server.on_ssl_wrap_error` is called.
+        :meth:`~pants.server.Server.on_ssl_wrap_error` is called.
 
         SSL is enabled immediately. Typically, this method is called
-        before :meth:`~pants.stream.Server.listen`. If it is called
+        before :meth:`~pants.server.Server.listen`. If it is called
         afterwards, any connections made in the meantime will not have
         been wrapped in SSL contexts.
 
@@ -181,7 +181,7 @@ class Server(_Channel):
         The given ``address`` is resolved, the channel is bound to the
         address and then begins listening for connections. Once the
         channel has begun listening,
-        :meth:`~pants.stream.Server.on_listen` will be called.
+        :meth:`~pants.server.Server.on_listen` will be called.
 
         Addresses can be represented in a number of different ways. A
         single string is treated as a UNIX address. A single integer is
@@ -237,7 +237,7 @@ class Server(_Channel):
         new connections. Any connections accepted by this channel will
         remain open and will need to be closed separately. If this
         channel has an IPv4 slave (see
-        :meth:`~pants.stream.Server.listen`) it will be closed.
+        :meth:`~pants.server.Server.listen`) it will be closed.
 
         Once closed, a channel cannot be re-opened.
         """
@@ -260,7 +260,7 @@ class Server(_Channel):
         Called after the channel has accepted a new connection.
 
         Create a new instance of
-        :attr:`~pants.basic.Server.ConnectonClass` to wrap the socket
+        :attr:`~pants.server.Server.ConnectonClass` to wrap the socket
         and add it to the server.
 
         =========  ============

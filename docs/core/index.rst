@@ -7,4 +7,4 @@ Core
     pants
     engine
     stream
-    datagram
+    server

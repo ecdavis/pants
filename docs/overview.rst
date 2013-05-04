@@ -19,14 +19,14 @@ application is to perform I/O on sockets, allowing you to build fast, simple
 network applications.
 
 Pants is asynchronous, meaning that rather than starting to read or write data
-and then doing nothing until that operation is complete, it instead performs
-I/O in the background as it becomes possible to do so. This makes Pants fast
-and able to handle a large number of concurrent connections.
+and then simply waiting until that operation is complete, it instead performs
+I/O in the background as it becomes possible to do so. This allows Pants to
+handle a large number of concurrent connections.
 
 However, because Pants is asynchronous, it is very important that none of the
 code in your application `blocks
-<http://en.wikipedia.org/wiki/Blocking_(computing)>`_ the process. Any
-blocking code will cause the entire process to wait until the blocking
+<http://en.wikipedia.org/wiki/Blocking_(computing)>`_ the main thread. Any
+blocking code will cause the entire thread to wait until the blocking
 operation is complete, preventing any channel objects from being updated.
 
 To eliminate the need for blocking code, Pants uses a callback-oriented
@@ -58,11 +58,10 @@ Channels
 
 Channels in Pants are objects that wrap a non-blocking :obj:`~socket.socket`
 and provide a simple, convenient interface with which to interact with that
-socket.
-
-Channels may represent local servers, remote connections to local servers or
-local connections to remote servers. Channels may use either network sockets
-or Unix sockets and can be stream-oriented (TCP) or packet-oriented (UDP).
+socket. Channels typically represent local servers, remote connections to local
+servers or local connections to remote servers. The Channel API currently
+supports IPv4, IPv6 and Unix sockets. Channels are currently TCP-only, support
+for UDP will be added in future versions.
 
 **Further information:** :doc:`guides/using_channels`
 
@@ -84,29 +83,21 @@ asynchronous nature.
 Example: Echo
 =============
 
-::
-
-    from pants import Connection, engine, Server
-
-    class Echo(Connection):
-        def on_read(self, data):
-            self.write(data)
-
-    Server(Echo).listen(4040)
-    engine.start()
+.. literalinclude:: ../examples/echo.py
+    :language: python
 
 The above code is an example of a very simple Pants application. A
-:class:`~pants.basic.Connection` subclass called :class:`Echo` is defined with
-a single callback (:func:`on_read`). A :class:`~pants.basic.Server` is then
+:class:`~pants.stream.Stream` subclass called :class:`Echo` is defined with
+a single callback (:func:`on_read`). A :class:`~pants.server.Server` is then
 created and told to use the :class:`Echo` class for new connections. The
 server is told to start listening for connections on port 4040 and the
-:obj:`~pants.engine.Engine` is started.
+:obj:`~pants.engine` is started.
 
 When a new connection is made to the server on port 4040, an instance of
 the :class:`Echo` class will be created to wrap that connection. When
 data arrives on the connection it will be read automatically and passed
-to the :meth:`~pants.basic.Connection.on_read` method, which will then pass it
-to the :meth:`~pants.basic.Connection.write` method, causing the data to be
+to the :meth:`~pants.stream.Stream.on_read` method, which will then pass it
+to the :meth:`~pants.stream.Stream.write` method, causing the data to be
 sent back to the end user.
 
 You can try this out yourself - run this script in a terminal window and,

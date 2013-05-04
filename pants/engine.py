@@ -64,15 +64,16 @@ class Engine(object):
 
     An engine object is responsible for passing I/O events to active
     channels and running timers asynchronously. Depending on OS support,
-    the engine will use either the epoll(), kqueue() or select() system
+    the engine will use either the :meth:`~select.epoll()`,
+    :meth:`~select.kqueue()` or :meth:`~select.select()` system
     call to detect events on active channels. It is possible to force
     the engine to use a particular polling method, but this is not
     recommended.
 
     Most applications will use the global engine object, which can be
-    accessed using :meth:`~pants.engine.Engine.instance`, however it is
-    also possible to create and use multiple instances of
-    :class:`~pants.engine.Engine` in your application.
+    accessed using :meth:`~pants.engine.Engine.instance` or imported directly
+    from the :mod:`pants` package, however it is also possible to create and
+    use multiple instances of :class:`~pants.engine.Engine` in your application.
 
     An engine can either provide the main loop for your application
     (see :meth:`~pants.engine.Engine.start` and
