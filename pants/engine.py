@@ -64,8 +64,8 @@ class Engine(object):
 
     An engine object is responsible for passing I/O events to active
     channels and running timers asynchronously. Depending on OS support,
-    the engine will use either the :meth:`~select.epoll()`,
-    :meth:`~select.kqueue()` or :meth:`~select.select()` system
+    the engine will use either the :py:func:`~select.epoll()`,
+    :py:func:`~select.kqueue()` or :py:func:`~select.select()` system
     call to detect events on active channels. It is possible to force
     the engine to use a particular polling method, but this is not
     recommended.
@@ -449,7 +449,7 @@ class Engine(object):
 
 class _EPoll(object):
     """
-    An :obj:`~select.epoll`-based poller.
+    An :py:func:`~select.epoll`-based poller.
     """
     def __init__(self):
         self._epoll = select.epoll()
@@ -473,7 +473,7 @@ class _EPoll(object):
 
 class _KQueue(object):
     """
-    A :obj:`~select.kqueue`-based poller.
+    A :py:func:`~select.kqueue`-based poller.
     """
     MAX_EVENTS = 1024
 
@@ -529,7 +529,7 @@ class _KQueue(object):
 
 class _Select(object):
     """
-    A :func:`~select.select`-based poller.
+    A :py:func:`~select.select`-based poller.
     """
     def __init__(self):
         self._r = set()
