@@ -95,7 +95,7 @@ pygments_style = 'sphinx'
 
 # Links to other projects using Sphinx so that we can reference them.
 intersphinx_mapping = {
-    'python': ('http://python.readthedocs.org/en/latest/', None),
+    'python': ('http://docs.python.org/2.7/', None),
     'pyside': ('http://srinikom.github.com/pyside-docs/', None),
     }
 
