@@ -25,7 +25,9 @@ import hmac
 import logging
 import mimetypes
 import re
+import time
 
+from datetime import datetime
 from itertools import imap
 
 from pants import __version__ as pants_version
@@ -48,6 +50,13 @@ SERVER      = 'HTTPants (pants/%s)' % pants_version
 SERVER_URL  = 'http://www.pantspowered.org/'
 
 USER_AGENT = "HTTPants/%s" % pants_version
+
+# Formats for parse_date to use.
+DATE_FORMATS = (
+    "%a, %d %b %Y %H:%M:%S %Z",
+    "%A, %d-%b-%y %H:%M:%S %Z",
+    "%a %b %d %H:%M:%S %Y",
+    )
 
 COMMA_HEADERS = ('Accept', 'Accept-Charset', 'Accept-Encoding',
     'Accept-Language', 'Accept-Ranges', 'Allow', 'Cache-Control', 'Connection',
@@ -471,3 +480,11 @@ def read_headers(data, target=None):
 
 def date(dt):
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def parse_date(text):
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime(*time.strptime(text, fmt)[:6])
+        except ValueError:
+            continue
+    raise ValueError("Unable to parse time data %r." % text)
