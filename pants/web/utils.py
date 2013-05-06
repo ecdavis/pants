@@ -92,12 +92,16 @@ HTTP_MESSAGES = {
          u'this page.'
 }
 
-# Formats for _parse_date to use.
+# Formats for parse_date to use.
 DATE_FORMATS = (
     "%a, %d %b %Y %H:%M:%S %Z",
     "%A, %d-%b-%y %H:%M:%S %Z",
     "%a %b %d %H:%M:%S %Y",
     )
+
+# HTTP status codes that should not send response bodies.
+NO_BODY_CODES = (204, 205, 304)
+
 
 ###############################################################################
 # Resources

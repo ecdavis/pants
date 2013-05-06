@@ -35,7 +35,7 @@ from pants.http.server import HTTPServer
 from pants.http.utils import HTTP, HTTPHeaders
 
 from pants.web.utils import decode, ERROR_PAGE, HAIKUS, HTTP_MESSAGES, \
-    HTTPException, HTTPTransparentRedirect, log
+    HTTPException, HTTPTransparentRedirect, log, NO_BODY_CODES
 
 try:
     import simplejson as json
@@ -932,26 +932,33 @@ class Application(Module):
         """ Process the output of :meth:`Application.route_request`. """
         request = self.request
 
-        if not request.auto_finish or result is None or \
-                request._finish is not None:
-            if request.auto_finish and request._finish is None:
-                request.finish()
+        if not request.auto_finish or request._finish is not None:
             return
 
-        status = 200
+        status = None
+
         if isinstance(result, Response):
             body = result.body
             status = result.status
             headers = result.headers
+
         elif isinstance(result, tuple):
             if len(result) == 3:
                 body, status, headers = result
             else:
                 body, status = result
                 headers = HTTPHeaders()
+                
         else:
             body = result
             headers = HTTPHeaders()
+
+        # If we don't have a body, use a 204.
+        if status is None:
+            if body is None:
+                status = 204
+            else:
+                status = 200
 
         # Use the rule headers stuff.
         if request._rule_headers:
@@ -967,64 +974,81 @@ class Application(Module):
 
             headers = rule_headers
 
-        # Use the rule content-type.
-        if request._rule_content_type and not 'Content-Type' in headers:
-            headers['Content-Type'] = request._rule_content_type
+        # Determine if we're sending a body.
+        send_body = request.method.upper() != 'HEAD' and status not in NO_BODY_CODES
 
         # Convert the body to something that we can send.
-        try:
-            body = body.to_html()
-            if not 'Content-Type' in headers:
-                headers['Content-Type'] = 'text/html'
-        except AttributeError:
-            pass
+        if send_body:
+            # Use the rule content-type.
+            if request._rule_content_type and not 'Content-Type' in headers:
+                headers['Content-Type'] = request._rule_content_type
 
-        # Set a Content-Type header if there isn't one already.
-        if not 'Content-Type' in headers:
-            if isinstance(body, basestring) and body[:5].lower() in \
-                    ('<html', '<!doc'):
-                headers['Content-Type'] = 'text/html'
-            elif isinstance(body, (tuple, list, dict)):
-                headers['Content-Type'] = 'application/json'
-            else:
-                headers['Content-Type'] = 'text/plain'
-
-        if isinstance(body, unicode):
-            encoding = headers['Content-Type']
-            if 'charset=' in encoding:
-                before, sep, enc = encoding.partition('charset=')
-            else:
-                before = encoding
-                sep = '; charset='
-                enc = 'UTF-8'
-
-            body = body.encode(enc)
-            headers['Content-Type'] = before + sep + enc
-
-        elif isinstance(body, (tuple, list, dict)):
             try:
-                body = json.dumps(body, cls=self.json_encoder)
-            except Exception as err:
-                body, status, headers = self.handle_500(request, err)
-                body = body.encode('utf-8')
-                headers['Content-Type'] = 'text/html; charset=UTF-8'
+                body = body.to_html()
+                if not 'Content-Type' in headers:
+                    headers['Content-Type'] = 'text/html'
+            except AttributeError:
+                pass
 
-        elif not isinstance(body, str):
-            body = str(body)
+            # Set a Content-Type header if there isn't one already.
+            if not 'Content-Type' in headers:
+                if isinstance(body, basestring) and body[:5].lower() in \
+                        ('<html', '<!doc'):
+                    headers['Content-Type'] = 'text/html'
+                elif isinstance(body, (tuple, list, dict)):
+                    headers['Content-Type'] = 'application/json'
+                else:
+                    headers['Content-Type'] = 'text/plain'
 
-        # More headers!
-        if not 'Content-Length' in headers:
-            headers['Content-Length'] = len(body)
+            if isinstance(body, unicode):
+                encoding = headers['Content-Type']
+                if 'charset=' in encoding:
+                    before, sep, enc = encoding.partition('charset=')
+                else:
+                    before = encoding
+                    sep = '; charset='
+                    enc = 'UTF-8'
+
+                body = body.encode(enc)
+                headers['Content-Type'] = before + sep + enc
+
+            elif isinstance(body, (tuple, list, dict)):
+                try:
+                    body = json.dumps(body, cls=self.json_encoder)
+                except Exception as err:
+                    body, status, headers = self.handle_500(request, err)
+                    body = body.encode('utf-8')
+                    headers['Content-Type'] = 'text/html; charset=UTF-8'
+
+            elif body is None:
+                body = ''
+
+            elif not isinstance(body, str):
+                body = str(body)
+
+            # More headers!
+            if not 'Content-Length' in headers:
+                headers['Content-Length'] = len(body)
+
+        else:
+            # We're not allowed to send the body, so strip out any headers about
+            # the content of the body.
+            if 'Content-Length' in headers:
+                del headers['Content-Length']
+
+            if 'Content-Type' in headers:
+                del headers['Content-Type']
+
+            if 'Transfer-Encoding' in headers:
+                del headers['Transfer-Encoding']
 
         # Send the response.
         request.send_status(status)
         request.send_headers(headers)
 
-        if request.method.upper() == 'HEAD':
-            request.finish()
-            return
+        if send_body:
+            request.write(body)
 
-        request.write(body)
         request.finish()
 
 
