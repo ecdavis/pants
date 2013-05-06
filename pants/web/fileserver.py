@@ -74,8 +74,10 @@ if os.name == 'nt':
 class FileServer(object):
     """
     The FileServer is a request handling class that, as it sounds, serves files
-    to the client. It also supports the ``Content-Range`` header, HEAD requests,
-    and last modified dates.
+    to the client using :method:`pants.http.server.HTTPRequest.send_file`. As
+    such, it supports caching headers, as well as ``X-Sendfile`` if the
+    :class:`~pants.http.server.HTTPServer` instance is configured to use the
+    Sendfile header.
 
     ==========  ==============================  ============
     Argument    Default                         Description
@@ -83,11 +85,10 @@ class FileServer(object):
     path                                        The path to serve.
     blacklist   ``.py`` and ``.pyc`` files      *Optional.* A list of regular expressions to test filenames against. If a given file matches any of the provided patterns, it will not be downloadable and instead return a ``403 Unauthorized`` error.
     default     ``index.html``, ``index.htm``   *Optional.* A list of default files to be displayed rather than a directory listing if they exist.
-    renderers   None                            *Optional.* A dictionary of methods for rendering files with a given extension into more suitable output, such as converting rST to HTML, or minifying CSS.
     ==========  ==============================  ============
 
     It attempts to serve the files as efficiently as possible, using the
-    `sendfile <http://www.kernel.org/doc/man-pages/online/pages/man2/sendfile.2.html>`_
+
     system call when possible, and with proper use of ETags and other headers to
     minimize repetitive downloading.
 
@@ -107,15 +108,13 @@ class FileServer(object):
         FileServer("/tmp/path").attach(app, "/files/")
     """
     def __init__(self, path, blacklist=(re.compile('.*\.py[co]?$'), ),
-            defaults=('index.html', 'index.htm'),
-            renderers=None):
+            defaults=('index.html', 'index.htm')):
         # Make sure our path is unicode.
         if not isinstance(path, unicode):
             path = decode(path)
 
         self.path = os.path.normpath(os.path.realpath(path))
         self.defaults = defaults
-        self.renderers = renderers or {}
 
         # Build the blacklist.
         self.blacklist = []
@@ -217,136 +216,10 @@ class FileServer(object):
         # Blacklist Checking.
         self.check_blacklist(full_path)
 
-        # Try rendering the content.
-        ext = os.path.basename(full_path).rpartition('.')[-1]
-        if ext in self.renderers:
-            f, mtime, size, type = self.renderers[ext](request, full_path)
-        else:
-            # Get the information for the actual file.
-            f = None
-            stat = os.stat(full_path)
-            mtime = stat.st_mtime
-            size = stat.st_size
-            type = mimetypes.guess_type(full_path)[0]
-
-        # If we don't have a type, text/plain it.
-        if type is None:
-            type = 'text/plain'
-
-        # Generate a bunch of data for headers.
-        modified = datetime.fromtimestamp(mtime)
-        expires = datetime.utcnow() + timedelta(days=7)
-
-        etag = '"%x-%x"' % (size, int(mtime))
-
-        headers = {
-            'Last-Modified' : date(modified),
-            'Expires'       : date(expires),
-            'Cache-Control' : 'max-age=604800',
-            'Content-Type'  : type,
-            'Date'          : date(datetime.utcnow()),
-            'Server'        : SERVER,
-            'Accept-Ranges' : 'bytes',
-            'ETag'          : etag
-        }
-
-        do304 = False
-
-        if 'If-Modified-Since' in request.headers:
-            try:
-                since = _parse_date(request.headers['If-Modified-Since'])
-            except ValueError:
-                since = None
-            if since and since >= modified:
-                do304 = True
-
-        if 'If-None-Match' in request.headers:
-            if etag == request.headers['If-None-Match']:
-                do304 = True
-
-        if do304:
-            if f:
-                f.close()
-            request.auto_finish = False
-            request.send_status(304)
-            request.send_headers(headers)
-            request.finish()
-            return
-
-        if 'If-Range' in request.headers:
-            if etag != request.headers['If-Range'] and \
-                    'Range' in request.headers:
-                del request.headers['Range']
-
-        last = size - 1
-        range = 0, last
-        status = 200
-
-        if 'Range' in request.headers:
-            if request.headers['Range'].startswith('bytes='):
-                try:
-                    val = request.headers['Range'][6:].split(',')[0]
-                    start, end = val.split('-')
-                except ValueError:
-                    if f:
-                        f.close()
-                    abort(416)
-
-                try:
-                    if end and not start:
-                        end = last
-                        start = last - int(end)
-                    else:
-                        start = int(start or 0)
-                        end = int(end or last)
-
-                    if start < 0 or start > end or end > last:
-                        if f:
-                            f.close()
-                        abort(416)
-                    range = start, end
-                except ValueError:
-                    pass
-                if range[0] != 0 or range[1] != last:
-                    status = 206
-                    headers['Content-Range'] = 'bytes %d-%d/%d' % (
-                        range[0], range[1], size)
-
-        # Set the content length header.
-        if range[0] == range[1]:
-            headers['Content-Length'] = 0
-        else:
-            headers['Content-Length'] = 1 + (range[1] - range[0])
-
-        # Send the headers and status line.
+        # Let's send the file.
         request.auto_finish = False
-        request.send_status(status)
-        request.send_headers(headers)
+        request.send_file(full_path)
 
-        # Don't send the body if this is head.
-        if request.method == 'HEAD':
-            if f:
-                f.close()
-            request.finish()
-            return
-
-        # Open the file and send it.
-        if range[0] == range[1]:
-            if f:
-                f.close()
-            request.finish()
-            return
-
-        if f is None:
-            f = open(full_path, 'rb')
-
-        if range[1] != last:
-            length = 1 + (range[1] - range[0])
-        else:
-            length = 0
-
-        request.connection.write_file(f, nbytes=length, offset=range[0])
-        request.connection._finished = True
 
     def list_directory(self, request, path):
         """
@@ -479,14 +352,6 @@ def _human_readable_size(size, precision=2):
         return  u'%s.%s%s' % (ip, dp[:precision], s)
     return u'%s%s' % (ip, s)
 
-def _parse_date(text):
-    for fmt in DATE_FORMATS:
-        try:
-            return datetime(*time.strptime(text, fmt)[:6])
-        except ValueError:
-            continue
-    raise ValueError("Unable to parse time data %r." % text)
-
 
 ###############################################################################
 # Run as Module Support
@@ -529,4 +394,8 @@ if __name__ == '__main__':
     app = Application()
     FileServer(path, [], indices).attach(app, '/')
     print "Serving HTTP with Pants on: %s" % repr(address)
-    app.run(address)
+
+    try:
+        app.run(address)
+    except (KeyboardInterrupt, SystemExit):
+        pass
