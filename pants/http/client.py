@@ -247,24 +247,24 @@ class HTTPClient(object):
     using an HTTPClient to fetch a remote resource::
 
         from pants.http import HTTPClient
-        from pants.engine import engine
+        from pants.engine import Engine
 
         def response_handler(response):
-            engine.stop()
+            Engine.instance().stop()
             print response.content
 
         client = HTTPClient(response_handler)
         client.get("http://httpbin.org/ip")
-        engine.start()
+        Engine.instance().start()
 
     Groups of requests can have their behavior customized with the use of
     sessions::
 
         from pants.http import HTTPClient
-        from pants.engine import engine
+        from pants.engine import Engine
 
         def response_handler(response):
-            engine.stop()
+            Engine.instance().stop()
             print response.content
 
         def other_handler(response):
@@ -276,7 +276,7 @@ class HTTPClient(object):
         with client.session(cookies={'pie':'yummy'}):
             client.get("http://httpbin.org/cookies")
 
-        engine.start()
+        Engine.instance().start()
 
     See :doc:`/guides/using_the_http_client` for more.
     """

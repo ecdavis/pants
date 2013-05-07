@@ -44,17 +44,9 @@ __version__ = "1.0.0-beta.3"
 __all__ = [
     "__authors__", "__version__",  # Metadata
     "HAS_IPV6", "HAS_UNIX",  # Constants
-    "engine",  # Core
+    "Engine",  # Core
     "Stream", "Server",  # TCP Networking
     ]
-
-
-###############################################################################
-# Objects
-###############################################################################
-
-#: Alias for pants.engine.Engine.instance
-engine = Engine.instance()
 
 
 ###############################################################################
