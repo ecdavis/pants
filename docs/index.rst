@@ -13,6 +13,7 @@ Documentation
 .. toctree::
     :maxdepth: 2
 
+    user_guide
     core/index
     web/index
     contrib/index
