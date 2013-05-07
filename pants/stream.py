@@ -601,7 +601,7 @@ class Stream(_Channel):
         ==========  ====================================================
         Argument    Description
         ==========  ====================================================
-        *data       Any number of values to be passed through
+        \*data      Any number of values to be passed through
                     :mod:`struct` and written to the remote host.
         flush       *Optional.* If True, flush the internal write
                     buffer. See :meth:`~pants.stream.Stream.flush`

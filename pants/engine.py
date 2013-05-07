@@ -69,11 +69,15 @@ types of timers: :meth:`~pants.engine.Engine.callback`,
 and :meth:`~pants.engine.Engine.cycle`. Each of these methods is passed
 a callable to execute as well as any number of positional and keyword
 arguments::
+
     engine.callback(my_callable, 1, 2, foo='bar')
+
 The timer methods all return a callable object which can be used to
 cancel the execution of the timer::
+
     cancel_cycle = engine.cycle(10.0, my_callable)
     cancel_cycle()
+
 Any object references passed to a timer method will be retained in
 memory until the timer has finished executing or is cancelled. Be aware
 of this when writing code, as it may cause unexpected behavious should
@@ -84,14 +88,14 @@ immediately after scheduling your timers.
 
 Pollers
 =======
-By default, Pants engines support the :py:obj:`~select.epoll`,
+By default, Pants' engines support the :py:obj:`~select.epoll`,
 :py:obj:`~select.kqueue` and :py:obj:`~select.select` polling methods.
 The most appropriate polling method is selected based on the platform on
-which Pants is running. Advanced users may wish to implement support for
-other polling methods. This can be done by defining a custom poller
-class and passing an instance of it to the :class:`~pants.engine.Engine`
+which Pants is running. Advanced users may wish to use a different
+polling method. This can be done by defining a custom poller class and
+passing an instance of it to the :class:`~pants.engine.Engine`
 constructor. Interested users should review the source code for an
-understanding of how these classes are defined.
+understanding of how these classes are defined and used.
 """
 
 ###############################################################################
