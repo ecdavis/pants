@@ -1,0 +1,71 @@
+---
+layout: default
+title: Pants - Asynchronous Python Networking
+---
+
+        <p><strong>Pants is a lightweight networking framework for Python</strong></p>
+        <p>With a focus on simplicity, elegance and speed, Pants makes it easy and
+downright pleasant to write fast network applications that can handle a
+large number of concurrent connections - and it's Python!</p>
+
+<h2>Installing</h2>
+
+<p>Pants can be installed from the Python Package Index or from source. Pants
+runs on Python 2.6 and 2.7. Support for Python 3 will be added in future
+releases.</p>
+
+<p>To install Pants using pip:</p>
+
+<pre><code>pip install pants
+</code></pre>
+
+<p>Or, using easy_install:</p>
+
+<pre><code>easy_install pants
+</code></pre>
+
+<p>Finally, to install from source:</p>
+
+<pre><code>wget https://github.com/ecdavis/pants/tarball/pants-1.0.0-beta.3
+tar xvfz pants-1.0.0-beta.3.tar.gz
+cd pants-1.0.0-beta.3.tar.gz
+python setup.py install
+</code></pre>
+
+<h3>Using the development version</h3>
+
+<p>Using the development version of Pants will give you access to the latest
+features as well as the latest bugs. You can clone the repository like so:</p>
+
+<pre><code>git clone git://github.com/ecdavis/pants
+</code></pre>
+
+<h2>Examples</h2>
+
+<p>Here's an absurdly simple example - Hello World:</p>
+
+<div class="highlight"><pre><span class="kn">from</span> <span class="nn">pants</span> <span class="kn">import</span> <span class="n">engine</span><span class="p">,</span> <span class="n">Server</span><span class="p">,</span> <span class="n">Stream</span>
+
+<span class="k">class</span> <span class="nc">Hello</span><span class="p">(</span><span class="n">Stream</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">"Hello, World!</span><span class="se">\r\n</span><span class="s">"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="n">Server</span><span class="p">(</span><span class="n">Hello</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="mi">4040</span><span class="p">)</span>
+<span class="n">engine</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</pre></div>
+
+<p>Want a stupidly fast web server? Got you covered:</p>
+
+<div class="highlight"><pre><span class="kn">from</span> <span class="nn">pants</span> <span class="kn">import</span> <span class="n">engine</span>
+<span class="kn">from</span> <span class="nn">pants.web</span> <span class="kn">import</span> <span class="n">Application</span><span class="p">,</span> <span class="n">HTTPServer</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Application</span><span class="p">()</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s">'/'</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">hello</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s">"Hello, World!"</span>
+
+<span class="n">HTTPServer</span><span class="p">(</span><span class="n">app</span><span class="p">)</span><span class="o">.</span><span class="n">listen</span><span class="p">()</span>
+<span class="n">engine</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</pre></div>
