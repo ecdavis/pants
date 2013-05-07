@@ -18,6 +18,80 @@
 ###############################################################################
 """
 Asynchronous event processing and timer scheduling.
+
+Pants applications are powered by instances of the
+:class:`~pants.engine.Engine` class. An :class:`~pants.engine.Engine`
+instance keeps track of active channels, continuously checks them for
+new events and raises those events on the channel when they occur.
+The :class:`~pants.engine.Engine` class also provides the timer
+functionality which allows callable objects to be invoked after some
+delay without blocking the process.
+
+Engines
+=======
+Pants' engines are very simple to use. After you have finished
+initializing your application, simply call
+:meth:`~pants.engine.Engine.start` to enter the blocking event loop.
+:meth:`~pants.engine.Engine.stop` may be called at any time to cause
+a graceful exit from the event loop. If your application has a
+pre-existing event loop you can call the
+:meth:`~pants.engine.Engine.poll` method on each iteration of that loop
+rather than using :meth:`~pants.engine.Engine.start` and
+:meth:`~pants.engine.Engine.stop`. Ideally,
+:meth:`~pants.engine.Engine.poll` should be called many times each
+second to ensure that events are processed efficiently and timers
+are executed on schedule.
+
+The global engine instance is returned by the
+:meth:`~pants.engine.Engine.instance()` classmethod. It is not required
+that you use the global engine instance, but it is strongly recommended.
+By default, new channels are automatically added to the global engine
+when they are created. Channels can be added to a specific engine by
+passing the engine instance as a keyword argument to the channel's
+constructor. If a :class:`~pants.server.Server` is added to a
+non-default engine, any connections it accepts will also be added to
+that engine.
+
+Timers
+======
+In addition to managing channels, Pants' engines can also schedule
+timers. Timers are callable objects that get invoked at some point in
+the future. Pants has four types of timers: callbacks, loops, deferreds
+and cycles. Callbacks and loops are executed each time
+:meth:`~pants.engine.Engine.poll` is called - callbacks are executed
+once while loops are executed repeatedly. Deferreds and cycles are
+executed after a delay specified in seconds - deferreds are executed
+once while cycles are executed repeatedly.
+
+:class:`~pants.engine.Engine` has methods for creating each of the four
+types of timers: :meth:`~pants.engine.Engine.callback`,
+:meth:`~pants.engine.Engine.loop`, :meth:`~pants.engine.Engine.defer`
+and :meth:`~pants.engine.Engine.cycle`. Each of these methods is passed
+a callable to execute as well as any number of positional and keyword
+arguments::
+    engine.callback(my_callable, 1, 2, foo='bar')
+The timer methods all return a callable object which can be used to
+cancel the execution of the timer::
+    cancel_cycle = engine.cycle(10.0, my_callable)
+    cancel_cycle()
+Any object references passed to a timer method will be retained in
+memory until the timer has finished executing or is cancelled. Be aware
+of this when writing code, as it may cause unexpected behavious should
+you fail to take these references into account. Timers rely on their
+engine for scheduling and execution. For best results, you should either
+schedule timers while your engine is running or start your engine
+immediately after scheduling your timers.
+
+Pollers
+=======
+By default, Pants engines support the :py:obj:`~select.epoll`,
+:py:obj:`~select.kqueue` and :py:obj:`~select.select` polling methods.
+The most appropriate polling method is selected based on the platform on
+which Pants is running. Advanced users may wish to implement support for
+other polling methods. This can be done by defining a custom poller
+class and passing an instance of it to the :class:`~pants.engine.Engine`
+constructor. Interested users should review the source code for an
+understanding of how these classes are defined.
 """
 
 ###############################################################################
@@ -71,9 +145,9 @@ class Engine(object):
     recommended.
 
     Most applications will use the global engine object, which can be
-    accessed using :meth:`~pants.engine.Engine.instance` or imported directly
-    from the :mod:`pants` package, however it is also possible to create and
-    use multiple instances of :class:`~pants.engine.Engine` in your application.
+    accessed using :meth:`~pants.engine.Engine.instance`, however it is
+    also possible to create and use multiple instances of
+    :class:`~pants.engine.Engine` in your application.
 
     An engine can either provide the main loop for your application
     (see :meth:`~pants.engine.Engine.start` and
