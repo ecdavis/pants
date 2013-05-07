@@ -36,7 +36,7 @@ read through the :ref:`tutorial <tutorial>`.
 Features
 --------
 
- * TODO
+ * TODO: Feature list?
 
 Getting Started
 ===============
@@ -215,4 +215,4 @@ That's it for the basic tutorial, but there's plenty more you can do here:
 Further Information
 ===================
 
- * TODO
+ * TODO: Further information.
