@@ -104,6 +104,20 @@ In the above example, the ``id`` is automatically converted to an integer by
 the framework. The converter also serves to limit the URLs that will match a
 rule. Variables using the ``int`` converter will only match numbers.
 
+Finally, you may provide default values for variables:
+
+.. code-block:: python
+
+    @app.route("/page/<path:slug=welcome>")
+
+Default values are used if there is no string to capture for the variable in
+question, and are processed via the converter's :meth:`~pants.web.application.Converter.convert`
+method each time the rule is matched.
+
+Defaults are special because they allow you to omit the entirety of the URL
+following the point at which they are used.
+
+
 Domains
 -------
 
@@ -859,7 +873,7 @@ class Module(object):
 class Application(Module):
     """
     The Application class builds upon the :class:`Module` class and acts as a
-    request handler for the :class:`~pants.http.HTTPServer`, with request
+    request handler for the :class:`~pants.http.server.HTTPServer`, with request
     routing, error handling, and a degree of convenience that makes sending
     output easier.
 
@@ -893,16 +907,16 @@ class Application(Module):
     def run(self, address=None, ssl_options=None, engine=None):
         """
         This function exists for convenience, and when called creates a
-        :class:`~pants.http.HTTPServer` instance with its request
+        :class:`~pants.http.server.HTTPServer` instance with its request
         handler set to this application instance, calls
-        :func:`~pants.http.HTTPServer.listen` on that HTTPServer, and
+        :func:`~pants.http.server.HTTPServer.listen` on that HTTPServer, and
         finally, starts the Pants engine to process requests.
 
         ============  ============
         Argument      Description
         ============  ============
         address       *Optional.* The address to listen on. If this isn't specified, it will default to ``(INADDR_ANY, 80)``.
-        ssl_options   *Optional.* A dict of SSL options for the server. See :class:`pants.contrib.ssl.SSLServer` for more information.
+        ssl_options   *Optional.* A dictionary of SSL options for the server. See :meth:`pants.server.Server.startSSL` for more information.
         engine        *Optional.* The :class:`pants.engine.Engine` instance to use.
         ============  ============
         """
