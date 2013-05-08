@@ -4,8 +4,36 @@
 .. automodule:: pants.web.application
 
 
-Route Variable Converters
-=========================
+Helper Functions
+================
+
+.. autofunction:: abort
+
+.. autofunction:: all_or_404
+
+.. autofunction:: error
+
+.. autofunction:: redirect
+
+.. autofunction:: url_for
+
+
+``Application``
+===============
+
+.. autoclass:: Application
+    :members: run
+
+
+``Module``
+==========
+
+.. autoclass:: Module
+    :members: add, basic_route, route
+
+
+``Converter``
+=============
 
 .. autoclass:: Converter
     :members: configure, convert
@@ -22,32 +50,9 @@ Route Variable Converters
         A Converter's ``namegen`` string is used when building a URI with
         :func:`url_for`.
 
-        See :ref:`python:string-formatting` for fun.
+        .. seealso::
 
-
-
-Applications
-============
-
-.. autoclass:: Application
-    :members: run, basic_route, route
-
-.. autoclass:: Module
-    :members: basic_route, route
-
-
-Helper Functions
-================
-
-.. autofunction:: abort
-
-.. autofunction:: all_or_404
-
-.. autofunction:: error
-
-.. autofunction:: redirect
-
-.. autofunction:: url_for
+            :ref:`python:string-formatting`
 
 
 Exceptions

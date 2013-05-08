@@ -16,9 +16,327 @@
 #
 ###############################################################################
 """
-This is the new and improved Application system for Pants. You'll note that the
-design is pretty much `Flask <http://flask.pocoo.org/>`_, but without WSGI so
-it should in theory perform faster.
+A minimal application framework for building websites on top of Pants.
+
+The :class:`~pants.web.application.Application` class features a powerful,
+easy to use request routing system and an API similar to that of the popular
+`Flask <http://flask.pocoo.org/>`_ project.
+
+.. note::
+
+    Application does *not* provide support for sessions or templates, and it is
+    not compatible with WSGI middleware as it is not implemented via WSGI.
+
+
+Applications
+============
+
+Instances of the :class:`~pants.web.application.Application` class are callable
+and act as request handlers for the :class:`pants.http.server.HTTPServer`
+class. As such, to implement a server you just have to create an
+:class:`~pants.http.server.HTTPServer` instance using your application.
+
+.. code-block:: python
+
+    from pants.http import HTTPServer
+    from pants.web import Application
+
+    app = Application()
+
+    HTTPServer(app).listen(8080)
+
+Alternatively, you may call the Application's
+:func:`~pants.web.application.Application.run` method, which creates an instance
+of HTTPServer for you and starts Pants' global :mod:`~pants.engine`.
+
+The main features of an Application are its powerful request routing table and
+its output handling.
+
+.. _app-routing:
+
+Routing
+=======
+
+When registering new request handlers with an
+:class:`~pants.web.application.Application` instance, you are required to
+provide a specially formated rule. These rules allow you to capture variables
+from URLs on top of merely routing requests, making it easy to create attractive
+URLs bereft of unfriendly query strings.
+
+Rules in their simplest form will match a static string.
+
+.. code-block:: python
+
+    @app.route("/")
+    def index(request):
+        return "Index Page"
+
+    @app.route("/welcome")
+    def welcome(request):
+        return "Hello, Programmer!"
+
+Such an Application would have two pages, and not be exceptionally useful by
+any definition. Adding a simple variable makes things much more interesting.
+
+.. code-block:: python
+
+    @app.route("/welcome/<name>")
+    def welcome(request, name):
+        return "Hello, %s!" % name
+
+Variables are created using inequality signs, as demonstrated above, and allow
+you to capture data directly from a URL. By default, a variable accepts any
+character except a slash (``/``) and returns the entire captured string as an
+argument to your request handler.
+
+It is possible to change this behavior by naming a
+:class:`~pants.web.applicaiton.Converter` within the variable definition using
+the format ``<converter:name>`` where ``converter`` is the name of the converter
+to use. For example, the ``int`` converter:
+
+.. code-block:: python
+
+    @app.route("/user/<int:id>")
+    def user(request, id):
+        return session.query(User).filter_by(id=id).first().username
+
+In the above example, the ``id`` is automatically converted to an integer by
+the framework. The converter also serves to limit the URLs that will match a
+rule. Variables using the ``int`` converter will only match numbers.
+
+Domains
+-------
+
+The route rule strings are very similar to those used by the popular Flask
+framework. However, in addition to that behavior, the Application allows you
+to match and extract variables from the domain the page was requested from.
+
+.. code-block:: python
+
+    @app.route("<username>.my-site.com/blog/<int:year>/<slug>")
+
+To use domains, simply place the domain before the first slash in the
+route rule.
+
+
+Rule Variable Converters
+========================
+
+Converters are all subclasses of :class:`pants.web.application.Converter` that
+have been registered with Pants using the
+:func:`pants.web.application.register_converter` decorator.
+
+A Converter has three uses:
+
+1. Generating a regular expression snippet that will match only valid input for
+   the variable in question.
+2. Processing the captured string into useful data for the Application.
+3. The definition of a formatting string that can be used with the
+   :func:`~pants.web.application.url_for` method to generate URL segments for
+   the variable in question.
+
+Converters can accept configuration information from rules using a basic
+format.
+
+.. code-block:: python
+
+    @app.route("/page/<regex('(\d{3}-\d{4})'):number>")
+
+    @app.route("/user/<id(digits=4 min=200):id>")
+
+Configuration must be provided within parenthesis, with separate values
+separated by simple spaces. Strings may be enclosed within quotation marks if
+they need to contain spaces.
+
+The values ``true``, ``false``, and ``none`` are converted to the appropriate
+Python values before being passed to the Converter's configuration method and it
+also attempts to convert values into integers or floats if possible. Use
+quotation marks to avoid this behavior if required.
+
+Arguments may be passed by order or by key, and are passed to the Converter's
+:func:`~pants.web.application.Converter.configure` method from the constructor
+via: ``self.configure(*args, **kwargs)``
+
+Several basic converters have been included by default to make things easier.
+
+Any
+---
+
+The ``any`` converter will allow you to match one string from a list of possible
+strings.
+
+.. code-block:: python
+
+    @app.route("/<any(call text im):action>/<int:id>")
+
+Using the above rule, you can match URLs starting with ``/call/``, ``/text/``,
+or ``/im/`` (and followed, of course, by an integer named id).
+
+
+DomainPart
+----------
+
+DomainPart is a special converter used when matching sections of a domain name
+that will not match a period (``.``) but that otherwise works identically to the
+default String converter.
+
+You do not have to specify the DomainPart converter. It will be used
+automatically in place of String for any variable capture within the domain name
+portion of the rule.
+
+
+Float
+-----
+
+The ``float`` converter will match a negation, the digits 0 through 9, and a
+single period. It automatically converts the captured string into a
+floating point number.
+
+=========  ========  ============
+Argument   Default   Description
+=========  ========  ============
+min        None      The minimum value to allow.
+max        None      The maximum value to allow.
+=========  ========  ============
+
+Values outside of the range defined by ``min`` and ``max`` will result in an
+error and *not* merely the rule not matching the URL.
+
+
+Integer
+-------
+
+The ``int`` (or ``integer``) converter will match a negation and the digits
+0 through 9, automatically converting the captured string into an integer.
+
+=========  ========  ============
+Argument   Default   Description
+=========  ========  ============
+digits     None      The exact number of digits to match with this variable.
+min        None      The minimum value to allow.
+max        None      The maximum value to allow.
+=========  ========  ============
+
+As with the Float converter, values outside of the range defined by ``min`` and
+``max`` will result in an error and *not* merely the rule not matching the URL.
+
+
+Path
+----
+
+The ``path`` converter will match any character at all and merely returns the
+captured string. This is useful as a catch all for placing on the end of URLs.
+
+
+Regex
+-----
+
+The ``regex`` converter allows you to specify an arbitrary regular expression
+snippet for inclusion into the rule's final expression.
+
+=========  ========  ============
+Argument   Default   Description
+=========  ========  ============
+match                A regular expression snippet for inclusion into the rule's final expression.
+namegen    None      The string format to use when building a URL for this variable with :func:`~pants.web.application.url_for`.
+=========  ========  ============
+
+.. code-block:: python
+
+    @app.route("/call/<regex('(\d{3}-\d{4})'):number>")
+
+The above variable would match strings such as ``555-1234``.
+
+.. warning::
+
+    Not including a capture group, or including more than one, will result in
+    errors when the rule is matched as the variable conversion system will not
+    be aware that there is more than one capture group for the converter.
+
+
+String
+------
+
+The ``string`` converter is the default converter used when none is specified,
+and it matches any character except for a slash (``/``), allowing it to easilly
+capture individual URL segments.
+
+=========  ========  ============
+Argument   Default   Description
+=========  ========  ============
+min        None      The minimum length of the string to capture.
+max        None      The maximum length of the string to capture.
+length     None      An easy way to set both ``min`` and ``max`` at once.
+=========  ========  ============
+
+.. note::
+
+    Setting ``length`` overrides any value of ``min`` and ``max``.
+
+
+Output Handling
+===============
+
+Sending output from a request handler is as easy as returning a value from the
+function. Strings work well:
+
+.. code-block:: python
+
+    @app.route("/")
+    def index(request):
+        return "Hello, World!"
+
+The example above would result in a ``200 OK`` response with the headers
+``Content-Type: text/plain`` and ``Content-Length: 13``.
+
+
+Response Body
+-------------
+
+If the returned string begins with ``<!DOCTYPE`` or ``<html`` it will be
+assumed that the ``Content-Type`` should be ``text/html`` if a content type is
+not provided.
+
+If a unicode string is returned, rather than a byte string, it will be encoded
+automatically using the encoding specified in the ``Content-Type`` header. If
+that header is missing, or does not contain an encoding, the document will be
+encoded in ``UTF-8`` by default and the content type header will be updated.
+
+Dictionaries, lists, and tuples will be automatically converted into
+`JSON <http://en.wikipedia.org/wiki/JSON>`_ and the ``Content-Type`` header
+will be set to ``application/json``, making it easy to send JSON to clients.
+
+If any other object is returned, the Application will attempt to cast it into
+a byte string using ``str(object)``. To provide custom behavior, an object may
+be given a ``to_html`` method, which will be called rather than ``str()``. If
+``to_html`` is used, the ``Content-Type`` will be assumed to be ``text/html``.
+
+
+Status and Headers
+------------------
+
+Of course, in any web application it is useful to be able to return custom
+status codes and HTTP headers. To do so from an Application's request handlers,
+simply return a tuple of ``(body, status)`` or ``(body, status, headers)``.
+
+If provided, ``status`` must be an integer or a byte string. All valid HTTP
+response codes may be sent simply by using their numbers.
+
+If provided, ``headers`` must be either a dictionary, or a list of tuples
+containing key/value pairs (``[(heading, value), ...]``).
+
+You may also use an instance of :class:`pants.web.application.Response` rather
+than a simple body or tuple.
+
+The following example returns a page with the status code ``404 Not Found``:
+
+.. code-block:: python
+
+    @app.route("/nowhere/")
+    def nowhere(request):
+        return "This does not exist.", 404
+
+
 """
 
 ###############################################################################
@@ -333,9 +651,11 @@ class Response(object):
 
 class Module(object):
     """
-    Empty docstring.
+    A Module is, essentially, a group of rules for an Application. Rules grouped
+    into a Module can be created without any access to the final Application
+    instance, making it simple to split a website into multiple Python modules
+    to be imported in the module that creates and runs the application.
     """
-    # TODO: Document Module.
 
     def __init__(self, name=None):
         # Internal Stuff
@@ -352,7 +672,24 @@ class Module(object):
 
     def add(self, rule, module):
         """
-        Add a submodule to this Module at the given rule.
+        Add a Module to this Module under the given rule. All rules within the
+        sub-module will be accessible to this Module, with their rules prefixed
+        by the rule provided here.
+
+        For example::
+
+            module_one = Module()
+
+            @module_one.route("/fish")
+            def fish(request):
+                return "This is fish."
+
+            module_two = Module()
+
+            module_two.add("/pie", module_one)
+
+        Given that code, the request handler ``fish`` would be available from
+        the Module ``module_two`` with the rules ``/pie/fish``.
         """
         if isinstance(module, Application):
             raise TypeError("Applications cannot be added as modules.")
@@ -463,75 +800,9 @@ class Module(object):
             def hello_world(request):
                 return "Hiya, Everyone!"
 
-        Variables may be specified in the route *rule* by wrapping them in
-        inequality signs (for example: ``<variable_name>``). By default, a
-        variable segment accepts any character except a slash (``/``) and
-        returns the entire captured string. However, you may specify a
-        converter function for processing the value before your view is called
-        by using the format ``<converter:name>``, where *converter* is the name
-        of the converter to use. As an example::
-
-            @app.route("/user/<int:id>")
-            def user(request, id):
-                return "Hello, user %d." % id
-
-        The ``id`` is automatically converted to an integer for you. This also
-        serves to limit the URLs that will match a view. The rule
-        ``"/user/<int:id>"`` will, for example, fail to match the URL
-        ``"/user/stendec"`` as it only matches integer numbers.
-
         .. seealso::
 
-            :func:`pants.web.application.register_converter`
-
-        Request handlers are easy to write and can send their output to the
-        client simply by returning a value, such as a string::
-
-            @app.route("/")
-            def example(request):
-                return "Hello World!"
-
-        The previous code would result in a ``200 OK`` response, with a
-        ``Content-Type`` header of ``text/plain`` and a ``Content-Length``
-        header of ``12``.
-
-        If the returned string begins with ``<!DOCTYPE`` or ``<html`` it will
-        be assumed that the ``Content-Type`` is ``text/html`` if one is not
-        provided.
-
-        If a unicode string is returned rather than a byte string, it will be
-        automatically encoded, using the encoding specified in the
-        ``Content-Type`` header. If there is no ``Content-Type`` header, or
-        the ``Content-Type`` header has no encoding, the document will be
-        encoded in ``UTF-8`` and the ``Content-Type`` header will be updated to
-        reflect the encoding.
-
-        Dictionaries, lists, and tuples will be automatically converted to
-        `JSON <http://en.wikipedia.org/wiki/JSON>`_ strings and the
-        ``Content-Type`` header will be set to ``application/json``.
-
-        If any other object is returned, the Application instance will attempt
-        to cast it into a byte string using ``str(object)``. To provide custom
-        behavior, an object may be given a ``to_html`` method, which will be
-        called rather than ``str(object)``. If ``to_html`` is present, the
-        ``Content-Type`` will be automatically assumed to be ``text/html``
-        regardless of the actual content.
-
-        A tuple of ``(body, status)`` or ``(body, status, headers)`` may be
-        provided, rather than simply a body, to set the HTTP status code and
-        additional headers to be sent with a response. If provided, ``status``
-        may be an integer or byte string, and ``headers`` may be either a
-        dictionary, or a list of ``[(heading, value), ...]``.
-
-        An instance of :class:`pants.web.application.Response` may be provided,
-        rather than a simple body or tuple.
-
-        The following example returns a page with the status code
-        ``404 Not Found``::
-
-            @app.route("/nowhere/")
-            def nowhere(request):
-                return "This does not exist.", 404
+            See :ref:`app-routing` for more information on writing rules.
 
         =============  ============
         Argument       Description
@@ -1302,8 +1573,11 @@ def url_for(name, *values, **kw_values):
     Generates a URL to the request handler with the given name. The name is
     relative to that of the current request handler.
 
-    Arguments may be passed either positionally or with keywords
+    Arguments may be passed either positionally or with keywords.
     """
+
+    # TODO: Finish documenting url_for
+
     app = Application.current_app
     if not app or not app.request:
         raise RuntimeError("Called url_for outside of a request.")
