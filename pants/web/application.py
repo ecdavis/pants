@@ -24,8 +24,9 @@ easy to use request routing system and an API similar to that of the popular
 
 .. note::
 
-    Application does *not* provide support for sessions or templates, and it is
-    not compatible with WSGI middleware as it is not implemented via WSGI.
+    Application does *not* provide out of the box support for sessions or
+    templates, and it is not compatible with WSGI middleware as it is not
+    implemented via WSGI.
 
 
 Applications
