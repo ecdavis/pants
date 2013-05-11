@@ -884,7 +884,7 @@ class Module(object):
             # The Hook
             @app.request_started
             def handle(request):
-                logging.info('Request matched route: %s' % route_name)
+                logging.info('Request matched route: %s' % request.route_name)
 
             # The Wrapper
             def wrapper(request):
