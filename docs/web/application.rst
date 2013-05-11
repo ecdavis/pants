@@ -15,6 +15,8 @@ Helper Functions
 
 .. autofunction:: redirect
 
+.. autofunction:: register_converter
+
 .. autofunction:: url_for
 
 
@@ -29,30 +31,22 @@ Helper Functions
 ==========
 
 .. autoclass:: Module
-    :members: add, basic_route, route
+    :members: add, basic_route, route, request_started, request_finished, request_teardown
 
 
 ``Converter``
 =============
 
 .. autoclass:: Converter
-    :members: configure, convert
+    :members: configure, convert, encode
 
     .. attribute:: default
 
         A string provided with the variable declaration to be used as a default
         value if no value is provided by the client.
 
-        This is never used externally, and may be modified as appropriate.
-
-    .. attribute:: namegen
-
-        A Converter's ``namegen`` string is used when building a URI with
-        :func:`url_for`.
-
-        .. seealso::
-
-            :ref:`python:string-formatting`
+        This value will also be placed in urls generated via the method
+        :func:`~pants.web.application.url_for` if no other value is provided.
 
 
 Exceptions

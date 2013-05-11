@@ -1,24 +1,31 @@
 window.onload = function() {
 
-if ( window.WebSocket === undefined || window.WebSocket === null ) {
-    var node = document.querySelector('#console');
-    node.parentElement.removeChild(node);
+if ( window.WebSocket === undefined || window.WebSocket === null )
     return;
-}
 
-var output = document.querySelector('#output');
+var node = document.querySelector('#console');
+
+// Add the header.
+var head = document.createElement('h2');
+head.textContent = 'Console';
+node.appendChild(head);
+
+// Create the output pane.
+var output = document.createElement('pre');
+node.appendChild(output);
+
 var write = function(text) {
     output.innerHTML += (output.innerHTML === '' ? '' : '\n') + text;
 }
 
+// TODO: The Input Element
+
 // The WebSocket
+var loc = (document.location.protocol === 'http:' ? 'ws://' : 'wss://') +
+           document.location.host + '/_debug_socket';
 
-var loc = document.location.host + '/_debug_socket';
-loc = ( document.location.protocol === 'http:' ? 'ws://' : 'wss://' ) + loc;
-
-var ws = new WebSocket(loc);
-
-var connected = false;
+var ws = new WebSocket(loc),
+    connected = false;
 
 ws.onopen = function(event) {
     write("<b>[console ready]</b>");
@@ -28,7 +35,7 @@ ws.onopen = function(event) {
 ws.onerror = function(event) {
     if ( ws.readyState === 0 ) {
         write("<b>[unable to connect]</b>");
-    } else if ( ws.readyState === 1 ) {
+    } else {
         write("<b>[connection closed]</b>");
         connected = false;
         ws.close();
@@ -41,18 +48,8 @@ ws.onmessage = function(event) {
 
 ws.onclose = function(event) {
     if ( connected )
-        write("<b>[connection closed]</b>");
-}
-
-// Input
-
-var input;
-var do_input = function() {
-
-input = document.createElement("input");
-
-
-
+        write("<b>[connection closed]</b>")
+    connected = false;
 }
 
 };

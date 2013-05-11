@@ -20,7 +20,7 @@ clients::
             '<!DOCTYPE html>',
             '<title>Hello, World!</title>',
             '<h1>Hello, World!</h1>',
-            '<p>Your request was for <code>%s</code>.</p>' % request.uri
+            '<p>Your request was for <code>%s</code>.</p>' % request.url
         ])
 
         request.send_status(200)

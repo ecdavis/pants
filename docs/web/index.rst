@@ -8,5 +8,5 @@ HTTP & Web
     http_client
     websocket
 
-    web
+    application
     wsgi

@@ -147,7 +147,7 @@ class HTTPConnection(Stream):
             initial_line, _, data = data.partition(CRLF)
 
             try:
-                method, uri, protocol = WHITESPACE.split(initial_line) #.split(' ')
+                method, url, protocol = WHITESPACE.split(initial_line) #.split(' ')
             except ValueError:
                 raise BadRequest('Invalid HTTP request line.')
 
@@ -169,7 +169,7 @@ class HTTPConnection(Stream):
 
             # Construct an HTTPRequest object.
             self.current_request = request = HTTPRequest(self,
-                method, uri, protocol, headers, scheme)
+                method, url, protocol, headers, scheme)
 
             # If we have a Content-Length header, read the request body.
             length = headers.get('Content-Length')
@@ -297,19 +297,19 @@ class HTTPRequest(object):
     =============  ============
     connection     The instance of :class:`HTTPConnection` that received this request.
     method         The HTTP method used to send this request. This will almost always be one of: ``GET``, ``HEAD``, or ``POST``.
-    uri            The path part of the URI requested.
+    url            The path part of the URL requested.
     protocol       The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
     headers        *Optional.* A dictionary of HTTP headers received with this request.
     scheme         *Optional.* Either the string ``http`` or ``https``, depending on the security of the connection this request was received upon.
     =============  ============
     """
 
-    def __init__(self, connection, method, uri, protocol, headers=None,
+    def __init__(self, connection, method, url, protocol, headers=None,
                  scheme='http'):
         self.body       = ''
         self.connection = connection
         self.method     = method
-        self.uri        = uri
+        self.url        = url
         self.protocol   = protocol
         self._started   = False
 
@@ -349,17 +349,17 @@ class HTTPRequest(object):
         self.post       = {}
         self.files      = {}
 
-        # Split the URI into usable information.
-        self._parse_uri()
+        # Split the URL into usable information.
+        self._parse_url()
 
     def __repr__(self):
-        attr = ('protocol','method','scheme','host','uri','path','time')
+        attr = ('protocol','method','scheme','host','url','path','time')
         attr = u', '.join(u'%s=%r' % (k,getattr(self,k)) for k in attr)
         return u'%s(%s, headers=%r)' % (
             self.__class__.__name__, attr, self.headers)
 
     def __html__(self):
-        attr = ('protocol','method','remote_ip','scheme','host','uri','path',
+        attr = ('protocol','method','remote_ip','scheme','host','url','path',
                 'time')
         attr = u'\n    '.join(u'%-8s = %r' % (k,getattr(self,k)) for k in attr)
 
@@ -426,7 +426,7 @@ class HTTPRequest(object):
         """
         The full URL used to generate the request.
         """
-        return '%s://%s%s' % (self.scheme, self.host, self.uri)
+        return '%s://%s%s' % (self.scheme, self.host, self.url)
 
     @property
     def time(self):
@@ -970,9 +970,9 @@ class HTTPRequest(object):
 
     ##### Internal Event Handlers #############################################
 
-    def _parse_uri(self):
+    def _parse_url(self):
         # Do this ourselves because urlparse is too heavy.
-        self.path, _, query = self.uri.partition('?')
+        self.path, _, query = self.url.partition('?')
         self.query, _, self.fragment = query.partition('#')
         netloc = self.host.lower()
 

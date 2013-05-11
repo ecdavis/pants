@@ -237,7 +237,7 @@ class WebSocket(object):
             'Connection': 'Upgrade',
             'Sec-WebSocket-Origin': request.headers['Origin'],
             'Sec-WebSocket-Location': '%s://%s%s' % (
-                scheme, request.host, request.uri)
+                scheme, request.host, request.url)
             })
         request.send_headers(headers)
 

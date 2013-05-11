@@ -901,7 +901,7 @@ def _do(request, input, as_exception=False):
                         # closed, so there's not a lot *else* to do.
                         log.exception("Error while cleaning up closed "
                                       "asynchronous request: %s %s" %
-                                      (request.method, request.uri))
+                                      (request.method, request.url))
                     finally:
                         _cleanup(request)
                         return
@@ -921,7 +921,7 @@ def _do(request, input, as_exception=False):
                     if request._started:
                         log.exception("Error while handling asynchronous "
                                       "request: %s %s" % (request.method,
-                                                          request.uri))
+                                                          request.url))
                         request.connection.close(False)
                         _cleanup(request)
                         return
@@ -940,7 +940,7 @@ def _do(request, input, as_exception=False):
                     if request._started:
                         log.exception("HTTPTransparentRedirect sent to already "
                                       "started request: %s %s" %
-                                      (request.method, request.uri))
+                                      (request.method, request.url))
                         request.connection.close(False)
                         _cleanup(request)
                         return
@@ -953,7 +953,7 @@ def _do(request, input, as_exception=False):
                     if request._started:
                         log.exception("Error while handling asynchronous "
                                       "request: %s %s" % (request.method,
-                                                          request.uri))
+                                                          request.url))
                         request.connection.close(False)
                         _cleanup(request)
                         return

@@ -87,7 +87,7 @@ if sys.platform.startswith('win'):
 HTTP_MESSAGES = {
     401: u'You must sign in to access this page.',
     403: u'You do not have permission to view this page.',
-    404: u'The page at <code>{uri}</code> cannot be found.',
+    404: u'The page at <code>{url}</code> cannot be found.',
     500: u'The server encountered an internal error and cannot display '
          u'this page.'
 }
@@ -188,7 +188,7 @@ DIRECTORY_PAGE = string.Template(DIRECTORY_PAGE)
 try:
     DIRECTORY_ENTRY = resource_string("pants.web", "data/entry.html")
 except IOError:
-    DIRECTORY_ENTRY = '<tr><td><a class="icon $cls" href="$uri">$name</a>' + \
+    DIRECTORY_ENTRY = '<tr><td><a class="icon $cls" href="$url">$name</a>' + \
                       '</td><td>$size</td><td>$modified</td></tr>'
 
 DIRECTORY_ENTRY = string.Template(DIRECTORY_ENTRY)
@@ -262,19 +262,19 @@ class HTTPException(Exception):
 class HTTPTransparentRedirect(Exception):
     """
     Raising an instance of HTTPTransparentRedirect will cause the Application
-    to silently redirect a request to a new URI.
+    to silently redirect a request to a new URL.
     """
-    def __init__(self, uri):
-        super(HTTPTransparentRedirect, self).__init__(uri)
+    def __init__(self, url):
+        super(HTTPTransparentRedirect, self).__init__(url)
 
     def __str__(self):
-        return "uri=%r" % self.args[0]
+        return "url=%r" % self.args[0]
 
     def __repr__(self):
-        return "%s(uri=%r)" % (self.__class__.__name__, self.args[0])
+        return "%s(url=%r)" % (self.__class__.__name__, self.args[0])
 
     @property
-    def uri(self):
+    def url(self):
         return self.args[0]
 
 

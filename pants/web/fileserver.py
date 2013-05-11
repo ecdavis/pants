@@ -229,16 +229,15 @@ class FileServer(object):
         # Normalize the path.
         full_path = os.path.normpath(os.path.join(self.path, path))
 
-        # Get the URI, which is just request.path decoded.
-        uri = decode(urllib.unquote(request.path))
-        if not uri.startswith(u'/'):
-            uri = u'/%s' % uri
-        if not uri.endswith(u'/'):
-            return redirect(u'%s/' % uri)
+        # Get the URL, which is just request.path decoded.
+        url = decode(urllib.unquote(request.path))
+        if not url.startswith(u'/'):
+            url = u'/%s' % url
+        if not url.endswith(u'/'):
+            return redirect(u'%s/' % url)
 
         go_up = u''
-        url = uri.strip(u'/')
-        if url:
+        if url.strip(u'/'):
             go_up = u'<p><a href="..">Up to Higher Directory</a></p>'
 
         files = []
@@ -295,7 +294,7 @@ class FileServer(object):
 
             obj.append(DIRECTORY_ENTRY.safe_substitute(
                         cls=cls,
-                        uri=uri + link,
+                        url=url + link,
                         name=p,
                         size=size,
                         modified=mtime
@@ -314,7 +313,7 @@ class FileServer(object):
             rtime = u''
 
         output = DIRECTORY_PAGE.safe_substitute(
-                    path=uri,
+                    path=url,
                     go_up=go_up,
                     host=request.host,
                     scheme=request.scheme,

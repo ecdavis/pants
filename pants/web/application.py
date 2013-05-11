@@ -31,9 +31,9 @@ easy to use request routing system and an API similar to that of the popular
 Applications
 ============
 
-Instances of the :class:`~pants.web.application.Application` class are callable
-and act as request handlers for the :class:`pants.http.server.HTTPServer`
-class. As such, to implement a server you just have to create an
+Instances of the :class:`Application` class are callable and act as request
+handlers for the :class:`pants.http.server.HTTPServer` class. As such, to
+implement a server you just have to create an
 :class:`~pants.http.server.HTTPServer` instance using your application.
 
 .. code-block:: python
@@ -45,9 +45,9 @@ class. As such, to implement a server you just have to create an
 
     HTTPServer(app).listen(8080)
 
-Alternatively, you may call the Application's
-:func:`~pants.web.application.Application.run` method, which creates an instance
-of HTTPServer for you and starts Pants' global :mod:`~pants.engine`.
+Alternatively, you may call the Application's :func:`~Application.run` method,
+which creates an instance of HTTPServer for you and starts Pants' global
+:mod:`~pants.engine`.
 
 The main features of an Application are its powerful request routing table and
 its output handling.
@@ -57,11 +57,10 @@ its output handling.
 Routing
 =======
 
-When registering new request handlers with an
-:class:`~pants.web.application.Application` instance, you are required to
-provide a specially formated rule. These rules allow you to capture variables
-from URLs on top of merely routing requests, making it easy to create attractive
-URLs bereft of unfriendly query strings.
+When registering new request handlers with an :class:`Application` instance,
+you are required to provide a specially formated rule. These rules allow you to
+capture variables from URLs on top of merely routing requests, making it easy
+to create attractive URLs bereft of unfriendly query strings.
 
 Rules in their simplest form will match a static string.
 
@@ -89,10 +88,10 @@ you to capture data directly from a URL. By default, a variable accepts any
 character except a slash (``/``) and returns the entire captured string as an
 argument to your request handler.
 
-It is possible to change this behavior by naming a
-:class:`~pants.web.applicaiton.Converter` within the variable definition using
-the format ``<converter:name>`` where ``converter`` is the name of the converter
-to use. For example, the ``int`` converter:
+It is possible to change this behavior by naming a :class:`Converter` within
+the variable definition using the format ``<converter:name>`` where
+``converter`` is the name of the converter to use. It is not case-sensitive.
+For example, the ``int`` converter:
 
 .. code-block:: python
 
@@ -111,11 +110,12 @@ Finally, you may provide default values for variables:
     @app.route("/page/<path:slug=welcome>")
 
 Default values are used if there is no string to capture for the variable in
-question, and are processed via the converter's :meth:`~pants.web.application.Converter.convert`
+question, and are processed via the converter's :meth:`~Converter.convert`
 method each time the rule is matched.
 
-Defaults are special because they allow you to omit the entirety of the URL
-following the point at which they are used.
+When using default values, they allow you to omit the entirety of the URL
+following the point at which they are used. As such, if you have a rule such
+as ``/page/<int:id=2>/other``, the URL ``/page/`` will match it.
 
 
 Domains
@@ -136,18 +136,16 @@ route rule.
 Rule Variable Converters
 ========================
 
-Converters are all subclasses of :class:`pants.web.application.Converter` that
-have been registered with Pants using the
-:func:`pants.web.application.register_converter` decorator.
+Converters are all subclasses of :class:`Converter` that have been registered
+with Pants using the :func:`register_converter` decorator.
 
 A Converter has three uses:
 
 1. Generating a regular expression snippet that will match only valid input for
    the variable in question.
 2. Processing the captured string into useful data for the Application.
-3. The definition of a formatting string that can be used with the
-   :func:`~pants.web.application.url_for` method to generate URL segments for
-   the variable in question.
+3. Encoding values into URL-friendly strings for inclusion into URLs generated
+   via the :func:`url_for` method.
 
 Converters can accept configuration information from rules using a basic
 format.
@@ -168,7 +166,7 @@ also attempts to convert values into integers or floats if possible. Use
 quotation marks to avoid this behavior if required.
 
 Arguments may be passed by order or by key, and are passed to the Converter's
-:func:`~pants.web.application.Converter.configure` method from the constructor
+:func:`~Converter.configure` method from the constructor
 via: ``self.configure(*args, **kwargs)``
 
 Several basic converters have been included by default to make things easier.
@@ -261,12 +259,6 @@ namegen    None      The string format to use when building a URL for this varia
 
 The above variable would match strings such as ``555-1234``.
 
-.. warning::
-
-    Not including a capture group, or including more than one, will result in
-    errors when the rule is matched as the variable conversion system will not
-    be aware that there is more than one capture group for the converter.
-
 
 String
 ------
@@ -286,6 +278,83 @@ length     None      An easy way to set both ``min`` and ``max`` at once.
 .. note::
 
     Setting ``length`` overrides any value of ``min`` and ``max``.
+
+
+Writing a Variable Converter
+============================
+
+To create your own variable converters, you must create subclasses of
+:class:`Converter` and register it with Pants using the
+decorator :func:`register_converter`.
+
+The simplest way to use converters is as a way to store common regular
+expressions that you use to match segments of a URL. If, for example, you need
+to match basic phone numbers, you could use:
+
+.. code-block:: python
+
+    @app.route("/tel/<regex('(\d{3})-(\d{4})'):number>")
+
+Placing the expression in the route isn't clean, however, and it can be a pain
+to update--particuarly if you use the same expression across many different
+routes.
+
+A better alternative is to use a custom converter:
+
+.. code-block:: python
+
+    from pants.web import Converter, register_converter
+
+    @register_converter
+    class Telephone(Converter):
+        regex = r"(\d{3})-(\d{4})"
+
+After doing that, your rule becomes as easy as ``/tel/<telephone:number>``. Of
+course, you could stop there, and deal with the resulting tuple of two strings
+within your request handler.
+
+However, the main goal of converters is to *convert* your data. Let's store our
+phone number in a :class:`collections.namedtuple`. While we're at it, we'll
+switch to a slightly more complex regular expression that can capture area codes
+and extensions as well.
+
+.. code-block:: python
+
+    from collections import namedtuple
+    from pants.web import Converter, register_converter
+
+    PhoneNumber = namedtuple('PhoneNumber', ['npa','nxx','subscriber', 'ext'])
+
+    @register_converter
+    class Telephone(Converter):
+        regex = r"(?:1[ -]*)?(?:\(? *([2-9][0-9]{2}) *\)?[ -]*)?([2-9](?:1[02-9]|[02-9][0-9]))[ -]*(\d{4})(?:[ -]*e?xt?[ -]*(\d+))?"
+
+        def convert(self, request, *values):
+            return PhoneNumber(*(int(x) if x else None for x in values))
+
+Now we're getting somewhere. Using our existing rule, now we can make a request
+for the URL ``/tel/555-234-5678x115`` and our request handler will receive the
+variable ``PhoneNumber(npa=555, nxx=234, subscriber=5678, ext=115)``.
+
+Lastly, we need a way to convert our nice ``PhoneNumber`` instances into
+something we can place in a URL, for use with the :func:`url_for` function:
+
+.. code-block:: python
+
+    @register_converter
+    class Telephone(Converter):
+
+        ...
+
+        def encode(self, request, value):
+            out = '%03d-%03d-%04d' % (value.npa, value.nxx, value.subscriber)
+            if value.ext:
+                out += '-ext%d' % value.ext
+            return out
+
+Now, we can use ``url_for('route', PhoneNumber(npa=555, nxx=234, subscriber=5678, ext=115))``
+and get a nice and readable ``/tel/555-234-5678-ext115`` back (assuming the rule
+for ``route`` is ``/tel/<telephone:number>``).
 
 
 Output Handling
@@ -367,7 +436,7 @@ from pants.http.server import HTTPServer
 from pants.http.utils import HTTP, HTTPHeaders
 
 from pants.web.utils import decode, ERROR_PAGE, HAIKUS, HTTP_MESSAGES, \
-    HTTPException, HTTPTransparentRedirect, log, NO_BODY_CODES
+    HTTPException, HTTPTransparentRedirect, log, NO_BODY_CODES, CONSOLE_JS
 
 try:
     import simplejson as json
@@ -388,6 +457,9 @@ __all__ = (
 
 RULE_PARSER = re.compile(r"<(?:([a-zA-Z_][a-zA-Z0-9_]+)(?:\(((?:\"[^\"]+\"|[^:>)]*)+)\))?:)?([a-zA-Z_][a-zA-Z0-9_]+)(?:=([^>]*))?>([^<]*)")
 OPTIONS_PARSER = re.compile(r"""(?:(\w+)=)?(None|True|False|\d+\.\d+|\d+\.|\d+|"[^"]*?"|'[^']*?'|\w+)""", re.IGNORECASE)
+
+# Unique object for URL building.
+NoValue = object()
 
 
 ###############################################################################
@@ -437,6 +509,9 @@ class Converter(object):
     The Converter class is the base class for all the different value
     converters usable in routing rules.
     """
+
+    regex = "([^/]+)"
+
     def __init__(self, options, default):
         # Handle the options.
         self.default = default
@@ -473,33 +548,60 @@ class Converter(object):
         #noinspection PyArgumentList
         self.configure(*args, **kwargs)
 
+        # Count our capture groups.
+        self._regex = re.compile("^%s$" % self.regex)
+        self.capture_groups = self._regex.groups
+
     def __repr__(self):
         out = ""
         if self.default:
             out += " default=" + repr(self.default)
         if hasattr(self, 'regex'):
             out += ' regex=' + repr(self.regex)
-        if hasattr(self, 'namegen'):
-            out += ' namegen=' + repr(self.namegen)
         return "<Converter[%s]%s>" % (self.__class__.__name__, out)
 
-    def __call__(self, value):
-        if not value:
-            value = self.default
-        return self.convert(value)
+    def __call__(self, request, *values):
+        if not any(values):
+            m = self._regex.match(self.default)
+            if not m:
+                raise HttpException('Invalid default value for converter: %s', self.default)
+            values = m.groups()
+        return self.convert(request, *values)
 
     def configure(self):
         """
-        Placeholder. Override this function to configure the converter.
+        The method recieves configuration data parsed from the rule creating
+        this Converter instance as positional and keyword arguments.
+
+        You must build a regular expression for matching acceptable input within
+        this function, and save it as the instance's ``regex`` attribute. You
+        may use more than one capture group.
         """
         pass
 
-    def convert(self, value):
+    def convert(self, request, *values):
         """
-        Placeholder. Override this function to configure how the converter
-        does its actual conversion.
+        This method receives captured strings from URLs and must process the
+        strings and return variables usable within request handlers.
+
+        If the converter's regular expression has multiple capture groups, it
+        will receive multiple arguments.
+
+        .. note::
+
+            Use :func:`abort` or raise an :class:`HTTPException` from this
+            method if you wish to display an error page. Any other uncaught
+            exceptions will result in a ``400 Bad Request`` page.
+
         """
-        return value
+        return values[0] if len(values) == 1 else values
+
+    def encode(self, request, value):
+        """
+        This method encodes a value into a URL-friendly string for inclusion
+        into URLs generated with :func:`url_for`.
+        """
+        return str(value)
 
 
 ###############################################################################
@@ -535,6 +637,11 @@ class Regex(Converter):
         self.regex = match
         if namegen is not None:
             self.namegen = namegen
+
+    def encode(self, request, value):
+        if hasattr(self, 'namegen'):
+            return namegen.format(value)
+        return str(value)
 
 
 @register_converter
@@ -572,17 +679,16 @@ class DomainPart(Converter):
 @register_converter
 class Float(Converter):
     def configure(self, min=None, max=None):
-        # Build the correct regex and namegens for our length.
+        # Depending on the value of min, allow it to match a negation.
         if min is None or min < 0:
             self.regex = "(-?\d+(?:\.\d+)?)"
         else:
             self.regex = "(\d+(?:\.\d+)?)"
-        self.namegen = "%g"
 
         self.min = min
         self.max = max
 
-    def convert(self, value):
+    def convert(self, request, value):
         value = float(value)
         if (self.min is not None and value < self.min) or\
            (self.max is not None and value > self.max):
@@ -594,24 +700,31 @@ class Float(Converter):
 @register_converter
 class Integer(Converter):
     def configure(self, digits=None, min=None, max=None):
-        # Build the correct regex and namegen for our length.
+        # Build the correct regex for the length.
         minus = "-?" if min is None or min < 0 else ""
         if digits:
             self.regex = "(%s\d{%d})" % (minus, digits)
-            self.namegen = "%%.%dd" % digits
         else:
             self.regex = "(%s\d+)" % minus
-            self.namegen = "%d"
 
         self.min = min
         self.max = max
+        self.digits = digits
 
-    def convert(self, value):
+    def convert(self, request, value):
         value = int(value)
         if (self.min is not None and value < self.min) or\
            (self.max is not None and value > self.max):
             raise ValueError("Value %d is out of range." % value)
         return value
+
+    def encode(self, request, value):
+        if self.digits:
+            minus = '-' if value < 0 else ''
+            return ('%s%%0%dd' % (minus, self.digits)) % abs(value)
+
+        else:
+            return str(value)
 
 
 @register_converter
@@ -648,9 +761,9 @@ class Response(object):
     =========  ==================  ============
     Argument   Default             Description
     =========  ==================  ============
-    body       ``None``            The response body to send back to the client.
-    status     ``200``             The HTTP status code of the response.
-    headers    ``HTTPHeaders()``   HTTP headers to send with the response.
+    body       ``None``            *Optional.* The response body to send back to the client.
+    status     ``200``             *Optional.* The HTTP status code of the response.
+    headers    ``HTTPHeaders()``   *Optional.* HTTP headers to send with the response.
     =========  ==================  ============
     """
 
@@ -658,6 +771,10 @@ class Response(object):
         self.body = body or ""
         self.status = status or 200
         self.headers = headers or HTTPHeaders()
+
+    def __repr__(self):
+        return '<Response[%r] at 0x%08X>' % (self.status, id(self))
+
 
 ###############################################################################
 # Module Class
@@ -673,11 +790,18 @@ class Module(object):
 
     def __init__(self, name=None):
         # Internal Stuff
+        self._modules = {}
         self._routes = {}
         self._parents = set()
 
         # External Stuff
         self.name = name
+
+        self.hooks = {
+            'request_started': [],
+            'request_finished': [],
+            'request_teardown': []
+            }
 
     def __repr__(self):
         return "<Module(%r) at 0x%08X>" % (self.name, id(self))
@@ -713,7 +837,7 @@ class Module(object):
 
         if not '/' in rule:
             rule = '/' + rule
-        self._routes[rule] = module
+        self._modules[rule] = module
 
         # Now, recalculate.
         self._recalculate_routes()
@@ -725,6 +849,90 @@ class Module(object):
 
         for parent in self._parents:
             parent._recalculate_routes(processed=processed + (self,))
+
+
+    ##### Hook Decorators #####################################################
+
+    def request_started(self, func):
+        """
+        Register a method to be executed immediately after a request has been
+        successfully routed and before the request handler is executed.
+
+        .. note::
+
+            Hooks, including ``request_started``, are not executed if there is
+            no matching rule to handle the request.
+
+        This can be used for the initialization of sessions, a database
+        connection, or other details. However, it is not always the best choice.
+        If you wish to modify *all* requests, or manipulate the URL before
+        routing occurs, you should wrap the Application in another method,
+        rather than using a ``request_started`` hook. As an example of the
+        difference:
+
+        .. code-block:: python
+
+            from pants.web import Application
+            from pants.http import HTTPServer
+            from pants import Engine
+
+            from my_site import sessions, module
+
+            app = Application()
+
+            # The Hook
+            @app.request_started
+            def handle(request):
+                logging.info('Request matched route: %s' % route_name)
+
+            # The Wrapper
+            def wrapper(request):
+                request.session = sessions.get(request.get_secure_cookie('session_id'))
+                app(request)
+
+            # Add rules from another module.
+            app.add('/', module)
+
+            HTTPServer(wrapper).listen()
+            Engine.instance().start()
+
+        """
+        self.hooks['request_started'].append(func)
+        self._recalculate_routes()
+
+    def request_finished(self, func):
+        """
+        Register a method to be executed immediately after the request handler
+        and before the output is processed and send to the client.
+
+        This can be used to transform the output of request handlers.
+
+        .. note::
+
+            These hooks are not run if there is no matching rule for a request,
+            if there is an exception while running the request handler, or if
+            the request is not set to have its output processed by the
+            Application by setting ``request.auto_finish`` to ``False``.
+        """
+        self.hooks['request_finished'].append(func)
+        self._recalculate_routes()
+
+    def request_teardown(self, func):
+        """
+        Register a method to be executed after the output of a request handler
+        has been processed and has begun being transmitted to the client. At
+        this point, the request is not going to be used again and can be cleaned
+        up.
+
+        .. note::
+
+            These hooks will always run if there was a matching rule, even if
+            the request handler or other hooks have exceptions, to prevent any
+            potential memory leaks from requests that aren't torn down properly.
+        """
+        self.hooks['request_teardown'].append(func)
+        self._recalculate_routes()
+
 
     ##### Route Management Decorators #########################################
 
@@ -891,7 +1099,7 @@ class Application(Module):
     current_app = None
     request = None
 
-    def __init__(self, name=None, debug=False):
+    def __init__(self, name=None, debug=False, fix_end_slash=False):
         super(Application, self).__init__(name)
 
         # Internal Stuff
@@ -902,7 +1110,7 @@ class Application(Module):
         # External Stuff
         self.json_encoder = JSONEncoder
         self.debug = debug
-        self.fix_end_slash = False
+        self.fix_end_slash = fix_end_slash
 
     def run(self, address=None, ssl_options=None, engine=None):
         """
@@ -915,7 +1123,7 @@ class Application(Module):
         ============  ============
         Argument      Description
         ============  ============
-        address       *Optional.* The address to listen on. If this isn't specified, it will default to ``(INADDR_ANY, 80)``.
+        address       *Optional.* The address to listen on. If this isn't specified, it will default to ``('', 80)``.
         ssl_options   *Optional.* A dictionary of SSL options for the server. See :meth:`pants.server.Server.startSSL` for more information.
         engine        *Optional.* The :class:`pants.engine.Engine` instance to use.
         ============  ============
@@ -936,19 +1144,32 @@ class Application(Module):
 
     def handle_500(self, request, err):
         log.exception("Error handling HTTP request: %s %s" %
-                      (request.method, request.uri))
+                      (request.method, request.url))
         if not self.debug:
             return error(500, request=request)
 
+        # See if we can highlight the traceback.
+        tb = getattr(request, '_tb', None) or traceback.format_exc()
+
+        # Try to highlight the traceback.
+        if hasattr(self, 'highlight_traceback'):
+            try:
+                tb = self.highlight_traceback(request, err, tb)
+                if not u"<pre>" in tb:
+                    tb = u"<pre>%s</pre>" % tb
+            except Exception as err:
+                log.exception("Error in highlight_traceback for %r." % self)
+                tb = u"<pre>%s</pre>" % tb
+        else:
+            tb = u"<pre>%s</pre>" % tb
+
         response = u"\n".join([
-            u"<h2>Traceback</h2>",
-            u"<pre>%s</pre>" % (getattr(request, "_tb", None) or traceback.format_exc()),
-            #u'<div id="console"><h2>Console</h2>',
-            #u'<pre id="output"></pre>',
-            #u'<script type="text/javascript">%s</script></div>' % CONSOLE_JS,
+            u"<h2>Traceback</h2>", tb,
+            #u'<div id="console"><script type="text/javascript">%s</script></div>' % CONSOLE_JS,
             u"<h2>Route</h2>",
             u"<pre>route name   = %r" % getattr(request, "route_name", None),
-            u"match groups = %r</pre>" % (request.match.groups() if request.match else None,),
+            u"match groups = %r" % (request.match.groups() if request.match else None,),
+            (u"match values = %r</pre>" % request._converted_match) if hasattr(request, '_converted_match') else u"</pre>",
             u"<h2>HTTP Request</h2>",
             request.__html__()
         ])
@@ -958,7 +1179,7 @@ class Application(Module):
     ##### Routing Table Builder ###############################################
 
     def _recalculate_routes(self, processed=None, path=None, module=None,
-                            nameprefix=""):
+                            nameprefix="", hooks=None):
         """
         This function does the heavy lifting of building the routing table, and
         it's called every time a route is updated. Fortunately, that generally
@@ -972,11 +1193,32 @@ class Application(Module):
 
         # Get the unprocessed route table.
         routes = module._routes if module else self._routes
+        modules = module._modules if module else self._modules
+        mod_hooks = module.hooks if module else self.hooks
 
         # Update the name prefix.
         name = module.name if module else self.name
         if name:
             nameprefix = nameprefix + "." + name if nameprefix else name
+
+        # Update the hooks system.
+        if hooks:
+            new_hooks = {}
+            for k, v in hooks.iteritems():
+                new_hooks[k] = v[:]
+            hooks = new_hooks
+        else:
+            hooks = {}
+
+        for k,v in mod_hooks.iteritems():
+            if k in hooks:
+                hooks[k].extend(v)
+            else:
+                hooks[k] = v[:]
+
+        # Iterate through modules first, so our own rules are more important.
+        for rule, mod in modules.iteritems():
+            self._recalculate_routes(None, rule, mod, nameprefix, hooks)
 
         # Iterate through the unprocessed route table.
         for rule, table in routes.iteritems():
@@ -993,11 +1235,6 @@ class Application(Module):
                         rule = path + rule
                     else:
                         rule = path + "/" + rule
-
-            # If we're dealing with a module, recurse.
-            if isinstance(table, Module):
-                self._recalculate_routes(None, rule, table, nameprefix)
-                continue
 
             # Parse the rule string.
             regex, converters, names, namegen, domain, rpath = \
@@ -1044,9 +1281,9 @@ class Application(Module):
                     else:
                         method_table[method] = _get_runner(func, converters,
                                                             auto404), headers, \
-                                                            content_type
+                                                            content_type, hooks
                 else:
-                    method_table[method] = func, headers, content_type
+                    method_table[method] = func, headers, content_type, hooks
 
             # Update the name table.
             self._name_table[rl[3]] = rl
@@ -1106,6 +1343,21 @@ class Application(Module):
             request.finish()
 
         finally:
+            if hasattr(request, '_hooks'):
+                hks = request._hooks.get('request_teardown')
+                if hks:
+                    for hf in hks:
+                        try:
+                            hf(request)
+                        except Exception as err:
+                            # Log the exception, but continue.
+                            log.exception("There was a problem handling a "
+                                          "request teardown hook for: %r",
+                                            request)
+
+            if hasattr(request, '_converted_match'):
+                del request._converted_match
+
             Application.current_app = None
             self.request = None
 
@@ -1150,11 +1402,36 @@ class Application(Module):
                 request.match = match
 
                 try:
-                    func, headers, content_type = method_table[method]
+                    func, headers, content_type, hooks = method_table[method]
                     request._rule_headers = headers
                     request._rule_content_type = content_type
+                    request._hooks = hooks
 
-                    return func(request)
+                    hks = hooks.get('request_started')
+                    if hks:
+                        for hf in hks:
+                            hf(request)
+
+                    output = func(request)
+
+                    if request.auto_finish:
+                        hks = hooks.get('request_finished')
+                        if hks:
+                            # Make sure the request_finished handler always gets
+                            # an instance of Response. This way, it's always
+                            # possible for it to be changed without taking
+                            # return values.
+                            if not isinstance(output, Response):
+                                if isinstance(output, tuple):
+                                    out = Response(*output)
+                                else:
+                                    out = Response(output)
+
+                            for hf in hks:
+                                hf(request, output)
+
+                    return output
+
                 except HTTPException as err:
                     request._rule_headers = None
                     request._rule_content_type = None
@@ -1169,8 +1446,8 @@ class Application(Module):
                     request._rule_headers = None
                     request._rule_content_type = None
 
-                    request.uri = err.uri
-                    request._parse_uri()
+                    request.url = err.url
+                    request._parse_url()
                     return self.route_request(request)
                 except Exception as err:
                     request._rule_headers = None
@@ -1350,8 +1627,19 @@ def _get_runner(func, converters, auto404):
             return func(request)
 
         try:
-            out = [converter(val) for converter, val in
-                   zip(converters, match.groups())]
+            # We have to get a bit fancy here, since a single converter can take
+            # multiple values.
+            i = 0
+            out = []
+            values = match.groups()
+
+            for converter in converters:
+                groups = converter.capture_groups
+                out.append(converter(request, *values[i:i+groups]))
+                i += groups
+
+            request._converted_match = out
+
         except HTTPException as err:
             raise err
         except Exception as err:
@@ -1408,7 +1696,7 @@ def _rule_to_regex(rule):
             regex += re.escape(domain) + "(?::\d+)?" + re.escape(path)
         else:
             regex += re.escape(text)
-        namegen += text.replace('%','%%')
+        namegen += text
 
     has_default = 0
 
@@ -1424,6 +1712,8 @@ def _rule_to_regex(rule):
 
         # If we're still in the domain, use a special converter that doesn't
         # match the period.
+        converter = converter.lower()
+
         if converter == 'str':
             converter = 'string'
         if in_domain and (not converter or converter == 'string'):
@@ -1439,17 +1729,8 @@ def _rule_to_regex(rule):
         converter = CONVERTER_TYPES[converter](options, default)
         converters.append(converter)
 
-        if hasattr(converter, 'regex'):
-            regex += converter.regex
-        else:
-            regex += "([^/]+)"
-
-        if hasattr(converter, 'namegen'):
-            namegen += converter.namegen
-        else:
-            namegen += "%s"
-
-        namegen += text.replace('%','%%')
+        regex += converter.regex
+        namegen += '%s' + text
 
         if in_domain and '/' in text:
             in_domain = False
@@ -1528,7 +1809,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
     if message is None:
         message = HTTP_MESSAGES.get(status, u"An unknown error has occurred.")
         values = request.__dict__.copy()
-        values['uri'] = decode(urllib.unquote(values['uri']))
+        values['url'] = decode(urllib.unquote(values['url']))
         message = message.format(**values)
 
     if status in HAIKUS:
@@ -1561,7 +1842,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
     return result, status, headers
 
 
-def redirect(uri, status=302):
+def redirect(url, status=302):
     """
     Construct a ``302 Found`` response to instruct the client's browser to
     redirect its request to a different URL. Other codes may be returned by
@@ -1570,55 +1851,60 @@ def redirect(uri, status=302):
     =========  ========  ============
     Argument   Default   Description
     =========  ========  ============
-    uri                  The URI to redirect the client's browser to.
+    url                  The URL to redirect the client's browser to.
     status     ``302``   *Optional.* The status code to send with the response.
     =========  ========  ============
     """
-    url = uri
     if isinstance(url, unicode):
-        url = uri.encode('utf-8')
+        url = url.encode('utf-8')
 
     return error(
         'The document you have requested is located at <a href="%s">%s</a>.' % (
-            uri, uri), status, {'Location':url})
+            url, url), status, {'Location':url})
 
 def url_for(name, *values, **kw_values):
     """
-    Generates a URL to the request handler with the given name. The name is
-    relative to that of the current request handler.
+    Generates a URL for the route with the given name. You may give either an
+    absolute name for the route or use a period to match names relative to the
+    current route. Multiple periods may be used to traverse up the name tree.
 
-    Arguments may be passed either positionally or with keywords.
+    Passed arguments will be used to construct the URL. Any unknown keyword
+    arguments will be appended to the URL as query arguments. Additionally,
+    there are several special keyword arguments to customize
+    ``url_for``'s behavior.
+
+    ==========  ========  ============
+    Argument    Default   Description
+    ==========  ========  ============
+    _anchor     None      *Optional.* An anchor string to be appended to the URL.
+    _doseq      True      *Optional.* The value to pass to :func:`urllib.urlencode`'s ``doseq`` parameter for building the query string.
+    _external   False     *Optional.* Whether or not a URL is meant for external use. External URLs never have their host portion removed.
+    _scheme     None      *Optional.* The scheme of the link to generate. By default, this is set to the scheme of the current request.
+    ==========  ========  ============
     """
-
-    # TODO: Finish documenting url_for
 
     app = Application.current_app
     if not app or not app.request:
         raise RuntimeError("Called url_for outside of a request.")
     request = app.request
 
-    if not name in app._name_table:
-        if name[0] == ".":
-            # Find the name in the first possible location, scanning up from
-            # this module.
-            module = request.route_name
-            while module:
-                module = module.rpartition('.')[0]
-                nm = "%s.%s" % (module, name) if module else name
-                if nm in app._name_table:
-                    name = nm
-                    break
-            else:
-                for n in app._name_table:
-                    if n.endswith(name) or n == name[1:]:
-                        # We've found it.
-                        name = n
-                        break
+    # Handle periods, which are for moving up the module table.
+    if name[0] == '.':
+        # Count and remove the periods.
+        count = len(name)
+        name = name.lstrip('.')
+        count = count - len(name)
 
-        elif not '.' in name:
-            # Find it in this module.
-            module = request.route_name.rpartition('.')[0]
-            name = "%s.%s" % (module, name)
+        # Now, build a list of route names, and pop one item off for every
+        # period we've counted.
+        mod_name = request.route_name.split('.')
+        if count >= len(mod_name):
+            del mod_name[:]
+        else:
+            del mod_name[len(mod_name) - count:]
+
+        mod_name.append(name)
+        name = '.'.join(mod_name)
 
     if not name in app._name_table:
         raise KeyError("Cannot find request handler with name %r." % name)
@@ -1627,24 +1913,31 @@ def url_for(name, *values, **kw_values):
     names, namegen, converters = rule_table[-3:]
 
     data = []
-    kw_values = kw_values.copy()
-
-    if len(values) > len(names):
-        raise ValueError("Too many values to unpack.")
+    values = list(values)
 
     for i in xrange(len(names)):
         name = names[i]
-        if i < len(values):
-            val = values[i]
-        elif name in kw_values:
-            val = kw_values[name]
-            del kw_values[name]
-        elif not converters[i].default is None:
-            val = converters[i](converters[i].default)
+
+        if name in kw_values:
+            val = kw_values.pop(name)
+        elif values:
+            val = values.pop(0)
+        elif converters[i].default is not None:
+            val = NoValue
         else:
             raise ValueError("Missing required value %r." % name)
-        data.append(val)
 
+        # Process the data.
+        if val is NoValue:
+            data.append(converters[i].default)
+        else:
+            data.append(converters[i].encode(request, val))
+
+    # If we still have values, we were given too many.
+    if values:
+        raise ValueError("Too many values to unpack.")
+
+    # Generate the string.
     out = namegen % tuple(data)
 
     dmn, sep, pth = out.partition("/")
@@ -1673,8 +1966,14 @@ def url_for(name, *values, **kw_values):
         if not out[0] == "/":
             out = '%s://%s' % (request.scheme, out)
 
+    # Remove the anchor before adding query string variables.
+    anchor = kw_values.pop('_anchor', None)
+
     # Build the query
     if kw_values:
-        out += '?%s' % urllib.urlencode(kw_values)
+        out += '?%s' % urllib.urlencode(kw_values, doseq=kw_values.pop('_doseq', True))
+
+    if anchor:
+        out += '#' + anchor
 
     return out

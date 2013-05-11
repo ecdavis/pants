@@ -41,7 +41,7 @@ from pants.test._pants_util import *
 ###############################################################################
 
 class RequestContext(object):
-    def __init__(self, app, uri='/', method='GET', protocol='HTTP/1.1',
+    def __init__(self, app, url='/', method='GET', protocol='HTTP/1.1',
                  headers=None, scheme='http', remote_address=("127.0.0.1", 99)):
 
         connection = MagicMock()
@@ -53,7 +53,7 @@ class RequestContext(object):
         connection.write = MagicMock()
         connection.finish = MagicMock()
 
-        self.request = HTTPRequest(connection, method, uri, protocol, headers, scheme)
+        self.request = HTTPRequest(connection, method, url, protocol, headers, scheme)
         self.request.auto_finish = True
 
         self.app = app
@@ -134,8 +134,8 @@ class TestUrlFor(AppTestCase):
 
 
     def test_basic(self):
-        for uri in ("/", "/external", "/test/pants"):
-            with RequestContext(self.app, uri):
+        for url in ("/", "/external", "/test/pants"):
+            with RequestContext(self.app, url):
                 self.assertEqual(url_for('index'), '/')
 
         with RequestContext(self.app, headers={'Host': 'test.example.com'}):
