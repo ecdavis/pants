@@ -38,7 +38,7 @@ Helper Functions
 =============
 
 .. autoclass:: Converter
-    :members: configure, convert, encode
+    :members: configure, decode, encode
 
     .. attribute:: default
 

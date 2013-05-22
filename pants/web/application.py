@@ -111,7 +111,7 @@ Finally, you may provide default values for variables:
     @app.route("/page/<path:slug=welcome>")
 
 Default values are used if there is no string to capture for the variable in
-question, and are processed via the converter's :meth:`~Converter.convert`
+question, and are processed via the converter's :meth:`~Converter.decode`
 method each time the rule is matched.
 
 When using default values, they allow you to omit the entirety of the URL
@@ -330,7 +330,7 @@ and extensions as well.
     class Telephone(Converter):
         regex = r"(?:1[ -]*)?(?:\(? *([2-9][0-9]{2}) *\)?[ -]*)?([2-9](?:1[02-9]|[02-9][0-9]))[ -]*(\d{4})(?:[ -]*e?xt?[ -]*(\d+))?"
 
-        def convert(self, request, *values):
+        def decode(self, request, *values):
             return PhoneNumber(*(int(x) if x else None for x in values))
 
 Now we're getting somewhere. Using our existing rule, now we can make a request
@@ -567,7 +567,7 @@ class Converter(object):
             if not m:
                 raise HttpException('Invalid default value for converter: %s', self.default)
             values = m.groups()
-        return self.convert(request, *values)
+        return self.decode(request, *values)
 
     def configure(self):
         """
@@ -580,7 +580,7 @@ class Converter(object):
         """
         pass
 
-    def convert(self, request, *values):
+    def decode(self, request, *values):
         """
         This method receives captured strings from URLs and must process the
         strings and return variables usable within request handlers.
@@ -689,7 +689,7 @@ class Float(Converter):
         self.min = min
         self.max = max
 
-    def convert(self, request, value):
+    def decode(self, request, value):
         value = float(value)
         if (self.min is not None and value < self.min) or\
            (self.max is not None and value > self.max):
@@ -712,7 +712,7 @@ class Integer(Converter):
         self.max = max
         self.digits = digits
 
-    def convert(self, request, value):
+    def decode(self, request, value):
         value = int(value)
         if (self.min is not None and value < self.min) or\
            (self.max is not None and value > self.max):
