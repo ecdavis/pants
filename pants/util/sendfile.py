@@ -126,6 +126,8 @@ def sendfile_darwin(sfile, channel, offset, nbytes, fallback):
     if fallback:
         return sendfile_fallback(sfile, channel, offset, nbytes, fallback)
 
+    if nbytes == 0:
+        nbytes = 2 ** 10 # TODO Fix this properly - issue #43.
     _nbytes = ctypes.c_uint64(nbytes)
 
     result = _sendfile(sfile.fileno(), channel.fileno, offset, _nbytes,
