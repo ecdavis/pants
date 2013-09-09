@@ -27,7 +27,7 @@ is important that your code does not block the main process. Blocking code
 prevents Pants from efficiently polling for socket events, and has a
 significant, negative effect on performance. To eliminate the need for blocking
 code, Pants uses a callback-oriented design. Blocking operations like reading
-and writing data to a socket is performed in the background. When these
+and writing data to a socket are performed in the background. When these
 operations complete, callback methods are invoked to notify user code. To get
 a better example of how Pants applications work, take a look at a few
 `examples <http://github.com/ecdavis/pants/tree/master/examples/>`_ or
@@ -51,8 +51,8 @@ You can install Pants using your favourite Python package manager::
 Or from source::
 
 	wget https://github.com/ecdavis/pants/tarball/pants-1.0.0-beta.3
-	tar xvfz pants-1.0.0-beta.3
-	cd pants-1.0.0-beta.3.tar.gz
+	tar xvfz pants-1.0.0-beta.3.tar.gz
+	cd pants-1.0.0-beta.3
 	python setup.py install
 
 Using the development version
