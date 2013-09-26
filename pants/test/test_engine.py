@@ -425,7 +425,7 @@ class TestEngineInstallPoller(unittest.TestCase):
 @unittest.skipUnless(hasattr(select, "epoll"), "epoll-specific functionality.")
 class TestEpoll(unittest.TestCase):
     def setUp(self):
-        self.poller = _Epoll()
+        self.poller = _EPoll()
         self.epoll = MagicMock()
         self.epoll.register = MagicMock()
         self.epoll.modify = MagicMock()
