@@ -562,7 +562,7 @@ class _Channel(object):
         except Exception as err:
             if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 self._start_waiting_for_write_event()
-                return 0
+                return err.nbytes # See issue #43
             elif err.args[0] == errno.EPIPE:
                 self.close(flush=False)
                 return 0
