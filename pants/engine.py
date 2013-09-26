@@ -188,6 +188,8 @@ class Engine(object):
         self._callbacks = []
         self._deferreds = []
 
+        self._flushable = set()
+
     @classmethod
     def instance(cls):
         """
@@ -320,6 +322,10 @@ class Engine(object):
                 raise
             except Exception:
                 log.exception("Error while handling events on %r." % channel)
+
+        for channel in self._flushable:
+            channel.flush()
+        self._flusable = set()
 
     ##### Timer Methods #######################################################
 

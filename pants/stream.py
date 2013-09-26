@@ -551,6 +551,7 @@ class Stream(_Channel):
         if flush:
             self._process_send_buffer()
         else:
+            self.engine._flushable.add(self)
             self._start_waiting_for_write_event()
 
     def write_file(self, sfile, nbytes=0, offset=0, flush=False):
@@ -587,6 +588,7 @@ class Stream(_Channel):
         if flush:
             self._process_send_buffer()
         else:
+            self.engine._flushable.add(self)
             self._start_waiting_for_write_event()
 
     def write_packed(self, *data, **kwargs):
