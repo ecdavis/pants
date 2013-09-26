@@ -105,7 +105,9 @@ def sendfile_linux(sfile, channel, offset, nbytes, fallback):
 
     if result == -1:
         e = ctypes.get_errno()
-        raise socket.error(e, os.strerror(e))
+        err =  socket.error(e, os.strerror(e))
+        err.nbytes = 0 # See issue #43
+        raise err
 
     return result
 
@@ -126,8 +128,6 @@ def sendfile_darwin(sfile, channel, offset, nbytes, fallback):
     if fallback:
         return sendfile_fallback(sfile, channel, offset, nbytes, fallback)
 
-    if nbytes == 0:
-        nbytes = 2 ** 10 # TODO Fix this properly - issue #43.
     _nbytes = ctypes.c_uint64(nbytes)
 
     result = _sendfile(sfile.fileno(), channel.fileno, offset, _nbytes,
@@ -135,7 +135,9 @@ def sendfile_darwin(sfile, channel, offset, nbytes, fallback):
 
     if result == -1:
         e = ctypes.get_errno()
-        raise socket.error(e, os.strerror(e))
+        err = socket.error(e, os.strerror(e))
+        err.nbytes = _nbytes.value # See issue #43
+        raise err
 
     return _nbytes.value
 
@@ -163,7 +165,9 @@ def sendfile_bsd(sfile, channel, offset, nbytes, fallback):
 
     if result == -1:
         e = ctypes.get_errno()
-        raise socket.error(e, os.strerror(e))
+        err = socket.error(e, os.strerror(e))
+        err.nbytes = _nbytes.value # See issue #43
+        raise err
 
     return _nbytes.value
 
