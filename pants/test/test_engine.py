@@ -445,7 +445,7 @@ class TestEpoll(unittest.TestCase):
 
     def test_epoll_remove(self):
         self.poller.remove(self.fileno, self.events)
-        self.epoll.unregister.assert_called_once_with(self.fileno, self.events)
+        self.epoll.unregister.assert_called_once_with(self.fileno)
 
     def test_epoll_poll(self):
         timeout = 10
