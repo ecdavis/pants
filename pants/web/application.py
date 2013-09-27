@@ -1713,7 +1713,8 @@ def _rule_to_regex(rule):
 
         # If we're still in the domain, use a special converter that doesn't
         # match the period.
-        converter = converter.lower()
+        if converter:
+            converter = converter.lower()
 
         if converter == 'str':
             converter = 'string'
