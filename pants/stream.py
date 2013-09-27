@@ -31,6 +31,7 @@ import re
 import socket
 import ssl
 import struct
+import types
 
 from pants._channel import _Channel, HAS_IPV6
 from pants.engine import Engine
@@ -107,6 +108,7 @@ class Stream(_Channel):
 
         # I/O attributes
         self._read_delimiter = None
+        self._read_filter = None
         self._recv_buffer = ""
         self._recv_buffer_size_limit = self._buffer_size
         self._send_buffer = []
@@ -348,6 +350,84 @@ class Stream(_Channel):
                                             self._read_delimiter.minimum_size)
         else:
             self._recv_buffer_size_limit = value
+
+    def set_read_filter(self, filtr):
+        """
+        Sets a filter for processing all incoming data sent to this Stream
+        before the data is stored in the input buffer and processed with the
+        :attr:`read_delimiter`.
+
+        A read filter should be either a callable that returns the modified
+        data or a generator function that accepts new data via the generator's
+        ``send()`` method and yields the modified data as a result.
+
+        .. see-also::
+
+            :ref:`python:yieldexpr`
+
+        When you set a read filter, it is retroactively applied to all data
+        currently within the input buffer for the Stream. The filter will
+        remain in place until the Stream is closed, or until the filter raises
+        a :class:`StopIteration` exception or :class:`GeneratorExit` instance.
+
+        .. warning::
+
+            A read filter performs a one-way transformation of all data
+            received by a Stream, and no state information is kept regarding
+            what data has been processed and what data has not. Because of
+            this, it is impossible to remove a read filter from a Stream other
+            than by the read filter raising an exception as mentioned above.
+
+        The following example will use :mod:`zlib` to decompress all of the
+        incoming data:
+
+        .. code-block:: python
+
+            import zlib
+
+            from pants import Stream
+
+            def decompress_filter():
+                obj = zlib.decompressobj()
+                # We have to yield once to get things moving.
+                data = yield None
+
+                while True:
+                    out = obj.decompress(data)
+                    if obj.unused_data:
+                        # Time to end the compression.
+                        yield out + obj.unused_data
+                        break
+
+                    data = yield out
+
+            class CompressedStream(Stream):
+                def on_connect(self):
+                    self.set_read_filter(decompress_filter())
+
+        """
+        if self._read_filter:
+            raise RuntimeError("Tried to set a read filter on a Stream with "
+                               "an existing read filter.")
+
+        if isinstance(filtr, types.GeneratorType):
+            filtr = filtr.send
+            filtr(None)
+
+        if not callable(filtr):
+            raise TypeError("Read filters must be callable.")
+
+        self._read_filter = filtr
+
+        try:
+            self._recv_buffer = self._read_filter(self._recv_buffer)
+        except (StopIteration, GeneratorExit):
+            self._read_filter = None
+        except Exception:
+            self._read_filter = None
+            raise
+
+        self._process_recv_buffer()
 
     ##### Control Methods #####################################################
 
@@ -752,6 +832,20 @@ class Stream(_Channel):
             if not data:
                 break
             else:
+                if self._read_filter:
+                    try:
+                        data = self._read_filter(data)
+                    except (StopIteration, GeneratorExit):
+                        self._read_filter = None
+                    except Exception:
+                        log.exception("Exception raised in read filter on %r."
+                                      % self)
+                        self.close(flush=False)
+                        return
+
+                    if not data:
+                        continue
+
                 self._recv_buffer += data
 
                 if len(self._recv_buffer) > self._recv_buffer_size_limit:
