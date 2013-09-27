@@ -411,7 +411,9 @@ class TestChannelSocketSendfile(unittest.TestCase):
     def test_sendfile_raises_EAGAIN(self):
         chunk = "foo"
         args = (chunk, None, None, False)
-        pants._channel.sendfile = MagicMock(side_effect=socket.error(errno.EAGAIN))
+        err = socket.error(errno.EAGAIN)
+        err.nbytes = 0 # See issue #43
+        pants._channel.sendfile = MagicMock(side_effect=err)
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_sendfile(*args)
         self.assertEquals(result, 0)
@@ -420,7 +422,9 @@ class TestChannelSocketSendfile(unittest.TestCase):
     def test_sendfile_raises_EWOULDBLOCK(self):
         chunk = "foo"
         args = (chunk, None, None, False)
-        pants._channel.sendfile = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
+        err = socket.error(errno.EWOULDBLOCK)
+        err.nbytes = 0 # See issue #43
+        pants._channel.sendfile = MagicMock(side_effect=err)
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_sendfile(*args)
         self.assertEquals(result, 0)
