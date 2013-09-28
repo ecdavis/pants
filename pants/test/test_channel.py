@@ -49,6 +49,7 @@ class TestChannelEngineInteraction(unittest.TestCase):
         engine.add_channel = MagicMock()
         channel = _Channel(socket=socket.socket(), engine=engine)
         engine.add_channel.assert_called_once_with(channel)
+        channel.close()
 
     def test_channel_gets_removed_from_engine(self):
         engine = Engine()
