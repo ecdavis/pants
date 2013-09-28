@@ -421,10 +421,10 @@ class _Channel(object):
         """
         try:
             self._socket.shutdown(socket.SHUT_RDWR)
-            self._socket.close()
         except (AttributeError, socket.error):
-            return
+            pass
         finally:
+            self._socket.close()
             self._socket = None
             self._closed = True
 
