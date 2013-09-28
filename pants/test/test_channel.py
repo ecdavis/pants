@@ -204,17 +204,9 @@ class TestChannelSocketClose(unittest.TestCase):
         self.channel._socket_close()
         close.assert_called_once_with()
 
-    def test_attribute_error_is_raised(self):
-        attribute_error_raiser = MagicMock(side_effect=AttributeError())
-        self.sock.close = attribute_error_raiser
-        try:
-            self.channel._socket_close()
-        except AttributeError:
-            self.fail("AttributeError was not caught.")
-
     def test_socket_error_is_raised(self):
         socket_error_raiser = MagicMock(side_effect=socket.error)
-        self.sock.close = socket_error_raiser
+        self.sock.shutdown = socket_error_raiser
         try:
             self.channel._socket_close()
         except socket.error:
