@@ -67,4 +67,5 @@ class TestSimpleClient(PantsTestCase):
         self.assertTrue(self.client.on_close_called)
 
     def tearDown(self):
+        PantsTestCase.tearDown(self)
         self.client.close()
