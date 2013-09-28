@@ -95,7 +95,7 @@ class Stream(_Channel):
 
     def __init__(self, **kwargs):
         sock = kwargs.get("socket", None)
-        if sock and sock.type != socket.SOCK_STREAM:
+        if sock and sock.type & socket.SOCK_STREAM != socket.SOCK_STREAM:
             raise TypeError("Cannot create a %s with a socket type other than SOCK_STREAM."
                     % self.__class__.__name__)
 

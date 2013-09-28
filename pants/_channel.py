@@ -73,7 +73,11 @@ if socket.has_ipv6:
         SUPPORTED_FAMILIES.append(socket.AF_INET6)
 
 SUPPORTED_FAMILIES = tuple(SUPPORTED_FAMILIES)
-SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
+
+SUPPORTED_TYPES = [socket.SOCK_STREAM, socket.SOCK_DGRAM]
+if hasattr(socket, "SOCK_NONBLOCK"):
+    SUPPORTED_TYPES.append(socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
+SUPPORTED_TYPES = tuple(SUPPORTED_TYPES)
 
 if sys.platform == "win32":
     FAMILY_ERROR = (10047, "WSAEAFNOSUPPORT")
