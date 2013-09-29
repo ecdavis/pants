@@ -58,7 +58,7 @@ receivers = {}
 class TimeoutError(Exception):
     """
     Instances of TimeoutError are raised into an asynchronous request handler
-    when an :func:`async.wait` or :func:`async.receieve` timeout.
+    when an :func:`async.wait` or :func:`async.receive` timeout.
     """
     pass
 
@@ -391,7 +391,7 @@ def _stream_output(request, output):
 
 def event_stream(func):
     """
-    The ``@async.event_stream`` decorator allows you to easilly push server-sent
+    The ``@async.event_stream`` decorator allows you to easily push server-sent
     events from Pants to your web clients using the new HTML5 `EventSource
     <http://dev.w3.org/html5/eventsource/>`_ API. Example::
 

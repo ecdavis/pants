@@ -80,7 +80,7 @@ cancel the execution of the timer::
 
 Any object references passed to a timer method will be retained in
 memory until the timer has finished executing or is cancelled. Be aware
-of this when writing code, as it may cause unexpected behavious should
+of this when writing code, as it may cause unexpected behaviors should
 you fail to take these references into account. Timers rely on their
 engine for scheduling and execution. For best results, you should either
 schedule timers while your engine is running or start your engine

@@ -59,9 +59,9 @@ Routing
 =======
 
 When registering new request handlers with an :class:`Application` instance,
-you are required to provide a specially formated rule. These rules allow you to
-capture variables from URLs on top of merely routing requests, making it easy
-to create attractive URLs bereft of unfriendly query strings.
+you are required to provide a specially formatted rule. These rules allow you
+to capture variables from URLs on top of merely routing requests, making it
+easy to create attractive URLs bereft of unfriendly query strings.
 
 Rules in their simplest form will match a static string.
 
@@ -265,7 +265,7 @@ String
 ------
 
 The ``string`` converter is the default converter used when none is specified,
-and it matches any character except for a slash (``/``), allowing it to easilly
+and it matches any character except for a slash (``/``), allowing it to easily
 capture individual URL segments.
 
 =========  ========  ============
@@ -297,7 +297,7 @@ to match basic phone numbers, you could use:
     @app.route("/tel/<regex('(\d{3})-(\d{4})'):number>")
 
 Placing the expression in the route isn't clean, however, and it can be a pain
-to update--particuarly if you use the same expression across many different
+to update--particularly if you use the same expression across many different
 routes.
 
 A better alternative is to use a custom converter:
@@ -845,7 +845,7 @@ class Module(object):
 
     def _recalculate_routes(self, processed=tuple()):
         if self in processed:
-            raise RuntimeError("Cyclic inheritence: %s" %
+            raise RuntimeError("Cyclic inheritance: %s" %
                                ", ".join(repr(x) for x in processed))
 
         for parent in self._parents:
@@ -900,6 +900,7 @@ class Module(object):
         """
         self.hooks['request_started'].append(func)
         self._recalculate_routes()
+        return func
 
     def request_finished(self, func):
         """
@@ -917,6 +918,7 @@ class Module(object):
         """
         self.hooks['request_finished'].append(func)
         self._recalculate_routes()
+        return func
 
     def request_teardown(self, func):
         """
@@ -933,6 +935,7 @@ class Module(object):
         """
         self.hooks['request_teardown'].append(func)
         self._recalculate_routes()
+        return func
 
 
     ##### Route Management Decorators #########################################

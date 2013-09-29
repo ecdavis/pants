@@ -327,7 +327,7 @@ class Server(_Channel):
         family     The detected socket family or None if address
                    resolution failed.
         error      *Optional.* Error information or None if no error
-                   occured.
+                   occurred.
         =========  =====================================================
         """
         if self._socket:
