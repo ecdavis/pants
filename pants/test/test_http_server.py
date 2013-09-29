@@ -60,7 +60,7 @@ class BasicTest(HTTPTestCase):
         request.send_response("Hello, World!")
 
     def test_basic(self):
-        response = requests.get("http://127.0.0.1:4040/", timeout=50) #0.5)
+        response = requests.get("http://127.0.0.1:4040/", timeout=0.5)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "Hello, World!")
 
