@@ -414,7 +414,7 @@ class Stream(_Channel):
 
         return self
 
-    def connect(self, address, native_resolve=True):
+    def connect(self, address):
         """
         Connect the channel to a remote socket.
 
@@ -447,9 +447,6 @@ class Stream(_Channel):
         Arguments        Description
         ===============  ===============================================
         address          The remote address to connect to.
-        native_resolve   *Optional.* If True, use Python's builtin
-                         address resolution. Otherwise, Pants'
-                         non-blocking address resolution will be used.
         ===============  ===============================================
         """
         if self.connected or self.connecting:
@@ -464,7 +461,7 @@ class Stream(_Channel):
 
         if resolved:
             self._do_connect(address, family)
-        elif native_resolve:
+        else:
             try:
                 result = socket.getaddrinfo(address[0], address[1], family)
             except socket.error as err:
@@ -476,9 +473,6 @@ class Stream(_Channel):
             # We only care about the first result.
             result = result[0]
             self._do_connect(result[-1], result[0])
-
-        else:
-            self._resolve_address(address, self._do_connect)
 
         return self
 

@@ -56,6 +56,7 @@ class TestSimpleClient(PantsTestCase):
         self.assertTrue(self.client.on_read_called)
         self.assertTrue(self.client.on_close_called)
 
+    @unittest.skip("pants.util.dns is currently disabled")
     def test_simple_client_with_pants_resolve(self):
         # Switched to httpbin.org from google.come because the lack of IPv6
         # routing was making it fail with Google.

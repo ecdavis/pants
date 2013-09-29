@@ -741,7 +741,6 @@ class _Channel(object):
         # Now, get the family from the first position and address from the last.
         return address, family, True
 
-
     def _resolve_address(self, address, callback):
         """
         Use Pants' DNS client to asynchronously resolve the given
@@ -757,6 +756,8 @@ class _Channel(object):
                   respectively.
         ========= ===================================================
         """
+        raise NotImplementedError("pants.util.dns is currently disabled")
+
         # This is here to prevent an import-loop. pants.util.dns depends
         # on pants._channel. Unfortunate, but necessary.
         global dns

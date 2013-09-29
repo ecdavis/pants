@@ -208,7 +208,7 @@ class _HTTPStream(Stream):
 
         return True
 
-    def connect(self, addr, native_resolve=True):
+    def connect(self, addr):
         if isinstance(addr, basestring):
             self._host = addr
         else:
@@ -217,7 +217,7 @@ class _HTTPStream(Stream):
         if self.connected:
             self._safely_call(self.on_connect)
         else:
-            Stream.connect(self, addr, native_resolve)
+            Stream.connect(self, addr)
 
     def on_connect(self):
         self.client._on_connect()
