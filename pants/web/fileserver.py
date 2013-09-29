@@ -15,6 +15,31 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+``pants.web.fileserver`` implements a basic static file server for use with a
+:class:`~pants.http.server.HTTPServer` or
+:class:`~pants.web.application.Application`. It makes use of the appropriate
+HTTP headers and the ``sendfile`` system call, as well as the ``X-Sendfile``
+header to improve transfer performance.
+
+Serving Static Files
+====================
+
+The ``pants.web.fileserver`` module can be invoked directly using the *-m*
+switch of the interpreter to serve files in a similar way to the standard
+library's :mod:`SimpleHTTPServer`. However, it performs much more efficiently
+than ``SimpleHTTPServer`` for this task.
+
+.. code-block:: bash
+
+    $ python -m pants.web.fileserver
+
+When doing this, you may use additional arguments to specify which address the
+server should bind to, as well as which filenames should serve as directory
+indices. By default, only ``index.html`` and ``index.htm`` are served
+as indices.
+
+"""
 
 ###############################################################################
 # Imports
@@ -74,10 +99,12 @@ if os.name == 'nt':
 class FileServer(object):
     """
     The FileServer is a request handling class that, as it sounds, serves files
-    to the client using :method:`pants.http.server.HTTPRequest.send_file`. As
+    to the client using :meth:`pants.http.server.HTTPRequest.send_file`. As
     such, it supports caching headers, as well as ``X-Sendfile`` if the
     :class:`~pants.http.server.HTTPServer` instance is configured to use the
-    Sendfile header.
+    Sendfile header. FileServer is also able to take advantage of the
+    ``sendfile`` system call to improve performance when ``X-Sendfile`` is not
+    in use.
 
     ==========  ==============================  ============
     Argument    Default                         Description
@@ -86,11 +113,6 @@ class FileServer(object):
     blacklist   ``.py`` and ``.pyc`` files      *Optional.* A list of regular expressions to test filenames against. If a given file matches any of the provided patterns, it will not be downloadable and instead return a ``403 Unauthorized`` error.
     default     ``index.html``, ``index.htm``   *Optional.* A list of default files to be displayed rather than a directory listing if they exist.
     ==========  ==============================  ============
-
-    It attempts to serve the files as efficiently as possible, using the
-
-    system call when possible, and with proper use of ETags and other headers to
-    minimize repetitive downloading.
 
     Using it is simple. It only requires a single argument: the path to serve
     files from. You can also supply a list of default files to check to serve
@@ -125,8 +147,9 @@ class FileServer(object):
 
     def attach(self, app, path='/static/'):
         """
-        Attach this fileserver to an application, bypassing the usual route
-        decorator to ensure things are done right.
+        Attach this FileServer to an :class:`~pants.web.application.Application`,
+        bypassing the usual route decorator to ensure the rule is configured as
+        FileServer expects.
 
         =========  ===============  ============
         Argument   Default          Description
@@ -164,7 +187,7 @@ class FileServer(object):
         """
 
         try:
-            path = request.match.group(1)
+            path = request.match.groups()[-1]
             if path is None:
                 path = urllib.unquote_plus(request.path)
         except (AttributeError, IndexError):

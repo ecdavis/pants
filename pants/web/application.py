@@ -16,7 +16,8 @@
 #
 ###############################################################################
 """
-A minimal application framework for building websites on top of Pants.
+``pants.web.application`` implements a minimalistic framework for building
+websites on top of Pants.
 
 The :class:`~pants.web.application.Application` class features a powerful,
 easy to use request routing system and an API similar to that of the popular
@@ -24,7 +25,7 @@ easy to use request routing system and an API similar to that of the popular
 
 .. note::
 
-    Application does *not* provide out of the box support for sessions or
+    Application does not provide out of the box support for sessions or
     templates, and it is not compatible with WSGI middleware as it is not
     implemented via WSGI.
 

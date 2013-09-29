@@ -15,6 +15,14 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+``pants.web.wsgi`` implements a WSGI compatibility class that lets you run
+WSGI applications using the Pants :class:`~pants.http.server.HTTPServer`.
+
+Currently, this module uses the :pep:`333` standard. Future releases will add
+support for :pep:`3333`, as well as the ability to host a Pants
+:class:`~pants.web.application.Application` from a standard WSGI server.
+"""
 
 ###############################################################################
 # Imports
@@ -33,19 +41,38 @@ from pants.web.utils import log, SERVER
 
 class WSGIConnector(object):
     """
-    This class acts as a request handler for :class:`pants.http.HTTPServer`
-    and provides a simple interface for hosting `WSGI <http://en.wikipedia.org/wiki/WSGI>`_
-    compatible applications.
+    This class functions as a request handler for the Pants
+    :class:`~pants.http.server.HTTPServer` that wraps WSGI applications to
+    allow them to work correctly.
 
-    When called, it constructs a proper environment for the WSGI call, and
-    calls it within a try block to catch errors. A ``500 Internal Server Error``
-    page is displayed if an exception bubbles up from the WSGI application.
+    Class instances are callable, and when called with a
+    :class:`~pants.http.server.HTTPRequest` instance, they construct a WSGI
+    environment and invoke the application.
+
+    .. code-block:: python
+
+        from pants import Engine
+        from pants.http import HTTPServer
+        from pants.web import WSGIConnector
+
+        def hello_app(environ, start_response):
+            start_response("200 OK", {"Content-Type": "text/plain"})
+            return ["Hello, World!"]
+
+        connector = WSGIConnector(hello_app)
+        HTTPServer(connector).listen()
+        Engine.instance().start()
+
+    ``WSGIConnector`` supports sending responses with
+    ``Transfer-Encoding: chunked`` and will do so automatically when the WSGI
+    application's response does not contain information about the response's
+    length.
 
     ============  ============
     Argument      Description
     ============  ============
     application   The WSGI application that will handle incoming requests.
-    debug         *Optional.* Whether or not to display tracebacks and additional information about a request within the output 500 Internal Server Error pages.
+    debug         *Optional.* Whether or not to display tracebacks and additional debugging information for a request within ``500 Internal Server Error`` pages.
     ============  ============
     """
     def __init__(self, application, debug=False):
@@ -55,7 +82,21 @@ class WSGIConnector(object):
     def attach(self, application, rule, methods=('HEAD','GET','POST','PUT')):
         """
         Attach the WSGIConnector to an instance of
-        :class:`pants.web.Application` at the given route.
+        :class:`~pants.web.application.Application` at the given
+        :ref:`route <app-routing>`.
+
+        You may use route variables to strip information out of a URL. In the
+        event that variables exist, they will be made available within the WSGI
+        environment under the key `wsgiorg.routing_args <http://wsgi.readthedocs.org/en/latest/specifications/routing_args.html>`_
+
+        .. warning::
+
+            When using WSGIConnector within an Application, WSGIConnector
+            expects the final variable in the rule to capture the remainder of
+            the URL, and it treats the last variable as containing the value
+            for the ``PATH_INFO`` variable in the WSGI environment. This method
+            adds such a variable automatically. However, if you add the
+            WSGIConnector manually you will have to be prepared.
 
         ============  ============
         Argument      Description
@@ -68,9 +109,9 @@ class WSGIConnector(object):
         if not rule.endswith('/'):
             rule += '/'
 
-        application.basic_route(rule + '<regex("(.*)"):path>', methods=methods, func=self)
+        application.route(rule + '<regex("(.*)"):path>', methods=methods, func=self)
 
-    def __call__(self, request):
+    def __call__(self, request, *args):
         """
         Handle the given request.
         """
@@ -126,11 +167,23 @@ class WSGIConnector(object):
             request._headers = head
             return write
 
+        # Check for extra arguments that would mean we're being used
+        # within Application.
+        if hasattr(request, '_converted_match'):
+            path = request._converted_match[-1]
+            routing_args = request._converted_match[:-1]
+        else:
+            path = request.path
+            if hasattr(request, 'match'):
+                routing_args = request.match.groups()
+            else:
+                routing_args = None
+
         # Build an environment for the WSGI application.
         environ = {
             'REQUEST_METHOD'    : request.method,
             'SCRIPT_NAME'       : '',
-            'PATH_INFO'         : request.path,
+            'PATH_INFO'         : path,
             'QUERY_STRING'      : request.query,
             'SERVER_NAME'       : request.headers.get('Host','127.0.0.1'),
             'SERVER_PROTOCOL'   : request.protocol,
@@ -149,10 +202,8 @@ class WSGIConnector(object):
         if isinstance(request.connection.server.local_address, tuple):
             environ['SERVER_PORT'] = request.connection.server.local_address[1]
 
-        if hasattr(request, 'arguments'):
-            environ['wsgiorg.routing_args'] = (request.arguments, {})
-        elif hasattr(request, 'match'):
-            environ['wsgiorg.routing_args'] = (request.match.groups(), {})
+        if routing_args:
+            environ['wsgiorg.routing_args'] = (routing_args, {})
 
         if 'Content-Type' in request.headers:
             environ['CONTENT_TYPE'] = request.headers['Content-Type']

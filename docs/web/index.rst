@@ -9,4 +9,5 @@ HTTP & Web
     websocket
 
     application
+    fileserver
     wsgi

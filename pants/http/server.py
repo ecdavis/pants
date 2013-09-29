@@ -1023,7 +1023,7 @@ class HTTPServer(Server):
     xheaders          False     *Optional.* Whether or not to use ``X-Forwarded-For`` and ``X-Forwarded-Proto`` headers.
     sendfile          False     *Optional.* Whether or not to use ``X-Sendfile`` headers. If this is set to a string, that string will be used as the header name.
     sendfile_prefix   None      *Optional.* A string to prefix paths with for use in the ``X-Sendfile`` headers. Useful for nginx.
-    file_root         None      *Optional.* The root path to send files from using :method:`~pants.http.server.HTTPRequest.send_file`.
+    file_root         None      *Optional.* The root path to send files from using :meth:`~pants.http.server.HTTPRequest.send_file`.
     ================  ========  ============
     """
     ConnectionClass = HTTPConnection
