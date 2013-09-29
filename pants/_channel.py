@@ -73,11 +73,7 @@ if socket.has_ipv6:
         SUPPORTED_FAMILIES.append(socket.AF_INET6)
 
 SUPPORTED_FAMILIES = tuple(SUPPORTED_FAMILIES)
-
-SUPPORTED_TYPES = [socket.SOCK_STREAM, socket.SOCK_DGRAM]
-if hasattr(socket, "SOCK_NONBLOCK"):
-    SUPPORTED_TYPES.append(socket.SOCK_STREAM | socket.SOCK_NONBLOCK)
-SUPPORTED_TYPES = tuple(SUPPORTED_TYPES)
+SUPPORTED_TYPES = (socket.SOCK_STREAM, socket.SOCK_DGRAM)
 
 if sys.platform == "win32":
     FAMILY_ERROR = (10047, "WSAEAFNOSUPPORT")
@@ -106,6 +102,20 @@ if sys.platform == "win32":
         return errstr
 else:
     strerror = os.strerror
+
+def sock_type(sock):
+    # We can thank Linux for this abomination of a function.
+    #
+    # As of Linux 2.6.27, bits 11-32 of the socket type are flags. This
+    # change was made with a complete lack of consideration for the fact
+    # that socket types are not flags, but are in fact a set of distinct
+    # values represented on all major operating systems by sequential
+    # numbers. It is impossible to distinguish between some types (i.e.
+    # SOCK_STREAM and SOCK_RAW) using a simple bitwise AND, as one would
+    # expect from a flag value.
+    #
+    # To get around this, we treat the first 9 bits as the "real" type.
+    return sock.type & 1023
 
 
 ###############################################################################
@@ -352,7 +362,7 @@ class _Channel(object):
             raise RuntimeError("Cannot replace existing socket.")
         if sock.family not in SUPPORTED_FAMILIES:
             raise ValueError("Unsupported socket family.")
-        if sock.type not in SUPPORTED_TYPES:
+        if sock_type(sock) not in SUPPORTED_TYPES:
             raise ValueError("Unsupported socket type.")
 
         sock.setblocking(False)
