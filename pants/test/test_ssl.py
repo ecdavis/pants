@@ -91,7 +91,7 @@ class TestSSLServer(PantsTestCase):
         request = repr(ssl_sock)
         ssl_sock.send(request)
         response = ssl_sock.recv(1024)
-        self.assertEquals(response, request)
+        self.assertEqual(response, request)
         ssl_sock.close()
 
     def tearDown(self):
@@ -121,7 +121,7 @@ class TestSSLSendfile(PantsTestCase):
         ssl_sock = ssl.wrap_socket(sock)
         ssl_sock.connect(('127.0.0.1', 4040))
         actual_data = ssl_sock.recv(1024)
-        self.assertEquals(actual_data, expected_data)
+        self.assertEqual(actual_data, expected_data)
         ssl_sock.close()
 
     def tearDown(self):
