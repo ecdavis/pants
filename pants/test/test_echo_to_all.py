@@ -40,7 +40,7 @@ class TestEchoToAll(PantsTestCase):
         request = repr(sock)
         sock.send(request)
         response = sock.recv(1024)
-        self.assertEquals(response, request)
+        self.assertEqual(response, request)
         sock.close()
 
     def test_echo_to_all_with_two_sequential_clients(self):
@@ -50,7 +50,7 @@ class TestEchoToAll(PantsTestCase):
         request1 = repr(sock1)
         sock1.send(request1)
         response1 = sock1.recv(1024)
-        self.assertEquals(response1, request1)
+        self.assertEqual(response1, request1)
         sock1.close()
 
         sock2 = socket.socket()
@@ -59,7 +59,7 @@ class TestEchoToAll(PantsTestCase):
         request2 = repr(sock2)
         sock2.send(request2)
         response2 = sock2.recv(1024)
-        self.assertEquals(response2, request2)
+        self.assertEqual(response2, request2)
         sock2.close()
 
     def test_echo_to_all_with_two_concurrent_clients(self):
@@ -77,10 +77,10 @@ class TestEchoToAll(PantsTestCase):
         sock2.send(request2)
         response2_1 = sock1.recv(1024)
         response2_2 = sock2.recv(1024)
-        self.assertEquals(response1_1, request1)
-        self.assertEquals(response1_2, request1)
-        self.assertEquals(response2_1, request2)
-        self.assertEquals(response2_2, request2)
+        self.assertEqual(response1_1, request1)
+        self.assertEqual(response1_2, request1)
+        self.assertEqual(response2_1, request2)
+        self.assertEqual(response2_2, request2)
         sock1.close()
         sock2.close()
 

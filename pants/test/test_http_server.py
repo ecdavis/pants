@@ -107,12 +107,12 @@ class SecureCookieTest(HTTPTestCase):
 
     def test_cookies(self):
         response = requests.get("http://127.0.0.1:4040/", timeout=0.5)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         self.server.request_handler = self.other_handler
 
         response = requests.get("http://127.0.0.1:4040/", cookies=response.cookies)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
 @unittest.skipIf(requests is None, "requests library not installed")
 class ResponseBody(HTTPTestCase):

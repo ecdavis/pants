@@ -45,7 +45,7 @@ class TestSendfile(PantsTestCase):
         sock.settimeout(1.0)
         sock.connect(('127.0.0.1', 4040))
         actual_data = sock.recv(1024)
-        self.assertEquals(actual_data, expected_data)
+        self.assertEqual(actual_data, expected_data)
         sock.close()
 
     def tearDown(self):

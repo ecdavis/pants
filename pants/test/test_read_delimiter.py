@@ -51,7 +51,7 @@ class TestReadDelimiterString(PantsTestCase):
         sock.send(request)
         response = sock.recv(1024)
         sock.close()
-        self.assertEquals(response, "line1line1line2line2")
+        self.assertEqual(response, "line1line1line2line2")
 
     def tearDown(self):
         PantsTestCase.tearDown(self)
@@ -80,7 +80,7 @@ class TestReadDelimiterStruct(PantsTestCase):
         sock.send(struct.pack("!2H", 42, 81))
         response = sock.recv(1024)
         sock.close()
-        self.assertEquals(int(response), 42*81)
+        self.assertEqual(int(response), 42*81)
 
 class NetStructOriented(pants.Stream):
     def on_connect(self):
@@ -106,7 +106,7 @@ class TestReadDelimiterNetStruct(PantsTestCase):
         print sock.send("\x00\x00\x05\x12\x00\x07default\x00\x00\x01\x00\x08")
         response = sock.recv(1024)
         sock.close()
-        self.assertEquals(
+        self.assertEqual(
             json.loads(response),
             [1298, 'default', 0, 0, 1, 0, 8]
         )
@@ -134,7 +134,7 @@ class TestReadDelimiterRegex(PantsTestCase):
         sock.send("This is  a test.  ")
         response = sock.recv(1024)
         sock.close()
-        self.assertEquals(response, "This isa test.")
+        self.assertEqual(response, "This isa test.")
 
 class ChunkOriented(pants.Stream):
     def on_connect(self):
@@ -156,7 +156,7 @@ class TestReadDelimiterChunk(PantsTestCase):
         sock.send(request)
         response = sock.recv(1024)
         sock.close()
-        self.assertEquals(response, ('1' * 8) + ('2' * 8))
+        self.assertEqual(response, ('1' * 8) + ('2' * 8))
 
     def tearDown(self):
         PantsTestCase.tearDown(self)

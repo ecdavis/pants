@@ -221,15 +221,15 @@ class TestChannelSocketAccept(unittest.TestCase):
 
     def test_socket_accept(self):
         self.sock.accept = MagicMock(return_value=(1, 2, 3))
-        self.assertEquals(self.channel._socket_accept(), (1, 2, 3))
+        self.assertEqual(self.channel._socket_accept(), (1, 2, 3))
 
     def test_accept_raises_EAGAIN(self):
         self.sock.accept = MagicMock(side_effect=socket.error(errno.EAGAIN))
-        self.assertEquals(self.channel._socket_accept(), (None, None))
+        self.assertEqual(self.channel._socket_accept(), (None, None))
 
     def test_accept_raises_EWOULDBLOCK(self):
         self.sock.accept = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
-        self.assertEquals(self.channel._socket_accept(), (None, None))
+        self.assertEqual(self.channel._socket_accept(), (None, None))
 
     def test_accept_raises_unknown(self):
         self.sock.accept = MagicMock(side_effect=socket.error(-1))
@@ -245,29 +245,29 @@ class TestChannelSocketRecv(unittest.TestCase):
         chunk = "foo"
         self.sock.recv = MagicMock(return_value=chunk)
         result = self.channel._socket_recv()
-        self.assertEquals(result, chunk)
+        self.assertEqual(result, chunk)
         self.sock.recv.assert_called_once_with(self.channel._recv_amount)
 
     def test_recv_returns_no_data(self):
         chunk = ""
         self.sock.recv = MagicMock(return_value=chunk)
         result = self.channel._socket_recv()
-        self.assertEquals(result, None)
+        self.assertEqual(result, None)
 
     def test_recv_raises_EAGAIN(self):
         self.sock.recv = MagicMock(side_effect=socket.error(errno.EAGAIN))
         result = self.channel._socket_recv()
-        self.assertEquals(result, "")
+        self.assertEqual(result, "")
 
     def test_recv_raises_EWOULDBLOCK(self):
         self.sock.recv = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
         result = self.channel._socket_recv()
-        self.assertEquals(result, "")
+        self.assertEqual(result, "")
 
     def test_recv_raises_ECONNRESET(self):
         self.sock.recv = MagicMock(side_effect=socket.error(errno.ECONNRESET))
         result = self.channel._socket_recv()
-        self.assertEquals(result, None)
+        self.assertEqual(result, None)
 
     def test_recv_raises_unknown(self):
         self.sock.recv = MagicMock(side_effect=socket.error(-1))
@@ -283,29 +283,29 @@ class TestChannelSocketRecvFrom(unittest.TestCase):
         chunk = ("foo", None)
         self.sock.recvfrom = MagicMock(return_value=chunk)
         result = self.channel._socket_recvfrom()
-        self.assertEquals(result, chunk)
+        self.assertEqual(result, chunk)
         self.sock.recvfrom.assert_called_once_with(self.channel._recv_amount)
 
     def test_recvfrom_returns_no_data(self):
         chunk = ("", None)
         self.sock.recvfrom = MagicMock(return_value=chunk)
         result = self.channel._socket_recvfrom()
-        self.assertEquals(result, (None, None))
+        self.assertEqual(result, (None, None))
 
     def test_recvfrom_raises_EAGAIN(self):
         self.sock.recvfrom = MagicMock(side_effect=socket.error(errno.EAGAIN))
         result = self.channel._socket_recvfrom()
-        self.assertEquals(result, ("", None))
+        self.assertEqual(result, ("", None))
 
     def test_recvfrom_raises_EWOULDBLOCK(self):
         self.sock.recvfrom = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
         result = self.channel._socket_recvfrom()
-        self.assertEquals(result, ("", None))
+        self.assertEqual(result, ("", None))
 
     def test_recvfrom_raises_ECONNRESET(self):
         self.sock.recvfrom = MagicMock(side_effect=socket.error(errno.ECONNRESET))
         result = self.channel._socket_recvfrom()
-        self.assertEquals(result, ("", None))
+        self.assertEqual(result, ("", None))
 
     def test_recvfrom_raises_unknown(self):
         self.sock.recvfrom = MagicMock(side_effect=socket.error(-1))
@@ -320,28 +320,28 @@ class TestChannelSocketSend(unittest.TestCase):
     def test_socket_send(self):
         chunk = "foo"
         self.sock.send = MagicMock(return_value=len(chunk))
-        self.assertEquals(self.channel._socket_send(chunk), len(chunk))
+        self.assertEqual(self.channel._socket_send(chunk), len(chunk))
         self.sock.send.assert_called_once_with(chunk)
 
     def test_send_raises_EAGAIN(self):
         self.sock.send = MagicMock(side_effect=socket.error(errno.EAGAIN))
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_send_raises_EWOULDBLOCK(self):
         self.sock.send = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_send_raises_EPIPE(self):
         self.sock.send = MagicMock(side_effect=Exception(errno.EPIPE))
         self.channel.close = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel.close.assert_called_once_with(flush=False)
 
     def test_send_raises_unknown(self):
@@ -358,28 +358,28 @@ class TestChannelSocketSendTo(unittest.TestCase):
         chunk = "foo"
         args = (chunk, None, None)
         self.sock.sendto = MagicMock(return_value=len(chunk))
-        self.assertEquals(self.channel._socket_sendto(*args), len(chunk))
+        self.assertEqual(self.channel._socket_sendto(*args), len(chunk))
         self.sock.sendto.assert_called_once_with(*args)
 
     def test_sendto_raises_EAGAIN(self):
         self.sock.send = MagicMock(side_effect=socket.error(errno.EAGAIN))
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_sendto_raises_EWOULDBLOCK(self):
         self.sock.send = MagicMock(side_effect=socket.error(errno.EWOULDBLOCK))
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_sendto_raises_EPIPE(self):
         self.sock.send = MagicMock(side_effect=Exception(errno.EPIPE))
         self.channel.close = MagicMock()
         result = self.channel._socket_send(None)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel.close.assert_called_once_with(flush=False)
 
     def test_sendto_raises_unknown(self):
@@ -398,7 +398,7 @@ class TestChannelSocketSendfile(unittest.TestCase):
         chunk = "foo"
         args = (chunk, None, None, False)
         pants._channel.sendfile = MagicMock(return_value=len(chunk))
-        self.assertEquals(self.channel._socket_sendfile(*args), len(chunk))
+        self.assertEqual(self.channel._socket_sendfile(*args), len(chunk))
         pants._channel.sendfile.assert_called_once_with(chunk, self.channel, None, None, False)
 
     def test_sendfile_raises_EAGAIN(self):
@@ -409,7 +409,7 @@ class TestChannelSocketSendfile(unittest.TestCase):
         pants._channel.sendfile = MagicMock(side_effect=err)
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_sendfile(*args)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_sendfile_raises_EWOULDBLOCK(self):
@@ -420,7 +420,7 @@ class TestChannelSocketSendfile(unittest.TestCase):
         pants._channel.sendfile = MagicMock(side_effect=err)
         self.channel._start_waiting_for_write_event = MagicMock()
         result = self.channel._socket_sendfile(*args)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel._start_waiting_for_write_event.assert_called_once_with()
 
     def test_sendfile_raises_EPIPE(self):
@@ -429,7 +429,7 @@ class TestChannelSocketSendfile(unittest.TestCase):
         pants._channel.sendfile = MagicMock(side_effect=Exception(errno.EPIPE))
         self.channel.close = MagicMock()
         result = self.channel._socket_sendfile(*args)
-        self.assertEquals(result, 0)
+        self.assertEqual(result, 0)
         self.channel.close.assert_called_once_with(flush=False)
 
     def test_sendfile_raises_unknown(self):
@@ -444,14 +444,14 @@ class TestChannelStartWaitingForWriteEvent(unittest.TestCase):
         self.channel._events = Engine.NONE
         self.channel.engine.modify_channel = MagicMock()
         self.channel._start_waiting_for_write_event()
-        self.assertEquals(self.channel._events, Engine.WRITE)
+        self.assertEqual(self.channel._events, Engine.WRITE)
         self.channel.engine.modify_channel.assert_called_once_with(self.channel)
 
     def test_when_write_doesnt_need_to_be_added(self):
         self.channel._events = Engine.WRITE
         self.channel.engine.modify_channel = MagicMock()
         self.channel._start_waiting_for_write_event()
-        self.assertEquals(self.channel._events, Engine.WRITE)
+        self.assertEqual(self.channel._events, Engine.WRITE)
         self.assertRaises(AssertionError, self.channel.engine.modify_channel.assert_called_once_with)
 
 class TestChannelStopWaitingForWriteEvent(unittest.TestCase):
@@ -462,14 +462,14 @@ class TestChannelStopWaitingForWriteEvent(unittest.TestCase):
         self.channel._events = Engine.WRITE
         self.channel.engine.modify_channel = MagicMock()
         self.channel._stop_waiting_for_write_event()
-        self.assertEquals(self.channel._events, Engine.NONE)
+        self.assertEqual(self.channel._events, Engine.NONE)
         self.channel.engine.modify_channel.assert_called_once_with(self.channel)
 
     def test_when_write_doesnt_need_to_be_removed(self):
         self.channel._events = Engine.NONE
         self.channel.engine.modify_channel = MagicMock()
         self.channel._stop_waiting_for_write_event()
-        self.assertEquals(self.channel._events, Engine.NONE)
+        self.assertEqual(self.channel._events, Engine.NONE)
         self.assertRaises(AssertionError, self.channel.engine.modify_channel.assert_called_once_with)
 
 class TestChannelSafelyCall(unittest.TestCase):
