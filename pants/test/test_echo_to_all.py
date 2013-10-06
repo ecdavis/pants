@@ -38,7 +38,7 @@ class TestEchoToAll(PantsTestCase):
         sock.settimeout(1.0)
         sock.connect(('127.0.0.1', 4040))
         request = repr(sock)
-        Sock.send(request)
+        sock.send(request)
         response = sock.recv(1024)
         self.assertEqual(response, request)
         sock.close()
