@@ -16,8 +16,118 @@
 #
 ###############################################################################
 """
-Streaming connection channel. Used to develop streaming client and
-server connection handlers.
+Streaming (TCP) connection implementation.
+
+Streams are one of the two main types of channels in Pants - the other
+being :mod:`servers <pants.server>`. Streams represent connections
+between two endpoints. They may be used for both client and server
+applications.
+
+Streams
+=======
+To write a Pants application you will first need to subclass
+:class:`~pants.stream.Stream`. Your :class:`~pants.stream.Stream`
+subclass will contain the majority of your networking code in the form
+of event handlers. Event handlers are methods beginning with ``on_`` and
+can be safely overridden by your subclass.
+
+Connecting
+----------
+Before a :class:`~pants.stream.Stream` instance can be used, it must
+first be connected to a remote host. If you are writing a server
+application, all new :class:`~pants.stream.Stream` instance created by
+your :class:`~pants.server.Server` will be connected. Once they are
+created by the :class:`~pants.server.Server`,
+:meth:`~pants.stream.Stream.on_connect` will be called and your
+:class:`~pants.engine.Engine` will begin dispatching events to your
+:class:`~pants.stream.Stream` instance.
+
+If you are writing a client application, you must first instantiate your
+:class:`~pants.stream.Stream` subclass and then use the
+:meth:`~pants.stream.Stream.connect` method to connect the channel to a
+remote host. Once the connection has been successfully established, the
+:meth:`~pants.stream.Stream.on_connect` event handler will be called and
+your :class:`~pants.stream.Stream` instance will start receiving events.
+Bear in mind that the connection will not be established until the
+:class:`~pants.engine.Engine` is running. As such, a common pattern when
+writing client applications with Pants is to call
+:meth:`~pants.stream.Stream.connect`, start the engine and then put all
+other initialization code in :meth:`~pants.stream.Stream.on_connect`.
+
+Writing Data
+------------
+Once your :class:`~pants.stream.Stream` instance is connected to a
+remote host, you can begin to write data to the channel. Use
+:meth:`~pants.stream.Stream.write` to write string data to the channel,
+:meth:`~pants.stream.Stream.write_file` to efficiently write data from
+an open file and :meth:`~pants.stream.Stream.write_packed` to write
+packed binary data. As you call these methods, Pants internally buffers
+your outgoing data. Once the buffer is completely empty,
+:meth:`~pants.stream.Stream.on_write` will be called. Be aware that if
+you continuously write data to your :class:`~pants.stream.Stream` that
+:meth:`~pants.stream.Stream.on_write` may not be called very frequently.
+If you wish to bypass the internal buffering and attempt to write your
+data immediately you can use the ``flush`` options present in the three
+write methods or call the :meth:`~pants.stream.Stream.flush` method
+yourself. This can help to improve your application's responsiveness but
+calling it excessively can reduce overall performance. Generally
+speaking, it is useful when you know with certainty that you have
+finished writing one discrete chunk of data (i.e. an HTTP response).
+
+Reading Data
+------------
+A connected :class:`~pants.stream.Stream` instance will automatically
+receive all incoming data from the remote host. By default, all incoming
+data is immediately passed to the :meth:`~pants.stream.Stream.on_read`
+event handler for your code to process. The
+:attr:`~pants.stream.Stream.read_delimiter` attribute can be used to
+control this behaviour by causing Pants to buffer incoming data
+internally, only forwarding it to :meth:`~pants.stream.Stream.on_read`
+when a particular condition is met. If the condition is never met, the
+internal buffer will eventually exceed the allowed
+:attr:`~pants.stream.Stream.buffer_size` and the
+:meth:`~pants.stream.Stream.on_overflow_error` handler method will be
+called. :attr:`~pants.stream.Stream.read_delimiter` is extremely
+powerful when used effectively.
+
+Closing
+-------
+To close a :class:`~pants.stream.Stream` instance, simply call the
+:meth:`~pants.stream.Stream.close` method. Once a stream has been closed
+it should not be reused.
+
+Handling Errors
+---------------
+Despite best efforts, errors will occasionally occur in asynchronous
+code. Pants handles these errors by passing the resulting exception
+object to one of a number of error handler methods. They are:
+:meth:`~pants.stream.Stream.on_connect_error`,
+:meth:`~pants.stream.Stream.on_overflow_error` and
+:meth:`~pants.stream.Stream.on_error`. Additionally, 
+:meth:`~pants.stream.Stream.on_ssl_handshake_error` and
+:meth:`~pants.stream.Stream.on_ssl_error` exist to handle SSL-specific
+errors.
+
+SSL
+===
+Pants streams have SSL support. If you are writing a server application,
+use :meth:`Server.startSSL <pants.server.Server.startSSL>` to enable SSL
+on your server. Each :class:`~pants.stream.Stream` created by your
+server from that point forward will be SSL-enabled. If you are writing a
+client application, call
+:meth:`Stream.startSSL <pants.stream.Stream.startSSL>` before calling
+:meth:`~pants.stream.Stream.connect`. Alternatively, you can pass a
+dictionary of SSL options to the :class:`~pants.stream.Stream`
+constructor which will then enable SSL on the instance. When SSL is
+enabled on a :class:`~pants.stream.Stream`, an SSL handshake occurs
+between the local and remote ends of the connection. Once the SSL
+handshake is complete, :meth:`~pants.stream.Stream.on_ssl_handshake`
+will be called. If it fails,
+:meth:`~pants.stream.Stream.on_ssl_handshake_error` will be called.
+
+If you are writing an SSL-enabled application you should read the
+entirety of Python's :mod:`ssl` documentation. Pants does not override
+any of Python's SSL defaults unless clearly stated in this documenation.
 """
 
 ###############################################################################

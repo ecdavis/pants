@@ -60,8 +60,8 @@ class will be created to handle it. You can override the various event
 handler methods of :class:`~pants.stream.Stream` to implement your
 application's logic.
 
-Starting Servers
-----------------
+Running Servers
+---------------
 Having defined your connection class and instantiated your server, you
 can start it listening for new connections with the
 :meth:`~pants.server.Server.listen` method. This will bind the server
@@ -79,8 +79,10 @@ Pants servers have SSL support. If you want to start an SSL-enabled
 server, call the :meth:`~pants.server.Server.startSSL` method before
 calling the :meth:`~pants.server.Server.listen` method. When you call
 :meth:`~pants.server.Server.startSSL` you must provide a dictionary of
-SSL options as detailed in the method documentation. Here is an example
-of how you might start an SSL-enabled server::
+SSL options as detailed in the method documentation. It is also
+possible to pass the SSL options dictionary directly to the
+:class:`~pants.server.Server` constructor in otder to enable SSL.
+Here is an example of how you might start an SSL-enabled server::
 
     server = pants.Server(MyConnectionClass)
     server.startSSL({
@@ -91,7 +93,7 @@ of how you might start an SSL-enabled server::
 
 If you are writing an SSL-enabled application you should read the
 entirety of Python's :mod:`ssl` documentation. Pants does not override
-any of Python's SSL defaults.
+any of Python's SSL defaults unless clearly stated in this documenation.
 """
 
 ###############################################################################

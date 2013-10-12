@@ -6,9 +6,9 @@ elegant. Pants provides the programmer with the basic tools they need to write
 responsive, high-throughput and highly-concurrent network applications. At its
 core, Pants consists of three things:
 
- * Engines - efficient, asynchronous event loops.
- * Channels - non-blocking wrappers around socket objects.
- * Timers - non-blocking helpers for delayed execution of code.
+ * **Engines**: efficient, asynchronous event loops.
+ * **Channels**: non-blocking wrappers around socket objects.
+ * **Timers**: non-blocking helpers for delayed execution of code.
 
 Overview
 ========
