@@ -15,6 +15,110 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+``pants.http.server`` implements a lean HTTP server on top of Pants with
+support for most of `HTTP/1.1 <http://www.w3.org/Protocols/rfc2616/rfc2616.html>`_,
+including persistent connections. The HTTP server supports secure connections,
+efficient transfer of files, and proxy headers. Utilizing the power of Pants,
+it becomes easy to implement other protocols on top of HTTP such as
+:mod:`WebSockets <pants.http.websocket>`.
+
+The Server
+==========
+
+:class:`HTTPServer` is a subclass of :class:`pants.server.Server` that
+implements the `HTTP/1.1 protocol <http://www.w3.org/Protocols/rfc2616/rfc2616.html>`_
+via the class :class:`HTTPConnection`. Rather than specifying a custom
+``ConnectionClass``, you implement your behavior with a ``request_handler``.
+There will be more on request handlers below. For now, a brief example::
+
+    from pants.http.server import HTTPServer
+
+    def my_handler(request):
+        request.send_response("Hello World.")
+
+    server = HTTPServer(request)
+    server.listen()
+
+In addition to specifying the request handler, there are a few other ways to
+configure ``HTTPServer``.
+
+
+Using HTTPServer Behind a Proxy
+===============================
+
+:class:`HTTPServer` has support for a few special HTTP headers that can be set
+by proxy servers (notably ``X-Forwarded-For`` and ``X-Forwarded-Proto``) and it
+can use ``X-Sendfile`` headers when sending files to allow the proxy server to
+take care of static file transmission.
+
+When creating your :class:`HTTPServer` instance, set ``xheaders`` to ``True``
+to allow the server to automatically use the headers ``X-Real-IP``,
+``X-Forwarded-For``, and ``X-Forwarded-Proto`` if they exist to set the
+:class:`HTTPRequest`'s ``remote_ip`` and ``scheme``.
+
+Sendfile is a bit more complex, with three separate variables for configuration.
+To enable the ``X-Sendfile`` header, set ``sendfile`` to ``True`` when creating
+your :class:`HTTPServer` instance. Alternatively, you may set it to a string to
+have Pants use a string other than ``X-Sendfile`` for the header's name.
+
+HTTPServer's ``sendfile_prefix`` allows you to set a prefix for the path written
+to the ``X-Sendfile`` header. This is useful when using Pants behind nginx.
+
+HTTPServer's ``file_root`` allows you to specify a root directory from which
+static files should be located. This root path will be stripped from the file
+paths before they're written to the ``X-Sendfile`` header. If ``file_root`` is
+not set, the current working directory (as of the time :func:`HTTPRequest.send_file`
+is called) will be used.
+
+.. code-block:: python
+
+    def my_handler(request):
+        request.send_file('/srv/files/example.jpg')
+
+    server = HTTPServer(my_handler, sendfile=True, sendfile_prefix='/_static/',
+                        file_root='/srv/files')
+    server.listen()
+
+The above code would result in an HTTP response similar to:
+
+.. code-block:: http
+
+    HTTP/1.1 200 OK
+    Content-Type: image/jpeg
+    Content-Length: 0
+    X-Sendfile: /_static/example.jpg
+
+Your proxy server would then be required to detect the ``X-Sendfile`` header
+in that response and insert the appropriate content and headers.
+
+.. note::
+
+    The sendfile API is quite rough at this point, and is most likely going to
+    be changed in future versions. It is possible to manually set the
+    appropriate headers to handle sending files yourself if you require more
+    control over the process.
+
+
+Request Handlers
+================
+
+A request handler is a callable Python object, typically either a function or a
+class instance with a defined ``__call__`` method. Request handlers are passed
+an instance of :class:`HTTPRequest` representing the current request.
+
+HTTPRequest instances contain all of the information that was sent with an
+incoming request. The instances also have numerous methods for building
+responses.
+
+.. note::
+
+    It is *not* required to finish responding to a request within the
+    request handler.
+
+Please see the documentation for the :class:`HTTPRequest` class below for more
+information on what you can do.
+"""
 
 ###############################################################################
 # Imports
@@ -57,15 +161,15 @@ __all__ = (
 
 class HTTPConnection(Stream):
     """
-    Instances of this class represent connections received by an
-    :class:`HTTPServer`, and perform all the actual logic of receiving and
-    responding to an HTTP request.
+    This class implements the HTTP protocol on top of Pants. It specifically
+    processes incoming HTTP requests and constructs an instance of
+    :class:`HTTPRequest` before passing that instance to the associated
+    :class:`HTTPServer`'s request handler.
 
-    In order, this class is in charge of: reading HTTP request lines, reading
-    the associated headers, reading any request body, and executing the
-    appropriate request handler if the request is valid.
-
-    You will almost never access this class directly.
+    Direct interaction with this class is typically unnecessary, only becoming
+    useful when implementing another protocol on top of HTTP, such as
+    :mod:`WebSockets <pants.http.websocket>` or performing some other action
+    that requires direct control over the underlying socket.
     """
     def __init__(self, *args, **kwargs):
         Stream.__init__(self, *args, **kwargs)
@@ -81,12 +185,12 @@ class HTTPConnection(Stream):
 
     def finish(self):
         """
-        This function should be called when the response to the current
+        This method should be called when the response to the current
         request has been completed, in preparation for either closing the
         connection or attempting to read a new request from the connection.
 
-        This function is called for you when you call
-        :func:`HTTPRequest.finish() <pants.http.server.HTTPRequest.finish>`.
+        This method is called automatically when you use the method
+        :meth:`HTTPRequest.finish`.
         """
         self.flush()
         self._finished = True
@@ -1007,7 +1111,7 @@ class HTTPRequest(object):
 class HTTPServer(Server):
     """
     An `HTTP <http://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol>`_ server,
-    extending the default Server class.
+    extending the default :class:`~pants.server.Server` class.
 
     This class automatically uses the :class:`HTTPConnection` connection class.
     Rather than through specifying a connection class, its behavior is
@@ -1016,7 +1120,8 @@ class HTTPServer(Server):
 
     A server's behavior is defined almost entirely by its request handler, and
     will not send any response by itself unless the received HTTP request is
-    not valid or larger than the specified limit (which defaults to 10 MiB).
+    not valid or larger than the specified limit (which defaults to 10 MiB, or
+    10,485,760 bytes).
 
     ================  ========  ============
     Argument          Default   Description
@@ -1067,25 +1172,13 @@ class HTTPServer(Server):
         The given ``address`` is resolved, the server is bound to the address,
         and it then begins listening for connections. If an address isn't
         specified, the server will listen on either port 80 or port 443 by
-        default.
+        default. Port 443 is selected if SSL has been enabled prior to the
+        call to listen, otherwise port 80 will be used.
 
         .. seealso::
 
             See :func:`pants.server.Server.listen` for more information on
             listening servers.
-
-        =========  ============================================================
-        Argument   Description
-        =========  ============================================================
-        address    *Optional.* The local address to listen for connections on.
-                   If this isn't specified, it will be set to either port 80
-                   or port 443, depending on the SSL state, and listen
-                   on INADDR_ANY.
-        backlog    *Optional.* The maximum size of the connection queue.
-        slave      *Optional.* If True, this will cause a Server listening on
-                   IPv6 INADDR_ANY to create a slave Server that listens on
-                   the IPv4 INADDR_ANY.
-        =========  ============================================================
         """
         if address is None or isinstance(address, (list,tuple)) and \
                               len(address) > 1 and address[1] is None:
