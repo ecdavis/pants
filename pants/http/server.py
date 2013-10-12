@@ -396,21 +396,10 @@ class HTTPRequest(object):
     Instances of this class represent single HTTP requests that an
     :class:`HTTPServer` has received. Such instances contain all the
     information needed to respond to the request, as well as the functions used
-    to actually send a response.
+    to build the appropriate response.
 
-    This class should, generally, not be used directly. Instead, allow the
-    HTTPServer to create instances for you.
-
-    =============  ============
-    Argument       Description
-    =============  ============
-    connection     The instance of :class:`HTTPConnection` that received this request.
-    method         The HTTP method used to send this request. This will almost always be one of: ``GET``, ``HEAD``, or ``POST``.
-    url            The path part of the URL requested.
-    protocol       The HTTP protocol version used for this request. This will almost always be one of: ``HTTP/1.0`` or ``HTTP/1.1``.
-    headers        *Optional.* A dictionary of HTTP headers received with this request.
-    scheme         *Optional.* Either the string ``http`` or ``https``, depending on the security of the connection this request was received upon.
-    =============  ============
+    HTTPRequest uses :class:`bytes` rather than :class:`str` unless otherwise
+    stated, as network communications take place as bytes.
     """
 
     def __init__(self, connection, method, url, protocol, headers=None,
@@ -533,15 +522,17 @@ class HTTPRequest(object):
     @property
     def full_url(self):
         """
-        The full URL used to generate the request.
+        The full url for this request. This is created by combining the
+        :attr:`scheme`, :attr:`host`, and the :attr:`url`.
         """
         return '%s://%s%s' % (self.scheme, self.host, self.url)
 
     @property
     def time(self):
         """
-        The amount of time that has elapsed since the request was received, or
-        the total processing time if the request has already been finished.
+        The amount of time that has elapsed since the request was received. If
+        the request has been finished already, this will be the total time that
+        elapsed over the duration of the request.
         """
         if self._finish is None:
             return time() - self._start
@@ -552,15 +543,16 @@ class HTTPRequest(object):
     def set_secure_cookie(self, name, value, expires=30*86400, **kwargs):
         """
         Set a timestamp on a cookie and sign it, ensuring that it can't be
-        altered by the client. To use this, the :class:`~pants.http.HTTPServer`
-        *must* have a ``cookie_secret`` set.
+        altered by the client. To use this, the :class:`HTTPServer`
+        *must* have a :attr:`~HTTPServer.cookie_secret` set.
 
         Cookies set with this function may be read with
-        :func:`~pants.http.HTTPServer.get_secure_cookie`.
+        :meth:`get_secure_cookie`.
 
         If the provided value is a dictionary, list, or tuple the value will
-        be converted to a string with JSON. Other values will be converted to
-        strings using ``str(value)``.
+        be serialized into JSON and encoded as UTF-8. Unicode strings will
+        also be encoded as UTF-8. Byte strings will be passed as is. All other
+        types will result in a :class:`TypeError`.
 
         =========  ===========  ============
         Argument   Default      Description
@@ -574,12 +566,14 @@ class HTTPRequest(object):
         providing them as keyword arguments. The ``HttpOnly`` attribute will
         be set by default on secure cookies..
         """
-        if isinstance(value, (dict, list, tuple, int, long, float, bool)):
-            value = "j" + json.dumps(value)
+        if isinstance(value, (dict, list, tuple)):
+            value = b"j" + json.dumps(value)
         elif isinstance(value, unicode):
-            value = "u" + value.encode("utf-8")
+            value = b"u" + value.encode("utf-8")
+        elif not isinstance(value, str):
+            raise TypeError("Invalid value for secure cookie: %r" % (value,))
         else:
-            value = "s" + str(value)
+            value = b"s" + value
 
         ts = str(int(time()))
         v = base64.b64encode(value)
@@ -603,7 +597,7 @@ class HTTPRequest(object):
 
     def get_secure_cookie(self, name):
         """
-        Return the signed cookie with the key ``name``, if it exists and has a
+        Return the signed cookie with the key ``name`` if it exists and has a
         valid signature. Otherwise, return None.
         """
         if not name in self.cookies:
@@ -624,9 +618,9 @@ class HTTPRequest(object):
 
         # Process value
         vtype = value[:1]
-        if vtype == "j":
+        if vtype == b"j":
             value = json.loads(value[1:])
-        elif vtype == "u":
+        elif vtype == b"u":
             value = value[1:].decode("utf-8")
         else:
             value = value[1:]
@@ -638,7 +632,7 @@ class HTTPRequest(object):
     def finish(self):
         """
         This function should be called when the response has been completed,
-        allowing the associated :class:`~pants.http.HTTPConnection` to
+        allowing the associated :class:`HTTPConnection` to
         either close the connection to the client or begin listening for a new
         request.
 
