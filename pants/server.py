@@ -251,6 +251,11 @@ class Server(_Channel):
         if self._slave:
             self._slave.close()
 
+        self._safely_call(self.on_close)
+
+        self._remote_address = None
+        self._local_address = None
+
         _Channel.close(self)
 
     ##### Public Event Handlers ###############################################
