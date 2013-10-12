@@ -207,7 +207,6 @@ class _Channel(object):
         else:
             self._closed = True
         self._events = Engine.ALL_EVENTS
-        self._processing_events = False
 
     ##### Public Event Handlers ###############################################
 
