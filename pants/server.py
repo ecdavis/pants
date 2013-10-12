@@ -16,7 +16,82 @@
 #
 ###############################################################################
 """
-Streaming server channel.
+Streaming (TCP) server implementation.
+
+Servers are one of the two main types of channels in Pants - the other
+being :mod:`streams <pants.stream>`. Servers listen for connections to
+your application, accept those connections and allow you to handle them
+easily. Pants servers support SSL and IPv6.
+
+Servers
+=======
+Writing Servers
+---------------
+You have two choices when writing a server application: either use
+Pants' default :class:`~pants.server.Server` class without modification
+or subclass :class:`~pants.server.Server` in order to implement custom
+behaviour.
+
+Pants' default :class:`~pants.server.Server` class will wrap every new
+connection in an instance of a connection class which you provide (see
+below). In most cases, this provides you with sufficient freedom to
+implement your application logic and has the added benefit of
+simplicity. To use the default server, simply instantiate 
+:class:`~pants.server.Server` and pass your connection class to the
+constructor.
+
+If you need to implement custom server behaviour, you can subclass
+:class:`~pants.server.Server` and define your connection class as a
+class attribute::
+
+    class MyServer(pants.Server):
+        ConnectionClass = MyConnectionClass
+
+It is recommended that you use the default :class:`~pants.server.Server`
+class where possible and try to implement your application logic in your
+connection class.
+
+Connection Classes
+------------------
+A connection class is a subclass of :class:`~pants.stream.Stream` which
+a server will use to wrap each incoming connection. Every time a new
+connection is made to the server, a new instance of your connection
+class will be created to handle it. You can override the various event
+handler methods of :class:`~pants.stream.Stream` to implement your
+application's logic.
+
+Starting Servers
+----------------
+Having defined your connection class and instantiated your server, you
+can start it listening for new connections with the
+:meth:`~pants.server.Server.listen` method. This will bind the server
+to your chosen address and once the :mod:`~pants.engine` is started,
+the server will begin accepting new connections. Once the server has
+started listening for connections it can be stopped using the
+:meth:`~pants.server.Server.close` method. When
+:meth:`~pants.server.Server.close` is called, the default server 
+implementation will close any connections that were made to it which are
+still open.
+
+SSL
+===
+Pants servers have SSL support. If you want to start an SSL-enabled
+server, call the :meth:`~pants.server.Server.startSSL` method before
+calling the :meth:`~pants.server.Server.listen` method. When you call
+:meth:`~pants.server.Server.startSSL` you must provide a dictionary of
+SSL options as detailed in the method documentation. Here is an example
+of how you might start an SSL-enabled server::
+
+    server = pants.Server(MyConnectionClass)
+    server.startSSL({
+        'certfile': '/home/user/certfile.pem',
+        'keyfile': '/home/user/keyfile.pem'
+        })
+    server.listen(('', 8080))
+
+If you are writing an SSL-enabled application you should read the
+entirety of Python's :mod:`ssl` documentation. Pants does not override
+any of Python's SSL defaults.
 """
 
 ###############################################################################
