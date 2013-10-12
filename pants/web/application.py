@@ -1848,7 +1848,7 @@ def error(message=None, status=None, headers=None, request=None, debug=None):
     return result, status, headers
 
 
-def redirect(url, status=302):
+def redirect(url, status=302, request=None):
     """
     Construct a ``302 Found`` response to instruct the client's browser to
     redirect its request to a different URL. Other codes may be returned by
@@ -1866,7 +1866,7 @@ def redirect(url, status=302):
 
     return error(
         'The document you have requested is located at <a href="%s">%s</a>.' % (
-            url, url), status, {'Location':url})
+            url, url), status, {'Location': url}, request=request)
 
 def url_for(name, *values, **kw_values):
     """
@@ -1889,10 +1889,13 @@ def url_for(name, *values, **kw_values):
     ==========  ========  ============
     """
 
-    app = Application.current_app
-    if not app or not app.request:
-        raise RuntimeError("Called url_for outside of a request.")
-    request = app.request
+    if '_request' in kw_values:
+        request = kw_values.pop('_request')
+    else:
+        app = Application.current_app
+        if not app or not app.request:
+            raise RuntimeError("Called url_for outside of a request.")
+        request = app.request
 
     # Handle periods, which are for moving up the module table.
     if name[0] == '.':
