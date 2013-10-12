@@ -26,10 +26,15 @@ import json
 import mimetypes
 import os
 import pprint
+import sys
 
 from datetime import datetime, timedelta
-from time import time
 from urlparse import parse_qsl
+
+if sys.platform == "win32":
+    from time import clock as time
+else:
+    from time import time
 
 from pants.stream import Stream
 from pants.server import Server

@@ -4,8 +4,8 @@
 .. automodule:: pants.web.wsgi
 
 
-WSGIConnector
-=============
+``WSGIConnector``
+=================
 
 .. autoclass:: WSGIConnector
     :members: attach
