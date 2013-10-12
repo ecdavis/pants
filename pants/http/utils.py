@@ -177,6 +177,7 @@ class HeadingNormalizer(dict):
 
 _normalize_header = HeadingNormalizer(STRANGE_HEADERS).__getitem__
 
+# Note: Do NOT correct the spelling 'referer'. It's meant to be that way.
 for hdr in ('accept', 'accept-charset', 'accept-encoding', 'accept-language',
             'accept-datetime', 'authorization', 'cache-control', 'connection',
             'cookie', 'content-length', 'content-type', 'date', 'expect',

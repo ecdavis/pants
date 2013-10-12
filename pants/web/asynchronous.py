@@ -218,14 +218,14 @@ def stream(func):
     return an instance of :class:`pants.web.Response` *or* the bare value to
     write out.
 
-    The following is, though not particuarly useful, an example::
+    The following is, though not particularly useful, an example::
 
         @app.route("/")
         @async.stream
         def index(request):
             yield None, 200, {'X-Pizza': 'Yum'}
             yield "This is an example.\n"
-            yield "It isn't particuarly useful.\n"
+            yield "It isn't particularly useful.\n"
 
             yield ("This will be treated as a list and serialized with "
                    "JSON because you can't set the status code or provide "

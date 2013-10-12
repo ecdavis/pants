@@ -93,7 +93,7 @@ Here is an example of how you might start an SSL-enabled server::
 
 If you are writing an SSL-enabled application you should read the
 entirety of Python's :mod:`ssl` documentation. Pants does not override
-any of Python's SSL defaults unless clearly stated in this documenation.
+any of Python's SSL defaults unless clearly stated in this documentation.
 """
 
 ###############################################################################
@@ -342,7 +342,7 @@ class Server(_Channel):
         Called after the channel has accepted a new connection.
 
         Create a new instance of
-        :attr:`~pants.server.Server.ConnectonClass` to wrap the socket
+        :attr:`~pants.server.Server.ConnectionClass` to wrap the socket
         and add it to the server.
 
         =========  ============
@@ -494,7 +494,7 @@ class Server(_Channel):
 class _SlaveServer(Server):
     """
     A slave for a StreamServer to allow listening on multiple address
-    familes.
+    families.
     """
     def __init__(self, engine, server, addr, backlog):
         Server.__init__(self, engine=engine)

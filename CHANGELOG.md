@@ -40,7 +40,7 @@ Changelog
  *  *Fixed* HTTPRequest's secure cookies not being HttpOnly by default.
  
  *  *Fixed* a bug in HTTPRequest's secure cookies that would cause an exception
-            when trying to read a non-existant cookie, rather than returning
+            when trying to read a non-existent cookie, rather than returning
             None.
 
  *  *Fixed* the use of structs as read_delimiters everywhere, removing the

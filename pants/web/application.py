@@ -572,7 +572,7 @@ class Converter(object):
 
     def configure(self):
         """
-        The method recieves configuration data parsed from the rule creating
+        The method relieves configuration data parsed from the rule creating
         this Converter instance as positional and keyword arguments.
 
         You must build a regular expression for matching acceptable input within

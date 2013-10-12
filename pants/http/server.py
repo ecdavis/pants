@@ -703,7 +703,7 @@ class HTTPRequest(object):
         headers, Ranges, and the `sendfile <http://www.kernel.org/doc/man-pages/online/pages/man2/sendfile.2.html>`_
         system call to improve file transfer performance. Additionally, if the
         client had made a ``HEAD`` request, the contents of the file will not
-        be transfered.
+        be transferred.
 
         .. note::
 

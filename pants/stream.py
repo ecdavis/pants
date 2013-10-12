@@ -127,7 +127,7 @@ will be called. If it fails,
 
 If you are writing an SSL-enabled application you should read the
 entirety of Python's :mod:`ssl` documentation. Pants does not override
-any of Python's SSL defaults unless clearly stated in this documenation.
+any of Python's SSL defaults unless clearly stated in this documentation.
 """
 
 ###############################################################################

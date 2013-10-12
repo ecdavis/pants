@@ -209,7 +209,7 @@ class TelnetConnection(Stream):
                 self._safely_call(self.on_read, data)
 
             else:
-                log.warning("Invalid read_delmiter on %r." % self)
+                log.warning("Invalid read_delimiter on %r." % self)
                 break
 
             if self._closed or not self.connected:
