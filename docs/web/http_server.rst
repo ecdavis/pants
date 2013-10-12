@@ -145,7 +145,7 @@
         .. note::
 
             Pants does a poor job of handling files at this time, keeping them
-            entirely in memory while a request is behing handled. It is
+            entirely in memory while a request is being handled. It is
             recommended to use a proxy server with some way to receive files
             when writing applications.
 

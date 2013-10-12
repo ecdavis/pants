@@ -81,7 +81,7 @@ calling the :meth:`~pants.server.Server.listen` method. When you call
 :meth:`~pants.server.Server.startSSL` you must provide a dictionary of
 SSL options as detailed in the method documentation. It is also
 possible to pass the SSL options dictionary directly to the
-:class:`~pants.server.Server` constructor in otder to enable SSL.
+:class:`~pants.server.Server` constructor in order to enable SSL.
 Here is an example of how you might start an SSL-enabled server::
 
     server = pants.Server(MyConnectionClass)

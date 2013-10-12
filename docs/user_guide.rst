@@ -181,7 +181,7 @@ by subclassing :class:`~pants.server.Server`:
 	:lines: 14-20
 
 All very straight-forward. We defined a new method on the server that writes
-data to all connected channels. We also overrided the default
+data to all connected channels. We also overrode the default
 ``ConnectionClass`` attribute, meaning that we'll no longer need to pass in our
 connection class to the constructor. Starting the server now looks like this:
 
