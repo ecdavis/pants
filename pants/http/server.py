@@ -32,13 +32,15 @@ via the class :class:`HTTPConnection`. Rather than specifying a custom
 ``ConnectionClass``, you implement your behavior with a ``request_handler``.
 There will be more on request handlers below. For now, a brief example::
 
-    from pants.http.server import HTTPServer
+    from pants.http import HTTPServer
+    from pants import Engine
 
     def my_handler(request):
         request.send_response("Hello World.")
 
-    server = HTTPServer(request)
+    server = HTTPServer(my_handler)
     server.listen()
+    Engine.instance().start()
 
 In addition to specifying the request handler, there are a few other ways to
 configure ``HTTPServer``.
