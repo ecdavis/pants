@@ -22,9 +22,14 @@
 
 import base64
 import hashlib
-import logging
 import re
 import struct
+import sys
+
+if sys.platform == "win32":
+    from time import clock as time
+else:
+    from time import time
 
 from pants.stream import StreamBufferOverflow
 
@@ -120,6 +125,8 @@ class WebSocket(object):
         self.fileno = self._connection.fileno
         self._remote_address = None
         self._local_address = None
+        self._pings = {}
+        self._last_ping = 0
 
         # I/O attributes
         self._read_delimiter = EntireMessage
@@ -588,6 +595,23 @@ class WebSocket(object):
         """
         return True
 
+    def on_pong(self, data):
+        """
+        Placeholder. Called when a PONG control frame is received from the
+        remote end-point in response to an earlier ping.
+
+        When used together with the :meth:`ping` method, ``on_pong`` may be
+        used to measure the connection's round-trip time. See :meth:`ping` for
+        more information.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       Either the RTT expressed as seconds, or an arbitrary byte string that served as the PONG frame's payload.
+        =========  ============
+        """
+        pass
+
     def on_overflow_error(self, exception):
         """
         Placeholder. Called when an internal buffer on the WebSocket has
@@ -605,6 +629,29 @@ class WebSocket(object):
         self.close(reason=1009)
 
     ##### I/O Methods #########################################################
+
+    def ping(self, data=None):
+        """
+        Write a ping frame to the WebSocket. You may, optionally, provide a
+        byte string of data to be used as the ping's payload. When the
+        end-point returns a PONG, and the :meth:`on_pong` method is called,
+        that byte string will be provided to ``on_pong``. Otherwise, ``on_pong``
+        will be called with the elapsed time.
+
+        =========  ============
+        Argument   Description
+        =========  ============
+        data       *Optional.* A byte string of data to be sent as the ping's payload.
+        =========  ============
+        """
+        if data is None:
+            self._last_ping += 1
+            data = str(self._last_ping)
+            self._pings[data] = time()
+        elif not isinstance(data, bytes):
+            raise TypeError("data must be a bytes")
+
+        self.write(data, True, FRAME_PING)
 
     def write(self, data, binary=False, frame=None):
         """
@@ -868,6 +915,14 @@ class WebSocket(object):
         elif opcode == FRAME_PING:
             if self.connected:
                 self.write(data, frame=FRAME_PONG)
+
+        elif opcode == FRAME_PONG:
+            sent = self._pings.pop(data, None)
+            if sent:
+                data = time() - sent
+
+            self._safely_call(self.on_pong, data)
+            return
 
         elif opcode == FRAME_BINARY and self.read_delimiter is EntireMessage:
             self._safely_call(self.on_read, data)
