@@ -1137,7 +1137,7 @@ class Application(Module):
             from pants.engine import Engine
             engine = Engine.instance()
 
-        HTTPServer(self, ssl_options=ssl_options).listen(address)
+        HTTPServer(self, ssl_options=ssl_options, engine=engine).listen(address)
         engine.start()
 
     ##### Error Handlers ######################################################
