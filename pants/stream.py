@@ -317,31 +317,31 @@ class Stream(_Channel):
         buffered by the stream.
 
         As data is read from the socket, it is buffered internally by
-        the stream before being passed to the
-        :meth:`~pants.stream.Stream.on_read` callback. The value of the
-        read delimiter determines when the data is passed to the
-        callback. Valid values are ``None``, a string, an integer/long,
+        the stream before being passed to the :meth:`on_read` callback. The
+        value of the read delimiter determines when the data is passed to the
+        callback. Valid values are ``None``, a byte string, an integer/long,
         a compiled regular expression, an instance of :class:`struct.Struct`,
         or an instance of :class:`netstruct.NetStruct`.
 
         When the read delimiter is ``None``, data will be passed to
-        :meth:`~pants.stream.Stream.on_read` immediately after it is
-        read from the socket. This is the default behaviour.
+        :meth:`on_read` immediately after it is read from the socket. This is
+        the default behaviour.
 
-        When the read delimiter is a string, data will be buffered
+        When the read delimiter is a byte string, data will be buffered
         internally until that string is encountered in the incoming
-        data. All data up to and including the read delimiter is then
-        passed to :meth:`~pants.stream.Stream.on_read`.
+        data. All data up to but excluding the read delimiter is then
+        passed to :meth:`on_read`. The segment matching the read delimiter
+        itself is discarded from the buffer.
 
         When the read delimiter is an integer or a long, it is treated
         as the number of bytes to read before passing the data to
-        :meth:`~pants.stream.Stream.on_read`.
+        :meth:`on_read`.
 
         When the read delimiter is a :class:`struct.Struct` instance, the
         Struct's ``size`` is fully buffered and the data is unpacked using the
         Struct before its sent to :meth:`on_read`. Unlike other types of read
         delimiters, this can result in more than one argument being passed to
-        ``on_read``. Example::
+        :meth:`on_read`, as in the following example::
 
             import struct
             from pants import Stream
@@ -354,24 +354,25 @@ class Stream(_Channel):
                     pass
 
         When the read delimiter is an instance of :class:`netstruct.NetStruct`,
-        the NetStruct's ``minimum_size`` is buffered and unpacked with the
-        NetStruct, and additional data is buffered as necessary until the
-        NetStruct can be completely unpacked. Once ready, the data will be
-        passed to ``on_read``. Using Struct and NetStruct are *very* similar.
+        the NetStruct's :attr:`~netstruct.NetStruct.minimum_size` is buffered
+        and unpacked with the NetStruct, and additional data is buffered as
+        necessary until the NetStruct can be completely unpacked. Once ready,
+        the data will be passed to :meth:`on_read`. Using Struct and NetStruct
+        are *very* similar.
 
-        When the read delimiter is a compiled regular expression, there
-        are two possible behaviors, selected by the value of
-        :attr:`~pants.stream.Stream.regex_search`. If ``regex_search``
-        is True, as is default, the delimiter's ``search`` method is
-        used, and if a match is found, the string before that match is
-        passed to :meth:`~pants.stream.Stream.on_read` while all data up
-        to the end of the matched content is removed from the buffer.
+        When the read delimiter is a compiled regular expression
+        (:class:`re.RegexObject`), there are two possible behaviors that you
+        may switch between by setting the value of :attr:`regex_search`. If
+        :attr:`regex_search` is True, as is the default, the delimiter's
+        :meth:`~re.RegexObject.search` method is used and, if a match is found,
+        the string before that match is passed to :meth:`on_read`. The segment
+        that was matched by the regular expression will be discarded.
 
-        If ``regex_search`` is False, the delimiter's ``match`` method
-        is used instead, and if a match is found, the match object
-        itself will be passed to :meth:`~pants.stream.Stream.on_read`,
-        giving you access to the capture groups. Again, all data up to
-        the end of the matched content is removed from the buffer.
+        If :attr:`regex_search` is False, the delimiter's
+        :meth:`~re.RegexObject.match` method is used instead and, if a match
+        is found, the match object itself will be passed to :meth:`on_read`,
+        giving you access to the capture groups. Again, the segment that was
+        matched by the regular expression will be discarded from the buffer.
 
         Attempting to set the read delimiter to any other value will
         raise a :exc:`TypeError`.
