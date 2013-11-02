@@ -3,46 +3,22 @@
 
 .. automodule:: pants.http.websocket
 
-
-Constants
-=========
-
-:``CLOSE_REASONS`` Dictionary:
-    =====  ======
-    Key    Value
-    =====  ======
-    1000   ``'Normal Closure'``
-    1001   ``'Server Going Away'``
-    1002   ``'Protocol Error'``
-    1003   ``'Unacceptable Data Type'``
-    1004   ``'Frame Too Large'``
-    1005   ``'No Status Code'``
-    1006   ``'Abnormal Close'``
-    1007   ``'Invalid UTF-8 Data'``
-    =====  ======
-
-:Frame Opcodes:
-    ===================   ======
-    Constant              Value
-    ===================   ======
-    FRAME_CONTINUATION    ``0``
-    FRAME_TEXT            ``1``
-    FRAME_BINARY          ``2``
-    FRAME_CLOSE           ``8``
-    FRAME_PING            ``9``
-    FRAME_PONG            ``10``
-    ===================   ======
-
-:Other Constants:
-    ===================   ======
-    Constant              Value
-    ===================   ======
-    WEBSOCKET_KEY         ``'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'``
-    ===================   ======
-
-
-WebSocket
-=========
+``WebSocket``
+=============
 
 .. autoclass:: WebSocket
-    :members: close, end, write, on_read, on_write, on_connect, on_close
+    :members: write, write_file, write_packed, ping, close, read_delimiter, buffer_size, remote_address, local_address, on_handshake, on_connect, on_pong, on_read, on_write, on_close, on_overflow_error
+
+    .. attribute:: is_secure
+
+        Whether or not the underlying HTTP connection is secured.
+
+``EntireMessage``
+=================
+
+.. attribute:: EntireMessage
+
+    ``EntireMessage`` is a unique Python object that, when set as the
+    :attr:`~WebSocket.read_delimiter` for a :class:`WebSocket` instance, will
+    cause entire messages to be passed to the :meth:`~WebSocket.on_read` event
+    handler at once.
