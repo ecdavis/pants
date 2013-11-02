@@ -41,7 +41,7 @@
 ===============
 
 .. autoclass:: HTTPRequest
-   :members: cookies, cookies_out, full_url, time, get_secure_cookie, set_secure_cookie, send_response, send_status, send_headers, send_cookies, send_file, send, finish
+   :members: cookies, cookies_out, full_url, is_secure, time, get_secure_cookie, set_secure_cookie, send_response, send_status, send_headers, send_cookies, send_file, send, finish
 
    .. attribute:: remote_ip
 

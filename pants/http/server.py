@@ -530,6 +530,13 @@ class HTTPRequest(object):
         return '%s://%s%s' % (self.scheme, self.host, self.url)
 
     @property
+    def is_secure(self):
+        """
+        Whether or not the request was received via HTTPS.
+        """
+        return self.scheme.lower() == 'https'
+
+    @property
     def time(self):
         """
         The amount of time that has elapsed since the request was received. If
