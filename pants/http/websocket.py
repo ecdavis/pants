@@ -1244,126 +1244,124 @@ class WebSocket(object):
         """
         self._recv_buffer += data
 
-        if len(self._recv_buffer) < 2:
-            return
+        while len(self._recv_buffer) >= 2:
+            byte1 = ord(self._recv_buffer[0])
+            final = 0x80 & byte1
+            rsv1 = 0x40 & byte1
+            rsv2 = 0x20 & byte1
+            rsv3 = 0x10 & byte1
+            opcode = 0x0F & byte1
 
-        byte1 = ord(self._recv_buffer[0])
-        final = 0x80 & byte1
-        rsv1 = 0x40 & byte1
-        rsv2 = 0x20 & byte1
-        rsv3 = 0x10 & byte1
-        opcode = 0x0F & byte1
+            byte2 = ord(self._recv_buffer[1])
+            mask = 0x80 & byte2
+            length = 0x7F & byte2
 
-        byte2 = ord(self._recv_buffer[1])
-        mask = 0x80 & byte2
-        length = 0x7F & byte2
+            if length == 126:
+                if len(self._recv_buffer) < 4:
+                    return
+                length = STRUCT_H.unpack(self._recv_buffer[2:4])
+                headlen = 4
 
-        if length == 126:
-            if len(self._recv_buffer) < 4:
-                return
-            length = STRUCT_H.unpack(self._recv_buffer[2:4])
-            headlen = 4
+            elif length == 127:
+                if len(self._recv_buffer) < 10:
+                    return
+                length = STRUCT_Q.unpack(self._recv_buffer[2:10])
+                headlen = 10
 
-        elif length == 127:
-            if len(self._recv_buffer) < 10:
-                return
-            length = STRUCT_Q.unpack(self._recv_buffer[2:10])
-            headlen = 10
-
-        else:
-            headlen = 2
-
-        if mask:
-            if len(self._recv_buffer) < headlen + 4:
-                return
-            mask = [ord(x) for x in self._recv_buffer[headlen:headlen+4]]
-            headlen += 4
-
-        total_size = headlen + length
-        if len(self._recv_buffer) < total_size:
-            if len(self._recv_buffer) > self._recv_buffer_size_limit:
-                # TODO: Callback for handling this event?
-                self.close(reason=1009)
-            return
-
-        # Got a full message!
-        data = self._recv_buffer[headlen:total_size]
-        self._recv_buffer = self._recv_buffer[total_size:]
-
-        if mask:
-            new_data = ""
-            for i in xrange(len(data)):
-                new_data += chr(ord(data[i]) ^ mask[i % 4])
-            data = new_data
-            del new_data
-
-        # Control Frame Nonsense!
-        if opcode == FRAME_CLOSE:
-            if data:
-                reason = STRUCT_H.unpack(data[:2])[0]
-                message = data[2:]
             else:
-                reason = 1000
-                message = None
+                headlen = 2
 
-            self.close(True, reason, message)
-            return
+            if mask:
+                if len(self._recv_buffer) < headlen + 4:
+                    return
+                mask = [ord(x) for x in self._recv_buffer[headlen:headlen+4]]
+                headlen += 4
 
-        elif opcode == FRAME_PING:
-            if self.connected:
-                self.write(data, frame=FRAME_PONG)
+            total_size = headlen + length
+            if len(self._recv_buffer) < total_size:
+                if len(self._recv_buffer) > self._recv_buffer_size_limit:
+                    # TODO: Callback for handling this event?
+                    self.close(reason=1009)
+                return
 
-        elif opcode == FRAME_PONG:
-            sent = self._pings.pop(data, None)
-            if sent:
-                data = time() - sent
+            # Got a full message!
+            data = self._recv_buffer[headlen:total_size]
+            self._recv_buffer = self._recv_buffer[total_size:]
 
-            self._safely_call(self.on_pong, data)
-            return
+            if mask:
+                new_data = ""
+                for i in xrange(len(data)):
+                    new_data += chr(ord(data[i]) ^ mask[i % 4])
+                data = new_data
+                del new_data
 
-        elif opcode == FRAME_CONTINUATION:
-            if not self._frag_frame:
+            # Control Frame Nonsense!
+            if opcode == FRAME_CLOSE:
+                if data:
+                    reason = STRUCT_H.unpack(data[:2])[0]
+                    message = data[2:]
+                else:
+                    reason = 1000
+                    message = None
+
+                self.close(True, reason, message)
+                return
+
+            elif opcode == FRAME_PING:
+                if self.connected:
+                    self.write(data, frame=FRAME_PONG)
+
+            elif opcode == FRAME_PONG:
+                sent = self._pings.pop(data, None)
+                if sent:
+                    data = time() - sent
+
+                self._safely_call(self.on_pong, data)
+                return
+
+            elif opcode == FRAME_CONTINUATION:
+                if not self._frag_frame:
+                    self.close(reason=1002)
+                    return
+
+                opcode = self._frag_frame
+                self._frag_frame = None
+
+            if opcode == FRAME_TEXT:
+                try:
+                    data = data.decode('utf-8')
+                except UnicodeDecodeError:
+                    self.close(reason=1007)
+                    return
+
+            if not self._read_buffer:
+                self._read_buffer = data
+                self._rb_type = type(data)
+            elif not isinstance(data, self._rb_type):
+                # TODO: Improve wrong string type handling with event handler.
+                log.error("Received string type not matching buffer on %r." % self)
                 self.close(reason=1002)
                 return
+            else:
+                self._read_buffer += data
 
-            opcode = self._frag_frame
-            self._frag_frame = None
+            if not final:
+                if not opcode in (FRAME_BINARY, FRAME_TEXT):
+                    log.error("Received fragment control frame on %r." % self)
+                    self.close(reason=1002)
+                    return
 
-        if opcode == FRAME_TEXT:
-            try:
-                data = data.decode('utf-8')
-            except UnicodeDecodeError:
-                self.close(reason=1007)
+                self._frag_frame = opcode
+                if self._read_delimiter is EntireMessage:
+                    return
+
+            self._process_read_buffer()
+
+            if self._read_buffer and len(self._read_buffer) > self._recv_buffer_size_limit:
+                e = StreamBufferOverflow("Buffer length exceeded upper limit "
+                                         "on %r." % self)
+                self._safely_call(self.on_overflow_error, e)
                 return
-
-        if not self._read_buffer:
-            self._read_buffer = data
-            self._rb_type = type(data)
-        elif not isinstance(data, self._rb_type):
-            # TODO: Improve wrong string type handling with event handler.
-            log.error("Received string type not matching buffer on %r." % self)
-            self.close(reason=1002)
-            return
-        else:
-            self._read_buffer += data
-
-        if not final:
-            if not opcode in (FRAME_BINARY, FRAME_TEXT):
-                log.error("Received fragment control frame on %r." % self)
-                self.close(reason=1002)
-                return
-
-            self._frag_frame = opcode
-            if self._read_delimiter is EntireMessage:
-                return
-
-        self._process_read_buffer()
-
-        if self._read_buffer and len(self._read_buffer) > self._recv_buffer_size_limit:
-            e = StreamBufferOverflow("Buffer length exceeded upper limit "
-                                     "on %r." % self)
-            self._safely_call(self.on_overflow_error, e)
-            return
 
 
     def _con_close(self):
