@@ -110,7 +110,7 @@ class PostTest(HTTPTestCase):
         self.stop()
         self.got_response = True
 
-        data = json.loads(response.raw)
+        data = response.json
         if not data["form"]["foo"] == "bar":
             self.response_valid = False
 
@@ -192,7 +192,7 @@ class GzippedTest(HTTPTestCase):
         self.stop()
         self.got_response = True
 
-        data = json.loads(response.raw)
+        data = response.json
         if not data["gzipped"] and \
                 response.headers['Content-Encoding'] == 'gzip':
             self.response_valid = False

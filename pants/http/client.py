@@ -15,12 +15,24 @@
 # limitations under the License.
 #
 ###############################################################################
+"""
+``pants.http.client`` implements a basic asynchronous HTTP client on top of
+Pants with an API similar to that of the wonderful
+`requests <http://www.python-requests.org/>`_ library. The client supports
+keep-alive and SSL for connections, domain verification for SSL certificates,
+basic WWW authentication, sessions with persistent cookies, automatic redirect
+handling, automatic decompression of responses, connection timeouts, file
+uploads, and saving large responses to temporary files to decrease
+memory usage.
+"""
 
 ###############################################################################
 # Imports
 ###############################################################################
 
+import codecs
 import Cookie
+import json
 import os
 import ssl
 import tempfile
@@ -116,7 +128,7 @@ CONTENT_ENCODING['deflate'] = encoding_deflate
 ###############################################################################
 
 def _get_cookies(request):
-    """ Build a CookieJar with all the necessary cookies. """
+    """ Build a SimpleCookie with all the necessary cookies. """
     cookies = Cookie.SimpleCookie()
     if request.cookies:
         for key in request.cookies:
@@ -278,7 +290,6 @@ class HTTPClient(object):
 
         Engine.instance().start()
 
-    See :doc:`/guides/using_the_http_client` for more.
     """
 
     def __init__(self, *args, **kwargs):
@@ -304,6 +315,7 @@ class HTTPClient(object):
         ses = Session(self, *args, **kwargs)
         self._sessions.append(ses)
 
+
     ##### Public Event Handlers ###############################################
 
     def on_response(self, response):
@@ -317,6 +329,7 @@ class HTTPClient(object):
         =========  ============
         """
         pass
+
 
     def on_headers(self, response):
         """
@@ -337,6 +350,7 @@ class HTTPClient(object):
         """
         pass
 
+
     def on_progress(self, response, received, total):
         """
         Placeholder. Called when progress is made in downloading a response.
@@ -350,6 +364,7 @@ class HTTPClient(object):
         =========  ============
         """
         pass
+
 
     def on_ssl_error(self, response, certificate, exception):
         """
@@ -368,6 +383,7 @@ class HTTPClient(object):
         """
         return False
 
+
     def on_error(self, response, exception):
         """
         Placeholder. Called when an error occurs.
@@ -380,11 +396,13 @@ class HTTPClient(object):
         """
         pass
 
+
     ##### Session Generation ##################################################
 
     def session(self, *args, **kwargs):
         """ Create a new session. See :class:`Session` for details. """
         return Session(self, *args, **kwargs)
+
 
     ##### Request Making ######################################################
 
@@ -395,37 +413,46 @@ class HTTPClient(object):
         """
         return self._sessions[-1].request(*args, **kwargs)
 
+
     def delete(self, url, **kwargs):
         """ Begin a DELETE request. See :func:`request` for more details. """
         return self.request("DELETE", url, **kwargs)
+
 
     def get(self, url, params=None, **kwargs):
         """ Begin a GET request. See :func:`request` for more details. """
         return self.request("GET", url, params=params, **kwargs)
 
+
     def head(self, url, params=None, **kwargs):
         """ Begin a HEAD request. See :func:`request` for more details. """
         return self.request("HEAD", url, params=params, **kwargs)
+
 
     def options(self, url, **kwargs):
         """ Begin an OPTIONS request. See :func:`request` for more details. """
         return self.request("OPTIONS", url, **kwargs)
 
+
     def patch(self, url, data=None, **kwargs):
         """ Begin a PATCH request. See :func:`request` for more details. """
         return self.request("PATCH", url, data=data, **kwargs)
+
 
     def post(self, url, data=None, files=None, **kwargs):
         """ Begin a POST request. See :func:`request` for more details. """
         return self.request("POST", url, data=data, files=files, **kwargs)
 
+
     def put(self, url, data=None, **kwargs):
         """ Begin a PUT request. See :func:`request` for more details. """
         return self.request("PUT", url, data=data, **kwargs)
 
+
     def trace(self, url, **kwargs):
         """ Begin a TRACE request. See :func:`request` for more details. """
         return self.request("TRACE", url, **kwargs)
+
 
     ##### Internals ###########################################################
 
@@ -448,6 +475,7 @@ class HTTPClient(object):
             return thing_to_call(*args, **kwargs)
         except Exception:
             log.exception("Exception raised in callback on %r." % self)
+
 
     def _process(self):
         """ Send the first request on the stack. """
@@ -510,6 +538,7 @@ class HTTPClient(object):
         # Connect the stream to await further orders.
         self._stream.connect((_hostname(request.url), port))
 
+
     def _timed_out(self, request):
         """ Called when a request times out. """
         if not request in self._requests:
@@ -528,6 +557,7 @@ class HTTPClient(object):
             self._stream = None
         self._process()
 
+
     def _reset_timer(self):
         if not self._requests:
             return
@@ -539,6 +569,7 @@ class HTTPClient(object):
 
         request._timeout_timer = self.engine.defer(request.timeout,
                                                    self._timed_out, request)
+
 
     ##### Stream I/O Handlers #################################################
 
@@ -599,6 +630,7 @@ class HTTPClient(object):
         self._stream.on_read = self._read_headers
         self._stream.read_delimiter = DOUBLE_CRLF
 
+
     def _on_connect_error(self, err):
         """ The Stream had an exception. Pass it along. """
         if not self._requests:
@@ -621,6 +653,7 @@ class HTTPClient(object):
 
         # Keep processing, if needed.
         self._process()
+
 
     def _on_close(self):
         """
@@ -667,6 +700,7 @@ class HTTPClient(object):
         else:
             self._process()
 
+
     def _do_error(self, err):
         """
         There was some kind of exception. Close the stream, report it, and then
@@ -688,6 +722,7 @@ class HTTPClient(object):
 
         # Keep processing, if needed.
         self._process()
+
 
     def _read_headers(self, data):
         """
@@ -765,8 +800,8 @@ class HTTPClient(object):
 
         # Is there a Content-Length header?
         if 'Content-Length' in headers:
-            response.total = int(headers['Content-Length'])
-            response.remaining = response.total
+            response.length = int(headers['Content-Length'])
+            response.remaining = response.length
 
             # If there's no length, immediately we've got a response.
             if not response.remaining:
@@ -784,13 +819,13 @@ class HTTPClient(object):
                                 headers['Transfer-Encoding']))
                 return
 
-            response.total = 0
+            response.length = 0
             self._stream.on_read = self._read_chunk_head
             self._stream.read_delimiter = CRLF
 
         # Is this not a persistent connection? If so, read the whole body.
         elif not response._keep_alive:
-            response.total = 0
+            response.length = 0
             response.remaining = 0
             self._reading_forever = True
             self._stream.on_read = self._read_forever
@@ -813,6 +848,7 @@ class HTTPClient(object):
                            "Unable to handle Content-Encoding %r." % encoding))
                 return
             response._decoder = CONTENT_ENCODING[encoding]()
+
 
     def _on_response(self):
         """
@@ -845,6 +881,7 @@ class HTTPClient(object):
         # Keep processing, if needed.
         self._process()
 
+
     ##### Length-Based Responses ##############################################
 
     def _read_forever(self, data):
@@ -858,7 +895,7 @@ class HTTPClient(object):
         self._reset_timer()
 
         # Make note of how many bytes we've received.
-        response.total += len(data)
+        response.length += len(data)
 
         # Decode the received data.
         if response._decoder:
@@ -869,7 +906,8 @@ class HTTPClient(object):
 
         # Do a progress.
         self._safely_call(request.session.on_progress, response,
-                          response.total, 0)
+                          response.length, 0)
+
 
     def _read_body(self, data):
         """
@@ -900,11 +938,12 @@ class HTTPClient(object):
 
         # Do a progress.
         self._safely_call(request.session.on_progress, response,
-                          response.total-response.remaining, response.total)
+                          response.length-response.remaining, response.length)
 
         # Do a finished?
         if finished:
             self._on_response()
+
 
     ##### Chunked Responses ###################################################
 
@@ -940,6 +979,7 @@ class HTTPClient(object):
         # Finally, we can handle it.
         self._on_response()
 
+
     def _read_chunk_head(self, data):
         """ Read a chunk header. """
         if not self._requests:
@@ -974,6 +1014,7 @@ class HTTPClient(object):
             response.remaining = length
             self._stream.read_delimiter = min(CHUNK_SIZE, length)
 
+
     def _read_chunk_body(self, data):
         """ Read a chunk body. """
         if not self._requests:
@@ -985,7 +1026,7 @@ class HTTPClient(object):
         # Make note of how many bytes we've received.
         bytes = len(data)
         response.remaining -= bytes
-        response.total += bytes
+        response.length += bytes
         self._stream.read_delimiter = min(CHUNK_SIZE, response.remaining)
 
         # Pass the data through our decoder.
@@ -998,7 +1039,7 @@ class HTTPClient(object):
 
         # Do a progress event.
         self._safely_call(request.session.on_progress, response,
-                          response.total, 0)
+                          response.length, 0)
 
         # If we're finished with this chunk, read a new header.
         if not response.remaining:
@@ -1130,11 +1171,13 @@ class Session(object):
         self.verify_ssl = verify_ssl
         self.ssl_options = ssl_options
 
+
     ##### Session Generation ##################################################
 
     def session(self, *args, **kwargs):
         """ Create a new session. See :class:`Session` for details. """
         return Session(self, *args, **kwargs)
+
 
     ##### Request Making ######################################################
 
@@ -1286,37 +1329,46 @@ class Session(object):
         # Not sure what you'll do with this, but there you have it.
         return request
 
+
     def delete(self, url, **kwargs):
         """ Begin a DELETE request. See :func:`request` for more details. """
         return self.request("DELETE", url, **kwargs)
+
 
     def get(self, url, params=None, **kwargs):
         """ Begin a GET request. See :func:`request` for more details. """
         return self.request("GET", url, params=params, **kwargs)
 
+
     def head(self, url, params=None, **kwargs):
         """ Begin a HEAD request. See :func:`request` for more details. """
         return self.request("HEAD", url, params=params, **kwargs)
+
 
     def options(self, url, **kwargs):
         """ Begin an OPTIONS request. See :func:`request` for more details. """
         return self.request("OPTIONS", url, **kwargs)
 
+
     def patch(self, url, data=None, **kwargs):
         """ Begin a PATCH request. See :func:`request` for more details. """
         return self.request("PATCH", url, data=data, **kwargs)
+
 
     def post(self, url, data=None, files=None, **kwargs):
         """ Begin a POST request. See :func:`request` for more details. """
         return self.request("POST", url, data=data, files=files, **kwargs)
 
+
     def put(self, url, data=None, **kwargs):
         """ Begin a PUT request. See :func:`request` for more details. """
         return self.request("PUT", url, data=data, **kwargs)
 
+
     def trace(self, url, **kwargs):
         """ Begin a TRACE request. See :func:`request` for more details. """
         return self.request("TRACE", url, **kwargs)
+
 
     ##### Context #############################################################
 
@@ -1324,8 +1376,10 @@ class Session(object):
         self.client._sessions.append(self)
         return self
 
+
     def __exit__(self, *args):
         self.client._sessions.pop()
+
 
 ###############################################################################
 # HTTPRequest Class
@@ -1350,6 +1404,7 @@ class HTTPRequest(object):
         self.max_redirects = max_redirects
         self.keep_alive = keep_alive
         self.auth = auth
+
 
     def __repr__(self):
         return '<%s ["%s://%s%s"] at 0x%X>' % (
@@ -1382,7 +1437,7 @@ class HTTPResponse(object):
 
     _body_file = None
     _decoder = None
-    _charset = None
+    _encoding = None
 
     def __init__(self, request):
         """ Initialize from the provided request. """
@@ -1403,6 +1458,7 @@ class HTTPResponse(object):
         # Set cookies.
         self.cookies = self.request.session.cookies
 
+
     @property
     def status(self):
         """ The status code and status text as a string. """
@@ -1412,12 +1468,14 @@ class HTTPResponse(object):
             return str(self.status_code)
         return "%d %s" % (self.status_code, self.status_text)
 
+
     def __repr__(self):
         return "<%s [%s] at 0x%X>" % (
             self.__class__.__name__,
             self.status,
             id(self)
             )
+
 
     @property
     def _keep_alive(self):
@@ -1429,50 +1487,92 @@ class HTTPResponse(object):
     ##### Body Management #####################################################
 
     @property
-    def charset(self):
+    def encoding(self):
         """
-        This is the detected character set of the response. You can also
+        This is the detected character encoding of the response. You can also
         set this to a specific character set to have :attr:`text` decoded
         properly.
+
+        Pants will attempt to fill this value from the Content-Type response
+        header. If no value was available, it will be ``None``.
         """
-        if not self._charset:
+        if not self._encoding:
             # Time to play guess the encoding! We don't try that hard.
             cset = self.headers.get('Content-Type').partition('charset=')[-1]
             if not cset:
-                cset = 'utf-8'
-            self._charset = cset
-        return self._charset
+                cset = None
+            self._encoding = cset
+        return self._encoding
 
-    @charset.setter
-    def charset(self, val):
-        self._charset = val
+    @encoding.setter
+    def encoding(self, val):
+        # Use codecs.lookup to make sure it's a valid way to decode text.
+        if val is not None:
+            codecs.lookup(val)
+        self._encoding = val
+
 
     @property
-    def content(self):
+    def text(self):
         """
-        This is the content received from the server, decoded with
-        :attr:`encoding`. Take care before using this property, as there may be
-        a *lot* of data.
+        The content of the response, after being decoded into unicode with
+        :attr:`encoding`. Be careful when using this with large responses, as
+        it will load the entire response into memory. ``None`` if no data has
+        been received.
+
+        If :attr:`encoding` is ``None``, this will default to ``UTF-8``.
+
         """
-        raw = self.raw
+        raw = self.content
         if not raw:
             return raw
 
-        return raw.decode(self.charset)
+        encoding = self.encoding
+        if not encoding:
+            encoding = 'utf-8'
+
+        return raw.decode(encoding)
+
+
+    def json(self, **kwargs):
+        """
+        The content of the response, having been interpreted as JSON. This
+        uses the value of :attr:`encoding` if possible. If :attr:`encoding`
+        is not set, it will default to ``UTF-8``.
+
+        Any provided keyword arguments will be passed to :func:`json.loads`.
+
+        """
+        if not 'encoding' in kwargs:
+            kwargs['encoding'] = self.encoding
+
+        raw = self.content
+        if not raw:
+            return raw
+
+        return json.loads(raw, **kwargs)
+
 
     @property
     def file(self):
         """
-        This is a :class:`tempfile.SpooledTemporaryFile` containing all the
-        data received from the server, or None if no data has been received.
+        The content of the response as a :class:`tempfile.SpooledTemporaryFile`.
+        Pants uses temporary files to decrease memory usage for
+        large responses. ``None`` if no data has been received.
         """
         return self._body_file
 
+    # requests compatibility
+    raw = file
+    stream = True
+
+
     @property
-    def raw(self):
+    def content(self):
         """
-        This is the raw data received from the server. Take care before using
-        this property, as there may be a *lot* of data.
+        The content of the response as a byte string. Be careful when using
+        this with large responses, as it will load the entire response into
+        memory. ``None`` if no data has been received.
         """
         if not self._body_file:
             return None
@@ -1486,13 +1586,88 @@ class HTTPResponse(object):
         f.seek(current_pos)
         return out
 
+
+    def iter_content(self, chunk_size=1, decode_unicode=False):
+        """
+        Iterate over the content of the response. Using this, rather than
+        :attr:`content` or :attr:`text` can prevent the loading of large
+        responses into memory in their entirety.
+
+        ===============  ========  ============
+        Argument         Default   Description
+        ===============  ========  ============
+        chunk_size       ``1``     The number of bytes to read at once.
+        decode_unicode   False     Whether or not to decode the bytes into unicode using the response's :attr:`encoding`.
+        ===============  ========  ============
+        """
+        f = self._body_file
+        if not f:
+            return
+
+        if decode_unicode:
+            codec = self.encoding or 'utf-8'
+            decoder = codecs.getincrementaldecoder(codec)(errors='replace')
+        else:
+            decoder = None
+
+        pos = 0
+        while True:
+            f.seek(pos)
+            data = f.read(chunk_size)
+
+            pos += len(data)
+            if decoder:
+                data = decoder.decode(data)
+
+            if not data:
+                if decoder:
+                    final = decoder.decode(b'', final=True)
+                    if final:
+                        yield final
+                return
+
+            yield data
+
+
+    def iter_lines(self, chunk_size=512, decode_unicode=False):
+        """
+        Iterate over the content of the response, one line at a time. By
+        using this rather than :attr:`content` or :attr:`text` you can
+        prevent loading of the entire response into memory. The two arguments
+        to this method are passed directly to :meth:`iter_content`.
+        """
+        # This method's implementation shamelessly copied from requests.
+        pending = None
+        for chunk in self.iter_content(chunk_size=chunk_size,
+                                       decode_unicode=decode_unicode):
+            if pending:
+                chunk = pending + chunk
+
+            lines = chunk.splitlines()
+            if lines and lines[-1] and chunk and lines[-1][-1] == chunk[-1]:
+                pending = lines.pop()
+            else:
+                pending = None
+
+            for line in lines:
+                yield line
+
+        if pending is not None:
+            yield pending
+
+    # Let people easily iterate over lines.
+    __iter__ = iter_lines
+
+
     def _receive(self, data):
         if not self._body_file:
             self._init_body()
         self._body_file.write(data)
 
+
     def _init_body(self):
         self._body_file = tempfile.SpooledTemporaryFile(MAX_MEMORY_SIZE)
+
 
     ##### Status Code Handlers ################################################
 
@@ -1547,6 +1722,7 @@ class HTTPResponse(object):
             return self
 
     handle_302 = handle_303 = handle_307 = handle_301
+
 
     def handle_401(self, client):
         """ Handle authorization, if we know how. """

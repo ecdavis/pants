@@ -8,7 +8,6 @@ Exceptions
 ==========
 
 .. autoclass:: CertificateError
-
 .. autoclass:: HTTPClientException
 .. autoclass:: MalformedResponse
 .. autoclass:: RequestClosed
@@ -19,24 +18,7 @@ HTTPClient
 ==========
 
 .. autoclass:: HTTPClient
-
-    .. automethod:: on_response
-    .. automethod:: on_headers
-    .. automethod:: on_progress
-    .. automethod:: on_ssl_error
-    .. automethod:: on_error
-
-    .. automethod:: session
-
-    .. automethod:: request
-    .. automethod:: delete
-    .. automethod:: get
-    .. automethod:: head
-    .. automethod:: options
-    .. automethod:: patch
-    .. automethod:: post
-    .. automethod:: put
-    .. automethod:: trace
+    :members: on_response, on_headers, on_progress, on_ssl_error, on_error, session, request, delete, get, head, options, patch, post, put, trace
 
 
 HTTPRequest
@@ -104,10 +86,11 @@ HTTPResponse
 ============
 
 .. autoclass:: HTTPResponse
+    :members: status, encoding, text, json, content, iter_content, iter_lines, file, handle_301, handle_401
 
-    .. attribute:: total
+    .. attribute:: length
 
-        The total size of the response body.
+        The length of the raw response.
 
     .. attribute:: http_version
 
@@ -116,10 +99,6 @@ HTTPResponse
     .. attribute:: status_code
 
         The HTTP status code of the response, such as ``200``.
-
-    .. attribute:: status
-
-        The status code and text as one string.
 
     .. attribute:: status_text
 
@@ -135,33 +114,13 @@ HTTPResponse
 
         A dictionary of all the headers received with the response.
 
-    .. autoattribute:: charset
-    .. autoattribute:: content
-    .. autoattribute:: file
-    .. autoattribute:: raw
-
-    .. automethod:: handle_301
-    .. automethod:: handle_401
-
 
 Session
 =======
 
 .. autoclass:: Session
+    :members: session, request, delete, get, head, options, patch, post, put, trace
 
     .. attribute:: client
 
         The :class:`HTTPClient` this Session is associated with.
-
-    .. automethod:: session
-
-    .. automethod:: request
-
-    .. automethod:: delete
-    .. automethod:: get
-    .. automethod:: head
-    .. automethod:: options
-    .. automethod:: patch
-    .. automethod:: post
-    .. automethod:: put
-    .. automethod:: trace
