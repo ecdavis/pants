@@ -17,13 +17,192 @@
 ###############################################################################
 """
 ``pants.http.client`` implements a basic asynchronous HTTP client on top of
-Pants with an API similar to that of the wonderful
+Pants with an API modelled after that of the wonderful
 `requests <http://www.python-requests.org/>`_ library. The client supports
 keep-alive and SSL for connections, domain verification for SSL certificates,
 basic WWW authentication, sessions with persistent cookies, automatic redirect
 handling, automatic decompression of responses, connection timeouts, file
 uploads, and saving large responses to temporary files to decrease
 memory usage.
+
+Logic is implemented using a series of request handlers.
+
+Making Requests
+===============
+
+It's simple and easy to make requests, and it only requires that you have an
+instance of :class:`HTTPClient` ready.
+
+.. code-block:: python
+
+    from pants.http import HTTPClient
+    client = HTTPClient()
+
+Like with `requests <http://www.python-requests.org/>`_, there are simple
+methods for making requests with the different HTTP methods. For now, let's get
+information for a bunch of Pants' commits on GitHub.
+
+.. code-block:: python
+
+    client.get("https://api.github.com/repos/ecdavis/pants/commits")
+
+You'll notice that this is very similar to making a request with requests.
+However, we do not get a response objects. Actually, calling
+:meth:`HTTPClient.get` returns an instance of :class:`HTTPRequest` rather than
+anything to do with a response, but we'll get to that later.
+
+The Pants HTTP client is asynchronous, so to get your response, you need a
+response handler. There are several ways to set one up, but the easiest way is
+to pass it to your :class:`HTTPClient` during initialization.
+
+.. code-block:: python
+
+    def handle_response(response):
+        if response.status_code != 200:
+            print "There was a problem!"
+
+    client = HTTPClient(handle_response)
+
+``response`` in this situation is an instance of :class:`HTTPResponse`, and
+it has an API modelled after the response objects that requests would give you.
+
+
+Making *Useful* Requests
+------------------------
+
+Basic GET requests are nice, but you'll often want to send data to the server.
+For query parameters you can use the optional *params* argument of the various
+request methods, like so::
+
+    data = {'since': '2013-11-01'}
+    client.get("https://api.github.com/repos/ecdavis/pants/commits", params=data)
+
+With that, you could eventually take your response and get the correct URL.
+
+.. code-block:: python
+
+    >>> response.url
+    'https://api.github.com/repos/ecdavis/pants/commits?since=2013-11-01'
+
+You can also post data to the server, either as a pre-made string, or as a
+dictionary of values to be encoded.
+
+.. code-block:: python
+
+    client.post("http://httpbin.org/post", data="Hello World!")
+    client.post("http://httpbin.org/post", data={"greeting": "Hello"})
+
+By default, the ``Content-Type`` header will be set to
+``application/x-www-form-urlencoded`` when you provide data for the request
+body. If any files are present, it will instead default to
+``multipart/form-data`` to transmit those. You can also manually set the
+header when making your request.
+
+You set files via the files parameter, which expects a dictionary of form field
+names and file objects. You can also provide filenames if desired.
+
+.. code-block:: python
+
+    client.post("http://httpbin.org/post", files={'file': open("test.txt")})
+    client.post("http://httpbin.org/post", files={'file': ("test.txt", open("test.txt"))})
+
+You can, of course, use data and files together. Please note that, if you *do*
+use them together, you'll need to supply data as a dictionary. Data strings are
+not supported.
+
+As many of you have probably noticed, this is *very* similar to using
+`requests <http://www.python-requests.org/>`_. The Pants API was implemented
+this way to make it easier to switch between the two libraries.
+
+
+Reading Responses
+=================
+
+Making your request is only half the battle, of course. You have to read your
+response when it comes in. And, for that, you start with the status code.
+
+.. code-block:: python
+
+    >>> response.status_code
+    200
+    >>> response.status_text
+    'OK'
+    >>> response.status
+    '200 OK'
+
+Unlike with requests, there is no ``raise_for_status()`` method available.
+Raising a strange exception in an asynchronous framework that your code isn't
+designed to catch just wouldn't work.
+
+
+Headers
+-------
+
+HTTP headers are case-insensitive, and so the headers are stored in a special
+case-insensitive dictionary made available as :attr:`HTTPResponse.headers`.
+
+.. code-block:: python
+
+    >>> response.headers
+    HTTPHeaders({
+        'Content-Length': 986,
+        'Server': 'gunicorn/0.17.4',
+        'Connection': 'keep-alive',
+        'Date': 'Wed, 06 Nov 2013 05:58:53 GMT',
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+        })
+    >>> response.headers['content-length']
+    986
+
+Nothing special here.
+
+
+Cookies
+-------
+
+Cookies are a weak point of Pants' HTTP client at this time. Cookies are stored
+in instances of :class:`Cookie.SimpleCookie`, which doesn't handle multiple
+domains. Pants has logic to prevent sending cookies to the wrong domains, but
+ideally it should move to using a better cookie storage structure in future
+versions that handles multiple domains elegantly.
+
+.. code-block:: python
+
+    >>> response.cookies['cake']
+    <Morsel: cake='lie'>
+    >>> response.cookies['cake'].value
+    'lie'
+
+As you can see, Pants does not yet handle cookies as well as requests. Setting
+cookies is a bit better.
+
+.. code-block:: python
+
+    client.get("http://httpbin.org/cookies", cookies={"cake": "lie"})
+
+
+Redirects
+---------
+
+The HTTP client will follow redirects automatically. When this happens, the
+redirecting responses are stored in the :attr:`HTTPResponse.history` list.
+
+.. code-block:: python
+
+    >>> response.history
+    [<HTTPResponse [301 Moved Permanently] at 0x2C988F0>]
+
+You can limit the number of times the HTTP client will automatically follow
+redirects with the ``max_redirects`` argument.
+
+.. code-block:: python
+
+    client.get("http://github.com/", max_redirects=0)
+
+By default, Pants will follow up to 10 redirects.
+
+
 """
 
 ###############################################################################
@@ -1267,7 +1446,10 @@ class Session(object):
         # Construct the actual request body. This is a mess.
         if 'Content-Type' in headers:
             hdr = headers['Content-Type']
-            if hdr.startswith('multipart/form-data'):
+            if isinstance(data, bytes):
+                body = [data]
+                length = len(data)
+            elif hdr.startswith('multipart/form-data'):
                 ind = hdr.find('boundary=')
                 if ind != -1:
                     boundary = hdr[ind+9:]
@@ -1302,18 +1484,21 @@ class Session(object):
 
         # Deal with the request parameters and the URL fragment.
         path = parts.path or '/'
-        if parts.query:
+        if params:
             new_params = urlparse.parse_qs(parts.query)
-            for key, value in params:
+            for key, value in params.iteritems():
                 if not key in new_params:
                     new_params[key] = []
                 if isinstance(value, (tuple,list)):
                     new_params[key].extend(value)
                 else:
                     new_params[key].append(value)
-            params = new_params
-        if params:
-            path += '?%s' % urllib.urlencode(params, True)
+
+            # Update the URL parts.
+            parts = parts._replace(query=urllib.urlencode(new_params,True))
+
+        if parts.query:
+            path += '?%s' % parts.query
         if parts.fragment:
             path += '#%s' % parts.fragment
 
@@ -1446,7 +1631,7 @@ class HTTPResponse(object):
 
         # Store stuff about us.
         self.method = request.method
-        self.url = request.url
+        self.url = urlparse.urlunparse(request.url)
         self.path = request.path
 
         # Make sure we're the request's response.
