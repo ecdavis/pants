@@ -39,7 +39,7 @@ from pants.stream import Stream
 ###############################################################################
 
 __authors__ = ["ecdavis", "Stendec"]
-__version__ = "1.0.0-beta.3"
+__version__ = "1.0.0"
 
 __all__ = [
     "__authors__", "__version__",  # Metadata

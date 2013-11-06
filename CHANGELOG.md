@@ -1,8 +1,8 @@
 Changelog
 =========
 
-1.0.0 (current)
----------------
+1.0.0 (2013-11-05)
+------------------
  *  *Removed* Pants' DNS utility. UDP support needs to be completely rewritten
             before it can be released properly.
 
