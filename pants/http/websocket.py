@@ -1208,34 +1208,44 @@ class WebSocket(object):
         """
         self._recv_buffer += data
 
-        if self._expect_frame:
-            self._expect_frame = False
-            self._frame = ord(self._recv_buffer[0])
-            self._recv_buffer = self._recv_buffer[1:]
+        while len(self._recv_buffer) >= 2:
+            if self._expect_frame:
+                self._expect_frame = False
+                self._frame = ord(self._recv_buffer[0])
+                self._recv_buffer = self._recv_buffer[1:]
 
-            if self._frame & 0x80 == 0x80:
-                log.error("Unsupported frame type for old-style WebSockets %02X on %r." %
-                    (self._frame, self))
-                self.close(False)
+                if self._frame & 0x80 == 0x80:
+                    log.error("Unsupported frame type for old-style WebSockets %02X on %r." %
+                        (self._frame, self))
+                    self.close(False)
+                    return
+
+            # Simple Frame.
+            ind = self._recv_buffer.find('\xFF')
+            if ind == -1:
+                if len(self._recv_buffer) > self._recv_buffer_size_limit:
+                    # TODO: Callback for handling this event?
+                    self.close(reason=1009)
                 return
 
-        # Simple Frame.
-        ind = self._recv_buffer.find('\xFF')
-        if ind == -1:
-            return
+            # Read the data.
+            try:
+                data = self._recv_buffer[:ind].decode('utf-8')
+            except UnicodeDecodeError:
+                self.close(reason=1007)
+                return
 
-        # Read the data.
-        data = self._recv_buffer[:ind].decode('utf-8')
-        if not self._read_buffer:
-            self._read_buffer = data
-        else:
-            self._read_buffer += data
+            if not self._read_buffer:
+                self._read_buffer = data
+                self._rb_type = type(self._read_buffer)
+            else:
+                self._read_buffer += data
 
-        self._recv_buffer = self._recv_buffer[ind+1:]
-        self._expect_frame = True
+            self._recv_buffer = self._recv_buffer[ind+1:]
+            self._expect_frame = True
 
-        # Act on the data.
-        self._process_read_buffer()
+            # Act on the data.
+            self._process_read_buffer()
 
 
     def _con_read(self, data):
