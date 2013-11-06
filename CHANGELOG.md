@@ -1,6 +1,17 @@
 Changelog
 =========
 
+1.0.0 (current)
+---------------
+ * *Fixed* a bug in ``_Channel.close`` which could cause an AttributeError to
+           be raised if the socket was None.
+ * *Fixed* a bug in ``sendfile`` on Mac OS X which caused Pants to resend the
+           same bytes repeatedly.
+ * *Removed* Pants' DNS utility. UDP support needs to be completely rewritten
+             before it can be released properly.
+ * *Fixed* Server such that ``on_close`` is actually called when the server is
+           closed.
+
 1.0.0-beta.3 (2013-03-25)
 -------------------------
  *  *Changed* ``engine.time`` to ``engine.latest_poll_time``, as that name more
