@@ -43,6 +43,7 @@ class GoogleClient(pants.Stream):
 
     def on_close(self):
         self.on_close_called = True
+        self.engine.stop()
 
 class TestSimpleClient(PantsTestCase):
     def setUp(self):
