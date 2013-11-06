@@ -33,11 +33,6 @@ a better example of how Pants applications work, take a look at a few
 `examples <http://github.com/ecdavis/pants/tree/master/examples/>`_ or
 read through the :ref:`tutorial <tutorial>`.
 
-Features
---------
-
- * TODO: Feature list?
-
 Getting Started
 ===============
 Getting started with Pants is easy. Pants can be installed either from the
@@ -211,8 +206,3 @@ That's it for the basic tutorial, but there's plenty more you can do here:
  * We can't have people communicating through unencrypted channels like this.
    Secure your chat server using Pants' SSL support. Take a look at
    :meth:`~pants.server.Server.startSSL` to get started.
-
-Further Information
-===================
-
- * TODO: Further information.

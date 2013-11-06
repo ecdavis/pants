@@ -1,10 +1,14 @@
-[Pants](http://pantsweb.org/)
-=============================
+[Pants](http://pantspowered.org/)
+=================================
 Pants is a lightweight framework for writing asynchronous network applications
-in Python. Pants is simple, fast and very good-looking.
+in Python. Pants is simple, fast and elegant.
 
 Pants is available under the [Apache License, Version 2.0]
 (http://www.apache.org/licenses/LICENSE-2.0.html)
+
+Docs
+====
+Check out the documentation at [pantspowered.org](http://pantspowered.org/)
 
 Install
 =======
@@ -23,30 +27,27 @@ supported.
 Community
 =========
 Pants has a small but active community of developers who congregate in the IRC
-channel [#pantsmud](http://webchat.freenode.net/?channels=pantsmud) on
+channel [#pantspowered](http://webchat.freenode.net/?channels=pantspowered) on
 irc.freenode.net.
 
 Examples
 ========
-Here's an absurdly simple example - Hello World:
-
+Here's an absurdly simply example - an echo server:
 ```python
-from pants import engine, Server, Stream
+from pants import Engine, Server, Stream
 
-class Hello(Stream):
-    def on_connect(self):
-        self.write("Hello, World!\r\n")
-        self.close()
+class Echo(Stream):
+    def on_read(self, data):
+        self.write(data)
 
-Server(Hello).listen(4040)
-engine.start()
+Server(Echo).listen(4040)
+Engine.instance().start()
 ```
 
 Want a stupidly fast web server? Got you covered:
 
 ```python
-from pants import engine
-from pants.web import Application, HTTPServer
+from pants.web import Application
 
 app = Application()
 
@@ -54,6 +55,5 @@ app = Application()
 def hello(request):
     return "Hello, World!"
 
-HTTPServer(app).listen()
-engine.start()
+app.run()
 ```
