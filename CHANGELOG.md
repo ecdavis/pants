@@ -1,6 +1,13 @@
 Changelog
 =========
 
+1.0.1 (2013-11-07)
+------------------
+ * *Fixed* the MANIFEST.in file so that it now includes NOTICE.txt
+
+ * *Fixed* the README.md file so that it now specifies the correct Python
+           version requirement.
+
 1.0.0 (2013-11-05)
 ------------------
  *  *Removed* Pants' DNS utility. UDP support needs to be completely rewritten
