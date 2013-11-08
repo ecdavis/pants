@@ -9,7 +9,7 @@ setup(
     author="ecdavis",
     author_email="me@ezdwt.com",
     url="http://www.pantspowered.org/",
-    download_url="https://github.com/ecdavis/pants/tarball/pants-1.0.0",
+    download_url="https://github.com/ecdavis/pants/tarball/pants-1.0.1",
     packages=["pants", "pants.contrib", "pants.http", "pants.util", "pants.web"],
     package_data={"pants.web": ["data/*.css", "data/*.png", "data/*.html"]},
     classifiers=[
