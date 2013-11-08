@@ -1,5 +1,5 @@
 include AUTHORS.txt
-include CREDITS.txt
+include NOTICE.txt
 include LICENSE.txt
 include README.md
 recursive-include docs *.rst
