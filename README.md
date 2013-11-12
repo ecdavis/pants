@@ -32,7 +32,7 @@ irc.freenode.net.
 
 Examples
 ========
-Here's an absurdly simply example - an echo server:
+Here's an absurdly simple example - an echo server:
 ```python
 from pants import Engine, Server, Stream
 
