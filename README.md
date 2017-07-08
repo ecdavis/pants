@@ -5,8 +5,7 @@
 Pants is a lightweight framework for writing asynchronous network applications
 in Python. Pants is simple, fast and elegant.
 
-Pants is available under the [Apache License, Version 2.0]
-(http://www.apache.org/licenses/LICENSE-2.0.html)
+Pants is available under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 Docs
 ====
