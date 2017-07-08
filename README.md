@@ -1,5 +1,7 @@
 [Pants](http://pantspowered.org/)
 =================================
+**Pants is complete and no longer actively maintained.**
+
 Pants is a lightweight framework for writing asynchronous network applications
 in Python. Pants is simple, fast and elegant.
 
@@ -23,12 +25,6 @@ repository:
 
 Pants requires [Python 2.7](http://python.org/) - Python 3 is not yet
 supported.
-
-Community
-=========
-Pants has a small but active community of developers who congregate in the IRC
-channel [#pantspowered](http://webchat.freenode.net/?channels=pantspowered) on
-irc.freenode.net.
 
 Examples
 ========
